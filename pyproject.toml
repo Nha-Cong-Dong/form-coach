@@ -1,0 +1,16 @@
+# Chỉ cấu hình công cụ. Thư viện nằm trong requirements*.txt, cài bằng pip trong env conda `formcoach`.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Ruff mới format cả code block trong Markdown; docs là bản phác thảo nên giữ nguyên.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+# E/F: lỗi cơ bản, I: sắp xếp import, UP: cú pháp Python mới, B: bug hay gặp
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Cho phép test `import formcoach` khi chạy pytest từ gốc repo, không cần cài package.
+pythonpath = ["."]

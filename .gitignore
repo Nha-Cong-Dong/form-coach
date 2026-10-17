@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dữ liệu cá nhân và kết quả
+data/
+outputs/
+*.mp4
+*.mov
+*.avi
+*.npy
+*.npz
+
+# Model đã train
+*.pkl
+*.joblib
+*.pt
+*.pth
+
+# Bí mật
+.env
+.env.*
+
+# Claude Code (cấu hình cá nhân)
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Kế hoạch làm việc (theo dõi cá nhân)
+docs/plans/
