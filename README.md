@@ -354,11 +354,6 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 
 **Không dạy sâu:** kiến trúc bên trong pose model, DL thị giác, React/frontend, hạ tầng quy mô lớn. LLM chỉ là lớp mỏng.
 
-### Giá trị cho CV (đánh giá thẳng)
-- **Điểm cộng:** dữ liệu tự tạo, quy trình ML đầy đủ, có số liệu và hạn chế rõ ràng, sản phẩm chạy thật, demo trực quan.
-- **Điểm yếu:** ý tưởng không mới (đếm rep bằng MediaPipe đã có nhiều người làm). Giá trị nằm ở **cách đánh giá, phân tích** và việc đưa được nó thành sản phẩm.
-- **Cách tăng giá trị:** bảng kết quả kèm sai số, có test, video demo, link app, và vài dòng "điều tôi học được và đã sai ở đâu".
-
 ---
 
 ## 14. Việc cần làm tiếp
@@ -367,4 +362,4 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 - [ ] Chọn chỗ đặt điện thoại để quay push-up từ bên hông, sát sàn
 - [ ] Quay thử 1 clip push-up, chạy MediaPipe để xem pose có ổn không
 - [ ] Điền tiêu chí nhãn cho push-up trong `docs/labeling-criteria.md`
-- [ ] Lập lại plan tuần 1 cho push-up + trang quay (plan mode)
+- [x] Lập lại plan tuần 1 cho push-up + trang quay (plan mode)
