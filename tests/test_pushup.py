@@ -1,0 +1,59 @@
+from formcoach.exercises import PushUp
+from formcoach.pose.joints import MEDIAPIPE_JOINTS
+
+
+def test_primary_signal_is_an_angle() -> None:
+    ex = PushUp()
+    assert ex.primary_signal() in ex.angle_definitions()
+
+
+def test_all_joints_exist_in_mediapipe_on_both_sides() -> None:
+    ex = PushUp()
+    joints = {j for triple in ex.angle_definitions().values() for j in triple}
+    joints |= {j for pair in ex.tilt_definitions().values() for j in pair}
+    for j in joints:
+        assert f"left_{j}" in MEDIAPIPE_JOINTS, j
+        assert f"right_{j}" in MEDIAPIPE_JOINTS, j
+
+
+def test_each_angle_uses_three_distinct_joints() -> None:
+    for a, b, c in PushUp().angle_definitions().values():
+        assert len({a, b, c}) == 3
+
+
+def test_good_is_not_an_error_label() -> None:
+    labels = PushUp.error_labels
+    assert "good" not in labels
+    assert len(set(labels)) == len(labels)
+
+
+def test_hysteresis_gap() -> None:
+    th = PushUp().phase_thresholds()
+    assert th["descent_trigger"] < th["top_min"]
+
+
+def test_required_phase_keys() -> None:
+    th = PushUp().phase_thresholds()
+    for key in (
+        "top_min",
+        "descent_trigger",
+        "ready_hold_s",
+        "ready_max_tilt_deg",
+        "min_rep_duration_s",
+        "smoothing_window_s",
+    ):
+        assert key in th, key
+
+
+def test_time_thresholds_are_seconds() -> None:
+    # Quy ước: ngưỡng thời gian có hậu tố _s và là số dương (giây, không phải số frame).
+    th = PushUp().phase_thresholds()
+    time_keys = [k for k in th if k.endswith("_s")]
+    assert time_keys
+    for k in time_keys:
+        assert 0 < th[k] < 10, k
+
+
+def test_ready_tilt_is_between_plank_and_standing() -> None:
+    tilt = PushUp().phase_thresholds()["ready_max_tilt_deg"]
+    assert 0 < tilt < 90

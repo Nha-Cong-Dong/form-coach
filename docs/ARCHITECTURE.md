@@ -112,6 +112,9 @@ class Exercise(ABC):
     def angle_definitions(self) -> dict[str, tuple[str, str, str]]: ...
         # tên góc -> (khớp A, khớp đỉnh B, khớp C), ví dụ "elbow_angle": ("shoulder", "elbow", "wrist")
         # tên khớp không có bên; FeatureExtractor chọn left_/right_ cho cả hiệp
+    def tilt_definitions(self) -> dict[str, tuple[str, str]]: ...   # mặc định {}
+        # tên tín hiệu -> (khớp A, khớp B): góc đoạn A→B so với phương ngang (0° nằm, 90° đứng)
+        # ví dụ "body_tilt": ("shoulder", "ankle") để biết đang plank hay đang đứng
     def primary_signal(self) -> str: ...    # tín hiệu dùng để cắt rep, ví dụ "elbow_angle"
     def phase_thresholds(self) -> dict[str, float]: ...  # ngưỡng cho máy trạng thái
         # góc tính bằng độ; thời gian tính bằng giây, tên có hậu tố _s (ví dụ "min_rep_duration_s")
@@ -179,7 +182,7 @@ goals     (id, user_id, exercise, daily_reps, min_good_ratio, from_date)
 formcoach/             # lõi Python, không phụ thuộc web/DB
  ├── types.py          # dataclass ở mục 2
  ├── exercises/        # Exercise, PushUp, Squat
- ├── pose/             # PoseEstimator, MediaPipeEstimator (offline), cache, load_session_json
+ ├── pose/             # joints (33 tên khớp), PoseEstimator, MediaPipeEstimator (offline), load_session_json
  ├── features/         # geometry (tính góc), smoothing, FeatureExtractor, RepSegmenter, OnlineRepCounter
  ├── models/           # FormClassifier, RuleBased, RandomForest
  ├── coach/            # Coach, TemplateCoach, DeepSeekCoach
@@ -226,4 +229,5 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-17 — Nhãn multi-label: mỗi rep một tập lỗi, rỗng = good.** `RepResult.label/confidence` → `errors/scores`, `Exercise.labels` → `error_labels`, `FormClassifier.fit` nhận tập lỗi. — Lỗi push-up nằm ở các bộ phận khác nhau và hay xảy ra cùng lúc (nhất là khi mệt); single-label buộc chọn theo ưu tiên, mất thông tin và làm lẫn các lớp. — Đã loại: single-label có thứ tự ưu tiên. Hệ quả: đánh giá theo từng lỗi (precision/recall/F1, ma trận 2×2), cần đủ mẫu dương cho mỗi lỗi.
 - **2026-10-17 — Push-up thêm `incomplete_lockout` và `neck_drop` (thử nghiệm).** — `incomplete_lockout` đo dễ (góc khuỷu lớn nhất ở đỉnh rep). `neck_drop` có thể nhiễu vì khớp mặt khi quay ngang kém chính xác: vẫn gán nhãn, chỉ train nếu dữ liệu cho thấy tách được. — Đã loại: chỉ 4 nhãn cũ.
 - **2026-10-17 — `not_ready` không phải nhãn lỗi.** Bộ đếm có trạng thái "chờ sẵn sàng"; rep cắt nhầm đánh dấu `valid = false` lúc gán nhãn. — "Đây có phải rep không" và "rep sai ở đâu" là hai câu hỏi khác nhau, gộp vào một classifier làm nó khó học. — Đã loại: thêm lớp `not_ready` cho classifier.
+- **2026-10-19 — Thêm `Exercise.tilt_definitions()` (mặc định `{}`).** PushUp: `body_tilt = (shoulder, ankle)`. — Trạng thái "chờ sẵn sàng" phải phân biệt plank thẳng tay với đứng buông tay; cả hai có góc khuỷu ~160–170°, chỉ khác thân nằm hay đứng. Góc 3 khớp không đo được độ nghiêng so với phương ngang. — Đã loại: dùng góc vai–hông–cổ chân (thẳng ~180° cả khi đứng lẫn khi plank); thêm "khớp ảo" nằm ngang vào `angle_definitions` (khó hiểu).
 - **2026-10-17 — Coach dùng DeepSeek API, dự phòng bằng `TemplateCoach`.** — Nhận xét tự nhiên, chi phí thấp; chỉ gửi số liệu, không gửi hình ảnh. Cần kiểm tra docs API khi làm (chưa xác minh độ tương thích với thư viện `openai`). — Đã loại: chỉ mẫu câu; model local.
