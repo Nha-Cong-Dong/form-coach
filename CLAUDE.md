@@ -12,6 +12,7 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 - **Không tự ý thêm tính năng** ngoài README. Có ý hay thì đề xuất, chờ mình đồng ý.
 - **Khi mình hỏi "tại sao"**, trả lời khái niệm trước, code sau.
 - Nếu không chắc về API của một thư viện (MediaPipe, scikit-learn...), nói rõ là không chắc và đề xuất cách kiểm tra, đừng đoán.
+- **Code xong thì tóm tắt thay đổi:** liệt kê file đã thêm và file đã sửa, mỗi file một dòng nói nó làm gì hoặc sửa gì và để làm gì. Ngắn gọn, không dán lại code.
 
 ## Phần đánh giá và dữ liệu
 
