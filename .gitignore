@@ -20,7 +20,9 @@ outputs/
 *.npy
 *.npz
 
-# Model đã train
+# Model đã train và model tải về (MediaPipe .task)
+assets/
+*.task
 *.pkl
 *.joblib
 *.pt
