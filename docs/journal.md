@@ -24,4 +24,4 @@ Mẫu:
 - **Chuyện gì xảy ra:** Clip mixed có 6 rep, bộ đếm ra 4, sót 2 rep hông nhô cao (nông, nhanh). Test tổng hợp vẫn xanh hết.
 - **Nguyên nhân:** Đặt min_rep_duration 0,8 s vì nghĩ một rep dài ~2,4 s. Nhưng 2,4 s là chu kỳ đáy–đáy, còn bộ đếm đo thời gian khuỷu nằm dưới top_min; rep nhanh chỉ ~0,7 s nên bị loại như nhiễu.
 - **Cách sửa:** Hạ về 0,4 s, thêm test rep nông và nhanh (kiểm tra test đỏ với 0,8 s).
-- **Bài học:** Biết chính xác con số đo cái gì trước khi đặt ngưỡng, và luôn thử trên dữ liệu thật — test tự viết mang cùng hiểu lầm với người viết.
+- **Bài học:** Biết chính xác con số đo cái gì trước khi đặt ngưỡng, và luôn thử trên dữ liệu thật - test tự viết mang cùng hiểu lầm với người viết.
