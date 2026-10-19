@@ -1,6 +1,6 @@
 # 🏋️ Form Coach: AI phân tích kỹ thuật tập luyện qua camera
 
-> **Trạng thái:** đang làm tuần 1 (khung dự án xong).
+> **Trạng thái:** xong tuần 1 (đếm rep push-up + trang quay trên điện thoại); sắp sang tuần 2.
 
 > **Mục tiêu chính:** học qua vibe code. Hiểu được thứ AI viết ra quan trọng hơn tốc độ.
 
@@ -270,10 +270,10 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 | **4** | Coach DeepSeek + mẫu câu | Dashboard mục tiêu/streak/đồ thị, PWA, **deploy** | Sản phẩm demo được |
 
 ### Checklist
-- [ ] **Ngày 1:** MediaPipe chạy trên một clip push-up, xem pose có ổn không (rủi ro cao nhất)
-- [ ] Tuần 1: đồ thị góc khuỷu theo thời gian, thấy được các "sóng" của rep
-- [ ] Tuần 1: đếm rep đúng trên 5 clip thử
-- [ ] Tuần 1: trang quay chạy trên điện thoại (HTTPS), xuất được JSON keypoint
+- [x] **Ngày 1:** MediaPipe chạy trên một clip push-up, xem pose có ổn không (rủi ro cao nhất)
+- [x] Tuần 1: đồ thị góc khuỷu theo thời gian, thấy được các "sóng" của rep
+- [x] Tuần 1: đếm rep đúng trên 4 clip thử (3 video + 1 hiệp quay bằng app: 6/7/6/5 rep)
+- [x] Tuần 1: trang quay chạy trên điện thoại (HTTPS), xuất được JSON keypoint
 - [ ] Tuần 2: viết tiêu chí nhãn trước khi quay
 - [ ] Tuần 2: quay nhiều buổi khác nhau (không chỉ một buổi dài)
 - [ ] Tuần 2: gán nhãn trong app + `reps.csv`
@@ -359,7 +359,9 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 ## 14. Việc cần làm tiếp
 
 - [x] Khung dự án (bước 0)
-- [ ] Chọn chỗ đặt điện thoại để quay push-up từ bên hông, sát sàn
-- [ ] Quay thử 1 clip push-up, chạy MediaPipe để xem pose có ổn không
+- [x] Chọn chỗ đặt điện thoại để quay push-up từ bên hông, sát sàn
+- [x] Quay thử 1 clip push-up, chạy MediaPipe để xem pose có ổn không
 - [ ] Điền tiêu chí nhãn cho push-up trong `docs/labeling-criteria.md`
 - [x] Lập lại plan tuần 1 cho push-up + trang quay (plan mode)
+- [x] Tuần 1: pose offline, đếm rep, trang quay, backend nhận file, lệnh `python -m formcoach analyze`
+- [ ] Lập plan tuần 2 (plan mode): gán nhãn, đặc trưng lỗi, baseline luật, quay dataset
