@@ -52,6 +52,8 @@ ruff format .            # format
 # công cụ trong tools/: chạy dạng module từ gốc repo (python tools/x.py không thấy package formcoach)
 python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
 python -m tools.plot_signals data/videos/<clip>.mp4      # đồ thị góc theo thời gian
+
+uvicorn backend.app:app --port 8000      # backend; xem/thử API ở http://127.0.0.1:8000/docs
 ```
 
 (Cập nhật khi đã có entrypoint, ví dụ `python -m formcoach analyze <video>`.)
