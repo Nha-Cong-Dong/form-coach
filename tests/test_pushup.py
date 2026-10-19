@@ -42,6 +42,7 @@ def test_required_phase_keys() -> None:
         "min_rep_duration_s",
         "smoothing_window_s",
         "max_gap_s",
+        "min_joint_visibility",
     ):
         assert key in th, key
 
