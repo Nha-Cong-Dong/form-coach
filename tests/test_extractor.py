@@ -11,8 +11,11 @@ FPS = 30.0
 
 
 def expected_elbow(t: np.ndarray) -> np.ndarray:
-    """Góc khuỷu đáp án: 165° ở đỉnh, 90° ở đáy, 5 rep trong 10 giây."""
-    return 165.0 - 75.0 * np.abs(np.sin(np.pi * t / 2))
+    """Góc khuỷu đáp án: 165° ở đỉnh, 90° ở đáy, 5 rep trong 10 giây.
+
+    Dạng cos trơn như chuyển động thật (khuỷu không đổi chiều đột ngột như đỉnh nhọn của |sin|).
+    """
+    return 127.5 + 37.5 * np.cos(2 * np.pi * t / 2.0)
 
 
 def make_pose(
@@ -51,17 +54,26 @@ def make_pose(
     return PoseSequence(keypoints=kp, joint_names=list(MEDIAPIPE_JOINTS), fps=FPS, frame_size=SIZE)
 
 
-def test_elbow_angle_matches_formula() -> None:
+def test_raw_elbow_angle_matches_formula() -> None:
+    pose = make_pose()
+    feats = FeatureExtractor().extract(pose, PushUp())
+    t = np.arange(len(pose.keypoints)) / FPS
+    np.testing.assert_allclose(feats.signals["elbow_angle_raw"], expected_elbow(t), atol=0.5)
+    assert feats.fps == FPS
+
+
+def test_smoothed_elbow_stays_close_to_formula() -> None:
+    # Tín hiệu đã trơn thì làm mượt gần như không đổi nó.
     pose = make_pose()
     feats = FeatureExtractor().extract(pose, PushUp())
     t = np.arange(len(pose.keypoints)) / FPS
     np.testing.assert_allclose(feats.signals["elbow_angle"], expected_elbow(t), atol=0.5)
-    assert feats.fps == FPS
 
 
-def test_returns_all_defined_signals() -> None:
+def test_returns_smoothed_and_raw_signals() -> None:
     feats = FeatureExtractor().extract(make_pose(), PushUp())
-    assert set(feats.signals) == {"elbow_angle", "body_angle", "body_tilt"}
+    names = {"elbow_angle", "body_angle", "body_tilt"}
+    assert set(feats.signals) == names | {f"{n}_raw" for n in names}
     for sig in feats.signals.values():
         assert sig.shape == (300,)
 
@@ -90,17 +102,25 @@ def test_left_visible_still_gives_correct_angle() -> None:
     pose = make_pose(visible_side="left")
     feats = FeatureExtractor().extract(pose, PushUp())
     t = np.arange(len(pose.keypoints)) / FPS
-    np.testing.assert_allclose(feats.signals["elbow_angle"], expected_elbow(t), atol=0.5)
+    np.testing.assert_allclose(feats.signals["elbow_angle_raw"], expected_elbow(t), atol=0.5)
 
 
-def test_nan_frame_gives_nan_only_at_that_frame() -> None:
+def test_short_nan_gap_is_filled_but_raw_keeps_nan() -> None:
     pose = make_pose()
     pose.keypoints[100] = np.nan  # khung 100 không thấy người
     feats = FeatureExtractor().extract(pose, PushUp())
-    elbow = feats.signals["elbow_angle"]
-    assert np.isnan(elbow[100])
-    assert np.isfinite(np.delete(elbow, 100)).all()
+    raw = feats.signals["elbow_angle_raw"]
+    assert np.isnan(raw[100])
+    assert np.isfinite(np.delete(raw, 100)).all()
+    assert np.isfinite(feats.signals["elbow_angle"]).all()  # lỗ 1 khung < max_gap → được lấp
     assert choose_side(pose, PushUp()) == "right"  # khung NaN không làm hỏng việc chọn bên
+
+
+def test_long_nan_gap_stays_nan() -> None:
+    pose = make_pose()
+    pose.keypoints[100:160] = np.nan  # mất người 2 giây, dài hơn max_gap_s
+    feats = FeatureExtractor().extract(pose, PushUp())
+    assert np.isnan(feats.signals["elbow_angle"][100:160]).all()
 
 
 def test_all_nan_does_not_crash() -> None:

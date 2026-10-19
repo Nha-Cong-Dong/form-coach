@@ -1,8 +1,8 @@
-"""Vẽ các tín hiệu push-up theo thời gian để nhìn bằng mắt và chỉnh ngưỡng (bước 5).
+"""Vẽ các tín hiệu push-up theo thời gian và các rep đếm được, để kiểm tra bằng mắt.
 
-Chạy MediaPipe trên video → FeatureExtractor → vẽ 4 đồ thị chung trục thời gian:
-góc khuỷu (kèm 2 ngưỡng đếm rep), góc thân, độ nghiêng thân (kèm ngưỡng sẵn sàng),
-visibility khuỷu hai bên. Lưu PNG và in thống kê để điền phase_thresholds của PushUp.
+Chạy MediaPipe trên video → FeatureExtractor → RepSegmenter → vẽ 4 đồ thị chung trục thời gian:
+góc khuỷu (thô + đã làm mượt, 2 ngưỡng đếm rep, vùng tô từng rep), góc thân, độ nghiêng thân
+(kèm ngưỡng sẵn sàng), visibility khuỷu hai bên. Lưu PNG, in thống kê và danh sách rep.
 
 Chạy từ gốc repo, dạng module (để Python tìm thấy package formcoach):
     python -m tools.plot_signals data/videos/pushup_clean.mp4
@@ -19,6 +19,7 @@ from matplotlib.figure import Figure  # vẽ thẳng ra file, không cần mở 
 
 from formcoach.exercises import PushUp
 from formcoach.features.extractor import FeatureExtractor, choose_side, side_visibility
+from formcoach.features.segmenter import RepSegmenter
 from formcoach.pose.mediapipe_estimator import MediaPipeEstimator
 
 
@@ -51,14 +52,34 @@ def main() -> None:
     print(f"== {args.video.name}: {len(t)} khung, {t[-1]:.1f} s, {pose.fps:.2f} fps")
     print(f"Bên dùng: {side} (visibility TB trái {vis['left']:.2f}, phải {vis['right']:.2f})")
     for name, sig in feats.signals.items():
-        print(describe(name, sig))
+        if not name.endswith("_raw"):
+            print(describe(name, sig))
+
+    reps = RepSegmenter().segment(feats, exercise)
+    print(f"\nĐếm được {len(reps)} rep:")
+    for r in reps:
+        f = r.features
+        print(
+            f"  rep {r.index + 1}: {r.start_frame / pose.fps:5.1f}–{r.end_frame / pose.fps:5.1f} s"
+            f"  dài {f['duration_s']:.1f} s  khuỷu thấp nhất {f['min_elbow_angle']:5.1f}°"
+            f"  thân thấp nhất {f['min_body_angle']:5.1f}°"
+        )
 
     elbow_idx = {s: pose.joint_names.index(f"{s}_elbow") for s in ("left", "right")}
     fig = Figure(figsize=(14, 11))
     axes = fig.subplots(4, 1, sharex=True)
 
+    for r in reps:  # tô vùng từng rep trên mọi đồ thị
+        for ax in axes:
+            ax.axvspan(
+                r.start_frame / pose.fps, r.end_frame / pose.fps, color="tab:green", alpha=0.1
+            )
+        mid = (r.start_frame + r.end_frame) / 2 / pose.fps
+        axes[0].text(mid, 175, str(r.index + 1), ha="center", fontsize=11, color="tab:green")
+
     ax = axes[0]
-    ax.plot(t, feats.signals["elbow_angle"], color="tab:blue", lw=1.2)
+    ax.plot(t, feats.signals["elbow_angle_raw"], color="tab:blue", lw=0.8, alpha=0.35, label="thô")
+    ax.plot(t, feats.signals["elbow_angle"], color="tab:blue", lw=1.4, label="đã làm mượt")
     ax.axhline(th["top_min"], color="tab:green", ls="--", label=f"top_min {th['top_min']:.0f}°")
     ax.axhline(
         th["descent_trigger"],
@@ -68,7 +89,8 @@ def main() -> None:
     )
     ax.set_ylabel("góc khuỷu (°)")
     ax.legend(loc="lower right")
-    ax.set_title(f"{args.video.name} — bên {side}, chưa làm mượt")
+    ax.set_ylim(50, 185)
+    ax.set_title(f"{args.video.name} — bên {side}, đếm được {len(reps)} rep (vùng xanh)")
 
     axes[1].plot(t, feats.signals["body_angle"], color="tab:purple", lw=1.2)
     axes[1].set_ylabel("góc thân vai–hông–cổ chân (°)")

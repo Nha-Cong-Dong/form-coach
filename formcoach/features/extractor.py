@@ -1,6 +1,7 @@
 """Từ khung xương (PoseSequence) ra các tín hiệu theo thời gian (FeatureSeries).
 
-Bước này chưa làm mượt: tín hiệu trả về là góc thô từng khung (bước 6 sẽ thêm làm mượt).
+Mỗi tín hiệu có hai bản: `<tên>` đã lấp lỗ NaN ngắn và làm mượt (dùng để đếm rep),
+`<tên>_raw` là góc thô từng khung (để vẽ so sánh).
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ import numpy as np
 
 from formcoach.exercises.base import Exercise
 from formcoach.features.geometry import joint_angle, segment_tilt, to_pixel_space
+from formcoach.features.smoothing import interpolate_gaps, smooth
 from formcoach.types import FeatureSeries, PoseSequence
 
 SIDES = ("left", "right")
@@ -66,9 +68,17 @@ class FeatureExtractor:
                 pose.keypoints[:, _index(pose, f"{side}_{joint}"), :2], pose.frame_size
             )
 
-        signals: dict[str, np.ndarray] = {}
+        raw: dict[str, np.ndarray] = {}
         for name, (a, b, c) in exercise.angle_definitions().items():
-            signals[name] = joint_angle(xy(a), xy(b), xy(c))
+            raw[name] = joint_angle(xy(a), xy(b), xy(c))
         for name, (a, b) in exercise.tilt_definitions().items():
-            signals[name] = segment_tilt(xy(a), xy(b))
+            raw[name] = segment_tilt(xy(a), xy(b))
+
+        th = exercise.phase_thresholds()
+        max_gap = int(round(th["max_gap_s"] * pose.fps))
+        signals: dict[str, np.ndarray] = {}
+        for name, values in raw.items():
+            filled = interpolate_gaps(values, max_gap)
+            signals[name] = smooth(filled, pose.fps, th["smoothing_window_s"])
+            signals[f"{name}_raw"] = values
         return FeatureSeries(signals=signals, fps=pose.fps)

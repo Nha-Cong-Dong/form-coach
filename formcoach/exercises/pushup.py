@@ -37,10 +37,14 @@ class PushUp(Exercise):
             "ready_hold_s": 0.5,
             # Thân nghiêng quá góc này so với phương ngang = không phải plank (đứng, quỳ).
             "ready_max_tilt_deg": 35.0,
-            # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua. Rep thật ~2,4 s nên 0,8 s còn xa.
-            "min_rep_duration_s": 0.8,
+            # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua. "Thời lượng" = lúc khuỷu rời khỏi
+            # vùng trên top_min tới lúc quay lại (không phải chu kỳ đáy-đáy ~2,4 s). Đo được:
+            # rep thường 1,1–1,7 s, rep nông/nhanh (hông nhô cao) chỉ ~0,7 s → 0,8 s làm sót rep.
+            "min_rep_duration_s": 0.4,
             # Cửa sổ làm mượt Savitzky–Golay.
             "smoothing_window_s": 0.25,
+            # Lỗ NaN (mất người) ngắn hơn ngần này thì nội suy lấp; dài hơn giữ NaN.
+            "max_gap_s": 0.3,
         }
 
     def rule_thresholds(self) -> dict[str, float]:

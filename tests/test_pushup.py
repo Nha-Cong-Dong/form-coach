@@ -41,6 +41,7 @@ def test_required_phase_keys() -> None:
         "ready_max_tilt_deg",
         "min_rep_duration_s",
         "smoothing_window_s",
+        "max_gap_s",
     ):
         assert key in th, key
 
