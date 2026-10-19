@@ -36,7 +36,7 @@ class PushUp(Exercise):
             # Thân nghiêng quá góc này so với phương ngang = không phải plank (đứng, quỳ).
             "ready_max_tilt_deg": 35.0,
             # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua.
-            "min_rep_duration_s": 0.6,
+            "min_rep_duration_s": 0.4,
             # Cửa sổ làm mượt Savitzky–Golay.
             "smoothing_window_s": 0.25,
         }
