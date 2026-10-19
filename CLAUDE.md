@@ -49,9 +49,12 @@ pytest                   # chạy test (test_web_format cần Node ≥ 22.18 tro
 ruff check .             # lint
 ruff format .            # format
 
+# đếm rep một hiệp: file JSON từ trang quay hoặc video offline; --plot vẽ đồ thị ra outputs/
+python -m formcoach analyze data/sessions/pushup/<session_id>.json --plot
+python -m formcoach analyze data/videos/<clip>.mp4
+
 # công cụ trong tools/: chạy dạng module từ gốc repo (python tools/x.py không thấy package formcoach)
 python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
-python -m tools.plot_signals data/videos/<clip>.mp4      # đồ thị góc theo thời gian
 
 uvicorn backend.app:app --port 8000      # backend; xem/thử API ở http://127.0.0.1:8000/docs
 
@@ -61,8 +64,6 @@ cd web && npm run dev                     # https://localhost:5173 và https://<
 cd web && npm run build && npm run lint   # kiểm tra TypeScript + oxlint
 ```
 Chỉ chạy `npm run dev` trên mạng tin cậy (nhà, hotspot của mình): dev server mở ra mạng LAN.
-
-(Cập nhật khi đã có entrypoint, ví dụ `python -m formcoach analyze <video>`.)
 
 ## Skill có sẵn
 
