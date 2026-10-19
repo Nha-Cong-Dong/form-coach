@@ -1,12 +1,13 @@
 """Vẽ các tín hiệu push-up theo thời gian và các rep đếm được, để kiểm tra bằng mắt.
 
-Chạy MediaPipe trên video → FeatureExtractor → RepSegmenter → vẽ 4 đồ thị chung trục thời gian:
+Đầu vào là video (.mp4, chạy MediaPipe Python) hoặc file JSON từ trang quay (MediaPipe JS)
+→ FeatureExtractor → RepSegmenter → vẽ 4 đồ thị chung trục thời gian:
 góc khuỷu (thô + đã làm mượt, 2 ngưỡng đếm rep, vùng tô từng rep), góc thân, độ nghiêng thân
 (kèm ngưỡng sẵn sàng), visibility khuỷu hai bên. Lưu PNG, in thống kê và danh sách rep.
 
 Chạy từ gốc repo, dạng module (để Python tìm thấy package formcoach):
     python -m tools.plot_signals data/videos/pushup_clean.mp4
-(Bước 10 sẽ cho nhận thêm file JSON từ trang quay.)
+    python -m tools.plot_signals data/sessions/pushup/<session_id>.json
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from matplotlib.figure import Figure  # vẽ thẳng ra file, không cần mở 
 from formcoach.exercises import PushUp
 from formcoach.features.extractor import FeatureExtractor, choose_side, side_visibility
 from formcoach.features.segmenter import RepSegmenter
-from formcoach.pose.mediapipe_estimator import MediaPipeEstimator
+from formcoach.pose.session_json import load_session_json
 
 
 def describe(name: str, x: np.ndarray) -> str:
@@ -36,20 +37,28 @@ def describe(name: str, x: np.ndarray) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("video", type=Path)
+    parser.add_argument("source", type=Path, help="video .mp4 hoặc file JSON từ trang quay")
     parser.add_argument("--model", type=Path, default=Path("assets/pose_landmarker_full.task"))
     parser.add_argument("--out", type=Path, default=Path("outputs"))
     args = parser.parse_args()
 
     exercise = PushUp()
-    pose = MediaPipeEstimator(args.model).estimate(args.video)
+    if args.source.suffix.lower() == ".json":
+        pose, meta = load_session_json(args.source)
+        # Trang quay có t_ms thật cho từng khung (không đều): dùng luôn làm trục thời gian.
+        t = (meta.timestamps_ms - meta.timestamps_ms[0]) / 1000
+    else:
+        # Import trễ: chỉ đường video mới cần MediaPipe Python.
+        from formcoach.pose.mediapipe_estimator import MediaPipeEstimator
+
+        pose = MediaPipeEstimator(args.model).estimate(args.source)
+        t = np.arange(len(pose.keypoints)) / pose.fps
     feats = FeatureExtractor().extract(pose, exercise)
     th = exercise.phase_thresholds()
     side = choose_side(pose, exercise)
     vis = side_visibility(pose, exercise)
-    t = np.arange(len(pose.keypoints)) / pose.fps
 
-    print(f"== {args.video.name}: {len(t)} khung, {t[-1]:.1f} s, {pose.fps:.2f} fps")
+    print(f"== {args.source.name}: {len(t)} khung, {t[-1]:.1f} s, {pose.fps:.2f} fps")
     print(f"Bên dùng: {side} (visibility TB trái {vis['left']:.2f}, phải {vis['right']:.2f})")
     for name, sig in feats.signals.items():
         if not name.endswith("_raw"):
@@ -60,7 +69,7 @@ def main() -> None:
     for r in reps:
         f = r.features
         print(
-            f"  rep {r.index + 1}: {r.start_frame / pose.fps:5.1f}–{r.end_frame / pose.fps:5.1f} s"
+            f"  rep {r.index + 1}: {t[r.start_frame]:5.1f}–{t[r.end_frame]:5.1f} s"
             f"  dài {f['duration_s']:.1f} s  khuỷu thấp nhất {f['min_elbow_angle']:5.1f}°"
             f"  thân thấp nhất {f['min_body_angle']:5.1f}°"
         )
@@ -71,10 +80,8 @@ def main() -> None:
 
     for r in reps:  # tô vùng từng rep trên mọi đồ thị
         for ax in axes:
-            ax.axvspan(
-                r.start_frame / pose.fps, r.end_frame / pose.fps, color="tab:green", alpha=0.1
-            )
-        mid = (r.start_frame + r.end_frame) / 2 / pose.fps
+            ax.axvspan(t[r.start_frame], t[r.end_frame], color="tab:green", alpha=0.1)
+        mid = (t[r.start_frame] + t[r.end_frame]) / 2
         axes[0].text(mid, 175, str(r.index + 1), ha="center", fontsize=11, color="tab:green")
 
     ax = axes[0]
@@ -90,7 +97,7 @@ def main() -> None:
     ax.set_ylabel("góc khuỷu (°)")
     ax.legend(loc="lower right")
     ax.set_ylim(50, 185)
-    ax.set_title(f"{args.video.name} — bên {side}, đếm được {len(reps)} rep (vùng xanh)")
+    ax.set_title(f"{args.source.name} — bên {side}, đếm được {len(reps)} rep (vùng xanh)")
 
     axes[1].plot(t, feats.signals["body_angle"], color="tab:purple", lw=1.2)
     axes[1].set_ylabel("góc thân vai–hông–cổ chân (°)")
@@ -119,7 +126,7 @@ def main() -> None:
         ax.grid(alpha=0.3)
     fig.tight_layout()
     args.out.mkdir(parents=True, exist_ok=True)
-    path = args.out / f"{args.video.stem}_signals.png"
+    path = args.out / f"{args.source.stem}_signals.png"
     fig.savefig(path, dpi=110)
     print(f"Đồ thị: {path}")
 

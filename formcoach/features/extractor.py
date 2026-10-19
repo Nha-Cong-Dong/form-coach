@@ -1,7 +1,8 @@
 """Từ khung xương (PoseSequence) ra các tín hiệu theo thời gian (FeatureSeries).
 
-Mỗi tín hiệu có hai bản: `<tên>` đã lấp lỗ NaN ngắn và làm mượt (dùng để đếm rep),
-`<tên>_raw` là góc thô từng khung (để vẽ so sánh).
+Mỗi tín hiệu có hai bản: `<tên>` đã bỏ khung có khớp mờ (visibility < min_joint_visibility),
+lấp lỗ NaN ngắn và làm mượt (dùng để đếm rep); `<tên>_raw` là góc thô từng khung, không lọc
+(để vẽ so sánh).
 """
 
 from __future__ import annotations
@@ -62,23 +63,35 @@ class FeatureExtractor:
     def extract(self, pose: PoseSequence, exercise: Exercise) -> FeatureSeries:
         side = choose_side(pose, exercise)
 
+        th = exercise.phase_thresholds()
+
         def xy(joint: str) -> np.ndarray:
             # Lấy (T, 2) của một khớp ở bên đã chọn, đổi sang pixel trước khi tính góc.
             return to_pixel_space(
                 pose.keypoints[:, _index(pose, f"{side}_{joint}"), :2], pose.frame_size
             )
 
+        def reliable(joints: tuple[str, ...]) -> np.ndarray:
+            # (T,) True khi MỌI khớp tạo nên góc đều nhìn rõ. Khớp mờ = MediaPipe đoán bừa,
+            # góc tính từ đó là rác (vd lúc đi sát điện thoại để bấm Xong).
+            vis = pose.keypoints[:, [_index(pose, f"{side}_{j}") for j in joints], 2]
+            return np.nan_to_num(vis, nan=0.0).min(axis=1) >= th["min_joint_visibility"]
+
         raw: dict[str, np.ndarray] = {}
+        masks: dict[str, np.ndarray] = {}
         for name, (a, b, c) in exercise.angle_definitions().items():
             raw[name] = joint_angle(xy(a), xy(b), xy(c))
+            masks[name] = reliable((a, b, c))
         for name, (a, b) in exercise.tilt_definitions().items():
             raw[name] = segment_tilt(xy(a), xy(b))
+            masks[name] = reliable((a, b))
 
-        th = exercise.phase_thresholds()
         max_gap = int(round(th["max_gap_s"] * pose.fps))
         signals: dict[str, np.ndarray] = {}
         for name, values in raw.items():
-            filled = interpolate_gaps(values, max_gap)
+            # Bỏ khung không tin được → NaN; lỗ ngắn được lấp, lỗ dài giữ NaN (bộ đếm về chờ).
+            trusted = np.where(masks[name], values, np.nan)
+            filled = interpolate_gaps(trusted, max_gap)
             signals[name] = smooth(filled, pose.fps, th["smoothing_window_s"])
-            signals[f"{name}_raw"] = values
+            signals[f"{name}_raw"] = values  # bản thô giữ nguyên, kể cả khung bị loại
         return FeatureSeries(signals=signals, fps=pose.fps)

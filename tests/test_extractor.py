@@ -3,8 +3,10 @@ import pytest
 
 from formcoach.exercises import PushUp
 from formcoach.features.extractor import FeatureExtractor, choose_side, side_visibility
+from formcoach.features.segmenter import RepSegmenter
 from formcoach.pose.joints import MEDIAPIPE_JOINTS
 from formcoach.types import PoseSequence
+from tests.synthetic import plank_keypoints
 
 SIZE = (1280, 720)
 FPS = 30.0
@@ -121,6 +123,46 @@ def test_long_nan_gap_stays_nan() -> None:
     pose.keypoints[100:160] = np.nan  # mất người 2 giây, dài hơn max_gap_s
     feats = FeatureExtractor().extract(pose, PushUp())
     assert np.isnan(feats.signals["elbow_angle"][100:160]).all()
+
+
+# --- bỏ khung có khớp mờ (min_joint_visibility) ---
+
+
+def test_low_visibility_frames_are_dropped_but_raw_kept() -> None:
+    pose = make_pose()
+    elbow = MEDIAPIPE_JOINTS.index("right_elbow")
+    pose.keypoints[100:160, elbow, 2] = 0.2  # khuỷu mờ 2 giây
+    feats = FeatureExtractor().extract(pose, PushUp())
+    assert np.isnan(feats.signals["elbow_angle"][100:160]).all()  # góc khuỷu bị loại
+    assert np.isfinite(feats.signals["elbow_angle_raw"][100:160]).all()  # bản thô vẫn còn
+    # Độ nghiêng thân không dùng khuỷu nên không bị ảnh hưởng.
+    assert np.isfinite(feats.signals["body_tilt"][100:160]).all()
+
+
+def test_brief_visibility_dip_is_filled() -> None:
+    pose = make_pose()
+    pose.keypoints[100:104, MEDIAPIPE_JOINTS.index("right_wrist"), 2] = 0.3  # ~0,13 s
+    feats = FeatureExtractor().extract(pose, PushUp())
+    assert np.isfinite(feats.signals["elbow_angle"]).all()  # lỗ ngắn < max_gap_s được lấp
+
+
+def test_phantom_rep_from_blurry_joints_is_not_counted() -> None:
+    # Như hiệp quay 2026-10-19T23-38-38: 5 rep thật (khớp rõ), rồi đi sát điện thoại bấm Xong,
+    # khớp mờ (~0,2) và MediaPipe đoán ra một "rep" khuỷu gập sâu trong khi thân vẫn "nằm".
+    period = int(2.4 * FPS)
+    t = np.arange(5 * period) / FPS
+    real = 117.5 + 47.5 * np.cos(2 * np.pi * t / 2.4)
+    hold = np.full(30, 165.0)
+    junk = 117.5 + 47.5 * np.cos(2 * np.pi * np.arange(period) / period)  # trông như một rep
+    elbow = np.concatenate([hold, real, hold, hold, junk, hold])
+    kp = plank_keypoints(elbow)
+    junk_start = len(hold) + len(real) + 2 * len(hold)
+    side_joints = [MEDIAPIPE_JOINTS.index(f"right_{j}") for j in ("shoulder", "elbow", "wrist")]
+    kp[junk_start - 30 :, side_joints, 2] = 0.2  # từ lúc đứng dậy đi lại: khớp mờ
+    pose = PoseSequence(keypoints=kp, joint_names=list(MEDIAPIPE_JOINTS), fps=FPS, frame_size=SIZE)
+
+    feats = FeatureExtractor().extract(pose, PushUp())
+    assert len(RepSegmenter().segment(feats, PushUp())) == 5
 
 
 def test_all_nan_does_not_crash() -> None:

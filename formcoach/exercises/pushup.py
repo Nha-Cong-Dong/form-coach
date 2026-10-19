@@ -45,6 +45,10 @@ class PushUp(Exercise):
             "smoothing_window_s": 0.25,
             # Lỗ NaN (mất người) ngắn hơn ngần này thì nội suy lấp; dài hơn giữ NaN.
             "max_gap_s": 0.3,
+            # Khớp nào của một góc có visibility dưới ngưỡng này thì góc ở khung đó = NaN
+            # (MediaPipe đoán bừa). Lúc tập thật bên gần camera ~0,95; lúc đi lại sát điện thoại
+            # để bấm Xong tụt ~0,2 và đã tạo một rep ma (2026-10-19).
+            "min_joint_visibility": 0.5,
         }
 
     def rule_thresholds(self) -> dict[str, float]:
