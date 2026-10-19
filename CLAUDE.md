@@ -54,7 +54,13 @@ python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
 python -m tools.plot_signals data/videos/<clip>.mp4      # đồ thị góc theo thời gian
 
 uvicorn backend.app:app --port 8000      # backend; xem/thử API ở http://127.0.0.1:8000/docs
+
+# web/: Node 24 qua nvm (terminal mới tự dùng), thư viện ghi trong web/package.json
+cd web && npm install                     # lần đầu / khi package.json đổi
+cd web && npm run dev                     # https://localhost:5173 và https://<IP-laptop>:5173 cho điện thoại
+cd web && npm run build && npm run lint   # kiểm tra TypeScript + oxlint
 ```
+Chỉ chạy `npm run dev` trên mạng tin cậy (nhà, hotspot của mình): dev server mở ra mạng LAN.
 
 (Cập nhật khi đã có entrypoint, ví dụ `python -m formcoach analyze <video>`.)
 
