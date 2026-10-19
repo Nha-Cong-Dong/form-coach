@@ -48,6 +48,10 @@ pip install -r requirements.txt
 pytest                   # chạy test
 ruff check .             # lint
 ruff format .            # format
+
+# công cụ trong tools/: chạy dạng module từ gốc repo (python tools/x.py không thấy package formcoach)
+python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
+python -m tools.plot_signals data/videos/<clip>.mp4      # đồ thị góc theo thời gian
 ```
 
 (Cập nhật khi đã có entrypoint, ví dụ `python -m formcoach analyze <video>`.)

@@ -13,8 +13,8 @@ Chuẩn bị model (một lần):
     curl -L -o assets/pose_landmarker_full.task \\
       https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
 
-Chạy:
-    python tools/probe_mediapipe.py data/videos/pushup.mp4
+Chạy từ gốc repo, dạng module (cùng quy ước với các công cụ khác trong tools/):
+    python -m tools.probe_mediapipe data/videos/pushup.mp4
 """
 
 from __future__ import annotations
