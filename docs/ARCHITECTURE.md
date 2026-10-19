@@ -78,9 +78,9 @@ Quy ước:
 - **Nhãn multi-label:** mỗi rep có một tập lỗi (`frozenset[str]`), tập rỗng là `good`. "good" không phải một lỗi nên không nằm trong danh sách lỗi.
 - **Rep không hợp lệ:** rep do bộ đếm cắt nhầm được đánh dấu `valid = false` lúc gán nhãn (nhãn thật, nằm ở `reps.csv`/DB, không nằm trong `Rep`). Loại khỏi train, dùng để đo độ chính xác của bộ đếm.
 
-### 2b. File keypoint từ trang quay (bản nháp, chốt ở plan tuần 1)
+### 2b. File keypoint từ trang quay (`format_version` 1)
 
-Đây là ranh giới giữa `web/` và Python. Trang quay xuất file này, `load_session_json()` đọc thành `PoseSequence`. Sau này backend nhận cùng định dạng qua API.
+Đây là ranh giới giữa `web/` và Python. Trang quay xuất file này; `formcoach/pose/session_json.py` đọc thành `PoseSequence` + `SessionMeta` (`parse_session(dict)` / `load_session_json(path)`). Backend nhận cùng định dạng qua API.
 
 ```json
 {
@@ -101,7 +101,15 @@ Quy ước:
 - `kp: null` = khung không phát hiện người (đọc vào thành hàng NaN).
 - `set_errors` = tập lỗi cố ý của cả hiệp, chọn trước khi quay (`[]` = hiệp tập đúng). Mọi rep của hiệp nhận tập này làm nhãn ban đầu, sửa từng rep sau trong màn hình gán nhãn.
 
-**Câu hỏi mở:** camera trình duyệt không cho khung đều nhau (khoảng cách `t_ms` dao động), trong khi `PoseSequence` chỉ có `fps`. Phải chọn giữa: (a) nội suy lại về fps cố định khi đọc, (b) thêm `timestamps_s` vào `PoseSequence`. Quyết định trong plan tuần 1, sau khi đo độ dao động thật.
+Quy tắc kiểm tra (sai thì `SessionFormatError` nói rõ trường / khung / khớp nào sai):
+- Đủ mọi trường ở trên; `format_version == 1`.
+- `session_id` chỉ gồm `[A-Za-z0-9_-]`, 1–100 ký tự (được dùng làm tên file, chặn `../`).
+- `exercise` có trong `formcoach.exercises.EXERCISES`; `set_errors` là danh sách không trùng, mỗi phần tử thuộc `error_labels` của bài đó.
+- `recorded_at` dạng ISO 8601; `source` là object có giá trị chuỗi.
+- `frame_size` = `[width, height]` số nguyên dương; `joint_names` đúng 33 tên MediaPipe theo thứ tự.
+- `frames` ≥ 2 khung; `t_ms` là số không âm, **tăng ngặt**; `kp` là `null` hoặc 33 × `[x, y, visibility]` số hữu hạn (không nhận `true/false`).
+
+**`t_ms` không đều (bản hiện tại):** `fps = 1000 / trung vị(khoảng cách t_ms)`, giữ nguyên các khung như đã ghi; `t_ms` gốc giữ trong `SessionMeta.timestamps_ms`. Chọn trung vị vì trình duyệt thỉnh thoảng khựng (vài trăm ms không có khung): trung bình bị kéo tụt, trung vị thì không. Có cần lấy mẫu lại về fps cố định (khung gần nhất, giữ NaN) hay không → quyết định ở bước 10 khi đo độ dao động thật trên điện thoại.
 
 ## 3. Interface
 
@@ -128,7 +136,8 @@ class Squat(Exercise): ...                  # mở rộng
 class PoseEstimator(ABC):                   # chỉ đường offline
     def estimate(self, video_path: Path) -> PoseSequence: ...
 
-def load_session_json(path: Path) -> PoseSequence: ...   # đường app
+def load_session_json(path: Path) -> tuple[PoseSequence, SessionMeta]: ...   # đường app (§2b)
+EXERCISES: dict[str, type[Exercise]]        # tên bài → lớp; get_exercise(name) tạo instance
 
 class FeatureExtractor:
     def extract(self, pose: PoseSequence, exercise: Exercise) -> FeatureSeries: ...
@@ -230,4 +239,6 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-17 — Push-up thêm `incomplete_lockout` và `neck_drop` (thử nghiệm).** — `incomplete_lockout` đo dễ (góc khuỷu lớn nhất ở đỉnh rep). `neck_drop` có thể nhiễu vì khớp mặt khi quay ngang kém chính xác: vẫn gán nhãn, chỉ train nếu dữ liệu cho thấy tách được. — Đã loại: chỉ 4 nhãn cũ.
 - **2026-10-17 — `not_ready` không phải nhãn lỗi.** Bộ đếm có trạng thái "chờ sẵn sàng"; rep cắt nhầm đánh dấu `valid = false` lúc gán nhãn. — "Đây có phải rep không" và "rep sai ở đâu" là hai câu hỏi khác nhau, gộp vào một classifier làm nó khó học. — Đã loại: thêm lớp `not_ready` cho classifier.
 - **2026-10-19 — Thêm `Exercise.tilt_definitions()` (mặc định `{}`).** PushUp: `body_tilt = (shoulder, ankle)`. — Trạng thái "chờ sẵn sàng" phải phân biệt plank thẳng tay với đứng buông tay; cả hai có góc khuỷu ~160–170°, chỉ khác thân nằm hay đứng. Góc 3 khớp không đo được độ nghiêng so với phương ngang. — Đã loại: dùng góc vai–hông–cổ chân (thẳng ~180° cả khi đứng lẫn khi plank); thêm "khớp ảo" nằm ngang vào `angle_definitions` (khó hiểu).
+- **2026-10-19 — `load_session_json` trả `(PoseSequence, SessionMeta)`; thêm `EXERCISES` / `get_exercise`.** — File quay mang thông tin không thuộc `PoseSequence` (session_id, bài tập, tập lỗi của hiệp, t_ms gốc) mà backend và màn hình gán nhãn cần; bảng tra tên → `Exercise` để kiểm tra `set_errors` và để backend tạo bài tập từ tên. — Đã loại: nhét metadata vào `PoseSequence` (đổi kiểu dữ liệu lõi cho một nguồn); trả dict tự do (không có type).
+- **2026-10-19 — fps của file quay = 1000 / trung vị khoảng cách `t_ms`, chưa lấy mẫu lại.** — Trung vị không bị kéo tụt khi trình duyệt khựng; giữ nguyên khung đơn giản và đủ dùng cho tới khi có số đo thật. — Đã loại (tạm): lấy mẫu lại về fps cố định ngay (quyết định ở bước 10); fps trung bình (bị khựng kéo tụt).
 - **2026-10-17 — Coach dùng DeepSeek API, dự phòng bằng `TemplateCoach`.** — Nhận xét tự nhiên, chi phí thấp; chỉ gửi số liệu, không gửi hình ảnh. Cần kiểm tra docs API khi làm (chưa xác minh độ tương thích với thư viện `openai`). — Đã loại: chỉ mẫu câu; model local.
