@@ -60,6 +60,55 @@ h1 {
   font-weight: 600;
 }
 
+.panel {
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.panel h2 {
+  font-size: 1.1rem;
+  margin: 4px 0 8px;
+}
+
+fieldset {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 14px 4px 0;
+}
+
+.controls button.stop {
+  background: #dc2626;
+}
+
+.ok {
+  color: #15803d;
+}
+
+.unsent {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  background: #fef2f2;
+}
+
+.unsent h3 {
+  font-size: 1rem;
+  margin: 4px 0;
+  color: #b91c1c;
+}
+
+.unsent li {
+  margin: 6px 0;
+}
+
 .stats {
   border-collapse: collapse;
   font-size: 0.9rem;

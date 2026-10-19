@@ -25,7 +25,29 @@ function mean(xs: number[]): number | null {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null
 }
 
-export default function CameraPose() {
+/** Kết quả của một khung camera, báo ra ngoài để ghi hiệp (bước 9b(ii)). */
+export interface PoseFrame {
+  ts: number // ms, cùng mốc với performance.now(), tăng ngặt
+  landmarks: NormalizedLandmark[] | undefined // undefined = không thấy người
+  width: number // kích thước khung video (pixel)
+  height: number
+}
+
+interface Props {
+  onFrame?: (frame: PoseFrame) => void
+  onRunningChange?: (running: boolean) => void
+}
+
+export default function CameraPose({ onFrame, onRunningChange }: Props) {
+  // Giữ callback mới nhất trong ref: effect camera không phải chạy lại (tắt/bật camera)
+  // mỗi khi component cha vẽ lại và truyền vào một hàm mới.
+  const onFrameRef = useRef(onFrame)
+  const onRunningChangeRef = useRef(onRunningChange)
+  useEffect(() => {
+    onFrameRef.current = onFrame
+    onRunningChangeRef.current = onRunningChange
+  })
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [active, setActive] = useState(false) // người dùng muốn bật camera
@@ -90,6 +112,8 @@ export default function CameraPose() {
             const result = landmarker.detectForVideo(video, ts)
             const pose: NormalizedLandmark[] | undefined = result.landmarks[0]
 
+            onFrameRef.current?.({ ts, landmarks: pose, width: video.videoWidth, height: video.videoHeight })
+
             ctx.clearRect(0, 0, canvas.width, canvas.height)
             if (pose) {
               drawer.drawConnectors(pose, PoseLandmarker.POSE_CONNECTIONS, { color: '#ffffff', lineWidth: 3 })
@@ -120,6 +144,7 @@ export default function CameraPose() {
         setLoopKind(usingRVFC ? 'rVFC' : 'rAF')
         frameHandle = usingRVFC ? video.requestVideoFrameCallback(onFrame) : requestAnimationFrame(onFrame)
         setStatus('running')
+        onRunningChangeRef.current?.(true)
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? `${err.name}: ${err.message}` : String(err))
@@ -137,6 +162,7 @@ export default function CameraPose() {
       stream?.getTracks().forEach((t) => t.stop())
       landmarker?.close()
       setStatus((s) => (s === 'error' ? s : 'idle'))
+      onRunningChangeRef.current?.(false)
     }
   }, [active])
 

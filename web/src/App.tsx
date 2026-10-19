@@ -1,4 +1,4 @@
-import CameraPose from './components/CameraPose'
+import CaptureView from './components/CaptureView'
 import './App.css'
 
 export default function App() {
@@ -9,7 +9,7 @@ export default function App() {
         Đặt điện thoại nằm ngang, sát sàn, nhìn ngang hông; cả người nằm trong khung, chỉ một
         mình bạn.
       </p>
-      <CameraPose />
+      <CaptureView />
     </main>
   )
 }

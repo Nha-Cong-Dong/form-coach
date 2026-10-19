@@ -82,6 +82,8 @@ Quy ước:
 
 Đây là ranh giới giữa `web/` và Python. Trang quay xuất file này; `formcoach/pose/session_json.py` đọc thành `PoseSequence` + `SessionMeta` (`parse_session(dict)` / `load_session_json(path)`). Backend nhận cùng định dạng qua API.
 
+Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScript + hàm dựng file). Hai phía được kiểm tra chéo bằng `tests/test_web_format.py`: chạy `web/scripts/sample-session.ts` bằng Node để dựng file từ chính code TypeScript, rồi đọc bằng `load_session_json`. Đổi định dạng ở một phía mà quên phía kia thì test này đỏ.
+
 ```json
 {
   "format_version": 1,

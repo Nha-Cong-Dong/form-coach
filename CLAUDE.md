@@ -45,7 +45,7 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 ```bash
 conda activate formcoach
 pip install -r requirements.txt
-pytest                   # chạy test
+pytest                   # chạy test (test_web_format cần Node ≥ 22.18 trong PATH, không có thì tự bỏ qua)
 ruff check .             # lint
 ruff format .            # format
 
