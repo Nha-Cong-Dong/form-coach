@@ -22,21 +22,23 @@ class PushUp(Exercise):
         return "elbow_angle"
 
     def phase_thresholds(self) -> dict[str, float]:
-        # Số TẠM, ước từ probe bước 1 (góc khuỷu p5 ≈ 66–68°, p95 ≈ 158–169°).
-        # Chỉnh lại ở bước 5 sau khi nhìn đồ thị góc theo thời gian.
+        # Chỉnh theo đồ thị 3 clip thử (2026-10-19, tools/plot_signals.py): đỉnh khuỷu 150–170°,
+        # đáy rep sâu ~60–70°, rep nông ~100–114°, thân lúc plank 0–18°, lúc đứng/quỳ 60–90°,
+        # một rep ~2,4–2,8 s. Dữ liệu từ trang quay (MediaPipe JS) có thể cần chỉnh lại.
         return {
-            # Khuỷu > top_min = đã về tư thế trên. Thấp hơn hẳn góc đỉnh đo được (~160°)
-            # để rep chưa duỗi hết tay (incomplete_lockout) vẫn được đếm.
-            "top_min": 145.0,
-            # Khuỷu < descent_trigger = bắt đầu xuống. Cách top_min 20° (hysteresis) để
-            # nhiễu quanh một ngưỡng không bị đếm thành nhiều rep; đủ cao để rep nông vẫn đếm.
+            # Khuỷu > top_min = đã về tư thế trên. Đỉnh thấp nhất đo được ~150°; để 140°
+            # nên rep chưa duỗi hết tay (incomplete_lockout) vẫn được đếm.
+            "top_min": 140.0,
+            # Khuỷu < descent_trigger = bắt đầu xuống. Rep nông nhất xuống 114° vẫn dưới ngưỡng;
+            # cách top_min 15° (hysteresis) để nhiễu quanh một ngưỡng không thành nhiều rep.
             "descent_trigger": 125.0,
-            # Phải giữ plank thẳng tay ít nhất ngần này mới bắt đầu đếm.
-            "ready_hold_s": 1.0,
+            # Phải giữ plank thẳng tay ít nhất ngần này mới bắt đầu đếm. 1,0 s làm mất rep đầu
+            # của clip bắt đầu ngay ở plank (chỉ giữ 0,8 s rồi xuống).
+            "ready_hold_s": 0.5,
             # Thân nghiêng quá góc này so với phương ngang = không phải plank (đứng, quỳ).
             "ready_max_tilt_deg": 35.0,
-            # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua.
-            "min_rep_duration_s": 0.4,
+            # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua. Rep thật ~2,4 s nên 0,8 s còn xa.
+            "min_rep_duration_s": 0.8,
             # Cửa sổ làm mượt Savitzky–Golay.
             "smoothing_window_s": 0.25,
         }
