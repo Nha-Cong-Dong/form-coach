@@ -1,32 +1,18 @@
-# React + TypeScript + Vite
+# web/ — trang quay dữ liệu
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Trang React + TypeScript (Vite) chạy trên điện thoại: bật camera, MediaPipe JS vẽ khung xương
+realtime, chọn lỗi cố ý của hiệp, bấm Bắt đầu/Xong để gửi keypoint về backend
+(`data/sessions/<bài>/<session_id>.json`). Không chứa logic ML; định dạng file ở
+`src/session/format.ts` (xem `docs/ARCHITECTURE.md` §2b).
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install                     # lần đầu / khi package.json đổi (Node 24 qua nvm)
+npm run dev                     # https://localhost:5173 và https://<IP-laptop>:5173 (cần backend ở :8000)
+npm run dev -- --host 127.0.0.1 # chỉ laptop (mạng không tin cậy)
+npm run build && npm run lint   # kiểm tra TypeScript + oxlint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- `predev` / `prebuild` tự chép wasm của MediaPipe và model `../assets/pose_landmarker_full.task`
+  vào `public/` (bị gitignore).
+- HTTPS tự ký vì trình duyệt chỉ cho dùng camera trên https; lần đầu chấp nhận cảnh báo chứng chỉ.
+- Quay: điện thoại nằm ngang (tắt khoá xoay), sát sàn, ngang hông, chỉ một người trong khung.

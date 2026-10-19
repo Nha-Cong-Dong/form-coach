@@ -22,9 +22,10 @@ class PushUp(Exercise):
         return "elbow_angle"
 
     def phase_thresholds(self) -> dict[str, float]:
-        # Chỉnh theo đồ thị 3 clip thử (2026-10-19, tools/plot_signals.py): đỉnh khuỷu 150–170°,
-        # đáy rep sâu ~60–70°, rep nông ~100–114°, thân lúc plank 0–18°, lúc đứng/quỳ 60–90°,
-        # một rep ~2,4–2,8 s. Dữ liệu từ trang quay (MediaPipe JS) có thể cần chỉnh lại.
+        # Chỉnh theo đồ thị 3 clip thử (2026-10-19, `python -m formcoach analyze --plot`):
+        # đỉnh khuỷu 150–170°, đáy rep sâu ~60–70°, rep nông ~100–114°, thân lúc plank 0–18°,
+        # lúc đứng/quỳ 60–90°, một rep ~2,4–2,8 s. Dữ liệu từ trang quay (MediaPipe JS) có thể
+        # cần chỉnh lại.
         return {
             # Khuỷu > top_min = đã về tư thế trên. Đỉnh thấp nhất đo được ~150°; để 140°
             # nên rep chưa duỗi hết tay (incomplete_lockout) vẫn được đếm.
