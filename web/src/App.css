@@ -134,3 +134,67 @@ fieldset {
 .stats td {
   font-variant-numeric: tabular-nums;
 }
+
+/* Điện thoại xoay ngang (màn hình ngang và thấp): video bên trái vừa chiều cao màn hình,
+   cột bên phải có nút Bắt đầu/Xong ở trên cùng, để vừa nhìn khung hình vừa bấm được mà
+   không phải cuộn. Chỉ đổi bố cục hiển thị, không ảnh hưởng dữ liệu. */
+@media (orientation: landscape) and (max-height: 600px) {
+  main {
+    max-width: none;
+    padding: 4px 8px;
+  }
+
+  main > h1,
+  main > .hint {
+    display: none;
+  }
+
+  .capture {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 30%);
+    gap: 8px;
+    height: calc(100dvh - 8px);
+  }
+
+  .camera-pose {
+    overflow-y: auto; /* bảng số liệu nằm dưới video, cuộn riêng trong cột trái */
+  }
+
+  .stage {
+    aspect-ratio: auto;
+    height: calc(100dvh - 64px); /* chừa một hàng cho nút Bật/Tắt và đổi camera */
+  }
+
+  .controls {
+    margin: 6px 0;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    margin-top: 0;
+    padding: 0 0 0 8px;
+    border-top: none;
+    border-left: 1px solid #e5e7eb;
+  }
+
+  .panel .controls {
+    order: -1; /* nút Bắt đầu/Xong lên đầu cột */
+  }
+
+  .panel .controls button {
+    width: 100%;
+    padding: 14px;
+    font-size: 1.1rem;
+  }
+
+  .panel h2 {
+    font-size: 0.95rem;
+  }
+
+  fieldset {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+  }
+}
