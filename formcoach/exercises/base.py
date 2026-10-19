@@ -29,6 +29,15 @@ class Exercise(ABC):
         """
         ...
 
+    def tilt_definitions(self) -> dict[str, tuple[str, str]]:
+        """Tên tín hiệu -> (khớp A, khớp B); góc của đoạn A→B so với phương ngang, độ.
+
+        0° = nằm ngang, 90° = dựng đứng. Dùng để biết thân đang nằm (plank) hay đứng,
+        điều mà góc 3 khớp không cho biết. Tên khớp không có tiền tố bên, như trên.
+        Mặc định không có; bài nào cần thì ghi đè.
+        """
+        return {}
+
     @abstractmethod
     def primary_signal(self) -> str:
         """Tên tín hiệu dùng để cắt rep, phải là một khoá của `angle_definitions()`."""

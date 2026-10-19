@@ -12,6 +12,7 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 - **Không tự ý thêm tính năng** ngoài README. Có ý hay thì đề xuất, chờ mình đồng ý.
 - **Khi mình hỏi "tại sao"**, trả lời khái niệm trước, code sau.
 - Nếu không chắc về API của một thư viện (MediaPipe, scikit-learn...), nói rõ là không chắc và đề xuất cách kiểm tra, đừng đoán.
+- **Code xong thì tóm tắt thay đổi:** liệt kê file đã thêm và file đã sửa, mỗi file một dòng nói nó làm gì hoặc sửa gì và để làm gì. Ngắn gọn, không dán lại code.
 
 ## Phần đánh giá và dữ liệu
 
@@ -47,6 +48,10 @@ pip install -r requirements.txt
 pytest                   # chạy test
 ruff check .             # lint
 ruff format .            # format
+
+# công cụ trong tools/: chạy dạng module từ gốc repo (python tools/x.py không thấy package formcoach)
+python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
+python -m tools.plot_signals data/videos/<clip>.mp4      # đồ thị góc theo thời gian
 ```
 
 (Cập nhật khi đã có entrypoint, ví dụ `python -m formcoach analyze <video>`.)
