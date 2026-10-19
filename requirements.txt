@@ -3,3 +3,5 @@ numpy==2.5.4          # mảng keypoint, tính góc
 scipy==1.18.1         # savgol_filter để làm mượt tín hiệu
 matplotlib==3.11.2    # vẽ đồ thị góc theo thời gian
 mediapipe==1.1.1      # pose estimation; tự kéo theo opencv-contrib-python nên không thêm OpenCV riêng
+fastapi==0.143.3      # backend: nhận file quay từ điện thoại, sau này API đầy đủ
+uvicorn==0.54.0       # server chạy app FastAPI

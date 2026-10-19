@@ -163,7 +163,15 @@ Ghi chú:
 
 ## 4. Backend và web (bản nháp, chốt API đầu tuần 3)
 
-### Endpoint dự kiến
+### Đã có (tuần 1, `backend/app.py`)
+| Method | Đường dẫn | Việc |
+|---|---|---|
+| `GET` | `/api/exercises/{name}` | Tên bài + `error_labels` (trang quay lấy danh sách lỗi từ đây). Tên lạ → 404 |
+| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → lưu nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` (mặc định `data/`) → trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person`. Sai định dạng → 422 kèm lý do; trùng `session_id` → 409, không ghi đè. **Chưa** chạy pipeline, chưa DB/đăng nhập |
+
+Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện thoại đi qua proxy Vite).
+
+### Endpoint dự kiến (tuần 3–4)
 | Method | Đường dẫn | Việc |
 |---|---|---|
 | `POST` | `/api/auth/register`, `/api/auth/login` | Đăng nhập |
