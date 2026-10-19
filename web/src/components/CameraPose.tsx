@@ -21,6 +21,10 @@ interface Stats {
 /** Cách nhận khung mới: requestVideoFrameCallback (đúng nhịp camera) hoặc rAF (dự phòng). */
 type LoopKind = 'rVFC' | 'rAF'
 
+/** 'user' = camera trước (tự quay, nhìn được màn hình); 'environment' = camera sau (nét hơn). */
+type Facing = 'user' | 'environment'
+const FACING_LABEL: Record<Facing, string> = { user: 'trước', environment: 'sau' }
+
 function mean(xs: number[]): number | null {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null
 }
@@ -51,6 +55,8 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [active, setActive] = useState(false) // người dùng muốn bật camera
+  const [facing, setFacing] = useState<Facing>('user')
+  const [actualFacing, setActualFacing] = useState<string>('') // camera trình duyệt thật sự đưa
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState('')
   const [delegate, setDelegate] = useState<Delegate | null>(null)
@@ -74,11 +80,12 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
           throw new Error('Trình duyệt chỉ cho dùng camera trên trang https hoặc localhost.')
         }
-        // Camera sau (điện thoại); laptop không có thì trình duyệt tự chọn webcam.
+        // "ideal": xin camera trước/sau theo lựa chọn; máy không có (laptop) thì trình duyệt tự chọn webcam.
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
         })
+        setActualFacing(stream.getVideoTracks()[0]?.getSettings().facingMode ?? 'không rõ')
         const loaded = await createPoseLandmarker()
         if (cancelled) {
           loaded.landmarker.close()
@@ -164,14 +171,17 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
       setStatus((s) => (s === 'error' ? s : 'idle'))
       onRunningChangeRef.current?.(false)
     }
-  }, [active])
+  }, [active, facing]) // đổi camera khi đang bật → dọn dẹp rồi mở lại với camera mới
 
   const portrait = size !== null && size.h > size.w
+  // Camera trước: lật NGANG phần hiển thị (cả video lẫn khung xương) cho giống soi gương như app
+  // camera. Chỉ là CSS: MediaPipe vẫn chạy trên ảnh gốc, keypoint gửi đi không bị lật.
+  const mirrored = actualFacing === 'user'
   const fmt = (v: number | null) => (v === null ? '—' : v.toFixed(2))
 
   return (
     <div className="camera-pose">
-      <div className="stage">
+      <div className={mirrored ? 'stage mirrored' : 'stage'}>
         <video ref={videoRef} playsInline muted />
         <canvas ref={canvasRef} />
       </div>
@@ -191,7 +201,14 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
           <button onClick={() => setActive(false)} disabled={status === 'loading'}>
             {status === 'loading' ? 'Đang tải model…' : 'Tắt camera'}
           </button>
-        )}
+        )}{' '}
+        <button
+          className="secondary"
+          onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))}
+          disabled={status === 'loading'}
+        >
+          Dùng camera {FACING_LABEL[facing === 'user' ? 'environment' : 'user']}
+        </button>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -200,6 +217,7 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
       {status === 'running' && (
         <table className="stats">
           <tbody>
+            <tr><th>Camera</th><td>chọn: {FACING_LABEL[facing]} / thực tế: {actualFacing}</td></tr>
             <tr><th>Độ phân giải</th><td>{size ? `${size.w}×${size.h}` : '—'}</td></tr>
             <tr><th>fps xử lý</th><td>{stats ? stats.fps.toFixed(1) : '—'}</td></tr>
             <tr><th>Khung có người</th><td>{stats ? `${Math.round(stats.personRatio * 100)}%` : '—'}</td></tr>

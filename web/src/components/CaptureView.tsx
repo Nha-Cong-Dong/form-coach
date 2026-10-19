@@ -41,6 +41,10 @@ export default function CaptureView() {
   const [labelsError, setLabelsError] = useState('')
   const [setErrors, setSetErrors] = useState<string[]>([])
   const [cameraOn, setCameraOn] = useState(false)
+  // Khung camera đang DỌC (cao > rộng). Không cho ghi: người nằm ngang ngoài đời sẽ thành
+  // dựng đứng trong hình, độ nghiêng thân bị lật 90° và bộ đếm không đếm được rep nào
+  // (đã gặp ngày 2026-10-19 khi điện thoại khoá xoay màn hình).
+  const [portrait, setPortrait] = useState(false)
   const [recording, setRecording] = useState(false)
   const [uploading, setUploading] = useState(0) // số hiệp đang gửi
   const [counts, setCounts] = useState({ frames: 0, seen: 0 })
@@ -77,6 +81,8 @@ export default function CaptureView() {
 
   function handleFrame(f: PoseFrame) {
     frameSizeRef.current = [f.width, f.height]
+    const isPortrait = f.height > f.width
+    setPortrait((cur) => (cur === isPortrait ? cur : isPortrait)) // chỉ vẽ lại khi đổi chiều
     const recorder = recorderRef.current
     if (!recordingRef.current || !recorder) return
     recorder.add(f.ts, toKeypoints(f.landmarks))
@@ -194,7 +200,7 @@ export default function CaptureView() {
 
         <div className="controls">
           {!recording ? (
-            <button onClick={start} disabled={!cameraOn || !errorLabels}>
+            <button onClick={start} disabled={!cameraOn || !errorLabels || portrait}>
               Bắt đầu
             </button>
           ) : (
@@ -205,6 +211,12 @@ export default function CaptureView() {
         </div>
 
         {!cameraOn && <p className="hint">Bật camera trước, rồi mới bấm Bắt đầu.</p>}
+        {cameraOn && portrait && (
+          <p className="error">
+            Khung hình đang DỌC nên chưa cho quay. Tắt khoá xoay màn hình, xoay điện thoại nằm
+            ngang cho trang web xoay theo, rồi tắt và bật lại camera.
+          </p>
+        )}
         {recording && (
           <p>
             Đang ghi: {counts.frames} khung ({counts.seen} có người)
