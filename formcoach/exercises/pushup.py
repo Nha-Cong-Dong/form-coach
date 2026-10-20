@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formcoach.exercises.base import Exercise
+from formcoach.exercises.base import ErrorRule, Exercise
 
 
 class PushUp(Exercise):
@@ -13,10 +13,19 @@ class PushUp(Exercise):
         return {
             "elbow_angle": ("shoulder", "elbow", "wrist"),  # ~160–170° thẳng tay, ~60–70° đáy
             "body_angle": ("shoulder", "hip", "ankle"),  # ~180° thân thẳng
+            # Cổ thẳng theo thân ~180°; gục đầu xuống hoặc rướn cổ lên đều làm góc nhỏ đi (cả hai
+            # là neck_drop). Thử nghiệm: tai khi quay ngang có thể đặt kém chính xác.
+            "neck_angle": ("ear", "shoulder", "hip"),
         }
 
     def tilt_definitions(self) -> dict[str, tuple[str, str]]:
         return {"body_tilt": ("shoulder", "ankle")}  # nhỏ khi plank, ~90° khi đứng
+
+    def offset_definitions(self) -> dict[str, tuple[str, str, str]]:
+        # Dương = hông cao hơn đường vai–cổ chân (hip_high), âm = võng (hip_sag); tính theo
+        # phần độ dài vai–cổ chân. body_angle không biết cong lên hay xuống: góc thân của hiệp
+        # hip_sag (158–170°) trùng với tập đúng (162–171°) ở buổi quay thử.
+        return {"hip_offset": ("hip", "shoulder", "ankle")}
 
     def primary_signal(self) -> str:
         return "elbow_angle"
@@ -62,6 +71,15 @@ class PushUp(Exercise):
             "min_joint_visibility": 0.5,
         }
 
-    def rule_thresholds(self) -> dict[str, float]:
-        # Tuần 2: ngưỡng lỗi lấy từ docs/labeling-criteria.md, do người dùng quyết định.
-        return {}
+    def error_rules(self) -> dict[str, ErrorRule | None]:
+        # Ngưỡng do người dùng chọn từ buổi quay thử 2026-10-20 (docs/labeling-criteria.md, có số
+        # đo và lý do). Đổi ở đây thì đổi cả file đó: test_pushup kiểm tra hai nơi khớp nhau.
+        return {
+            "shallow": ErrorRule("min_elbow_angle", ">", 67.0),
+            "incomplete_lockout": ErrorRule("top_elbow_angle", "<", 146.0),
+            # Chờ quay lại hiệp võng rõ: hiệp quay thử võng quá nhẹ, không tách được tập đúng.
+            "hip_sag": None,
+            "hip_high": ErrorRule("min_hip_offset", ">", 0.01),  # hông trên đường suốt rep
+            # Trung vị: lỗi cổ phải giữ phần lớn rep; giá trị nhỏ nhất bị nhiễu vị trí tai.
+            "neck_drop": ErrorRule("median_neck_angle", "<", 128.0),
+        }

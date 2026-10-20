@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from formcoach.features.geometry import joint_angle, segment_tilt, to_pixel_space
+from formcoach.features.geometry import joint_angle, segment_tilt, signed_offset, to_pixel_space
 
 
 def angle(a, b, c) -> float:
@@ -126,3 +126,60 @@ def test_tilt_vectorized() -> None:
     a = np.zeros((3, 2))
     b = np.array([[10.0, 0.0], [0.0, 10.0], [5.0, 5.0]])
     np.testing.assert_allclose(segment_tilt(a, b), [0.0, 90.0, 45.0])
+
+
+# --- signed_offset: hông so với đường vai–cổ chân (y ảnh hướng xuống) ---
+
+SHOULDER, ANKLE = np.array([0.0, 100.0]), np.array([200.0, 100.0])
+
+
+@pytest.mark.parametrize(
+    ("hip", "expected"),
+    [
+        ((100.0, 80.0), 0.1),  # cao hơn đường 20 px / dài 200 px → nhô
+        ((100.0, 130.0), -0.15),  # thấp hơn đường → võng
+        ((100.0, 100.0), 0.0),  # nằm trên đường
+        ((40.0, 80.0), 0.1),  # không phụ thuộc vị trí dọc theo đường
+    ],
+)
+def test_known_offsets(hip, expected) -> None:
+    assert float(signed_offset(np.array(hip), SHOULDER, ANKLE)) == pytest.approx(expected)
+
+
+def test_offset_independent_of_line_direction() -> None:
+    hip = np.array([100.0, 80.0])
+    assert signed_offset(hip, SHOULDER, ANKLE) == pytest.approx(signed_offset(hip, ANKLE, SHOULDER))
+
+
+def test_offset_unchanged_by_horizontal_flip() -> None:
+    # Camera trước lật ảnh trái–phải: người quay đầu sang phía kia, dấu phải giữ nguyên.
+    def flip(v: np.ndarray) -> np.ndarray:
+        return np.array([1000.0 - v[0], v[1]])
+
+    hip = np.array([100.0, 80.0])
+    assert signed_offset(flip(hip), flip(SHOULDER), flip(ANKLE)) == pytest.approx(0.1)
+
+
+def test_offset_invariant_to_scale_and_translation() -> None:
+    hip = np.array([100.0, 130.0])
+    moved = [3.0 * v + np.array([50.0, -20.0]) for v in (hip, SHOULDER, ANKLE)]
+    assert signed_offset(*moved) == pytest.approx(signed_offset(hip, SHOULDER, ANKLE))
+
+
+def test_offset_on_tilted_body() -> None:
+    # Thân nghiêng 30° (đầu cao hơn chân như push-up thật); hông lệch vuông góc 0,1 về phía trên.
+    u = np.array([np.cos(np.radians(30)), np.sin(np.radians(30))])  # vai → cổ chân, đi xuống
+    normal_up = np.array([u[1], -u[0]])  # vuông góc, hướng lên trên ảnh (y âm)
+    shoulder, ankle = np.array([0.0, 0.0]), 200.0 * u
+    hip = 100.0 * u + 20.0 * normal_up
+    assert float(signed_offset(hip, shoulder, ankle)) == pytest.approx(0.1)
+
+
+def test_offset_zero_length_and_nan() -> None:
+    assert np.isnan(signed_offset(np.array([1.0, 1.0]), SHOULDER, SHOULDER))
+    assert np.isnan(signed_offset(np.array([np.nan, 0.0]), SHOULDER, ANKLE))
+
+
+def test_offset_vectorized() -> None:
+    hips = np.array([[100.0, 80.0], [100.0, 100.0], [100.0, 130.0]])
+    np.testing.assert_allclose(signed_offset(hips, SHOULDER, ANKLE), [0.1, 0.0, -0.15])

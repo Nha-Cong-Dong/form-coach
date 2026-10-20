@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from formcoach.exercises import PushUp
 from formcoach.pose.joints import MEDIAPIPE_JOINTS
 
@@ -68,3 +70,25 @@ def test_time_thresholds_are_seconds() -> None:
 def test_ready_tilt_is_between_plank_and_standing() -> None:
     tilt = PushUp().phase_thresholds()["ready_max_tilt_deg"]
     assert 0 < tilt < 90
+
+
+def test_error_rules_cover_every_error_label() -> None:
+    assert set(PushUp().error_rules()) == set(PushUp.error_labels)
+
+
+def _criteria_row(error: str) -> str:
+    # Dòng đầu tiên của lỗi trong docs/labeling-criteria.md là bảng push-up (squat nằm sau).
+    text = Path("docs/labeling-criteria.md").read_text(encoding="utf-8")
+    return next(line for line in text.splitlines() if line.startswith(f"| `{error}`"))
+
+
+def test_rules_match_labeling_criteria() -> None:
+    # Ngưỡng nằm ở hai nơi: file tiêu chí (lý do, do người dùng quyết) và pushup.py (để chạy).
+    # Đổi một nơi mà quên nơi kia thì test này đỏ.
+    for error, rule in PushUp().error_rules().items():
+        row = _criteria_row(error)
+        if rule is None:
+            assert "?" in row, f"{error}: chưa có luật nhưng file tiêu chí đã có ngưỡng"
+        else:
+            number = f"{rule.threshold:g}".replace(".", ",")  # file tiêu chí viết dấu phẩy
+            assert f"{rule.op} {number}" in row, f"{error}: {rule} không khớp: {row}"

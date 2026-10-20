@@ -21,7 +21,13 @@ def test_review_without_saved_labels_uses_defaults() -> None:
     assert review["alignment_problems"] == []
     assert [r["errors"] for r in review["labels"]["reps"]] == [["shallow"]] * 3
     assert len(review["times_s"]) == n and review["times_s"][0] == 0.0
-    assert set(review["signals"]) == {"elbow_angle", "body_angle", "body_tilt"}
+    assert set(review["signals"]) == {
+        "elbow_angle",
+        "body_angle",
+        "neck_angle",
+        "body_tilt",
+        "hip_offset",
+    }
     assert all(len(v) == n for v in review["signals"].values())
     assert review["joints"] == STICK_JOINTS
     assert len(review["keypoints"]) == n and len(review["keypoints"][0]) == len(STICK_JOINTS)

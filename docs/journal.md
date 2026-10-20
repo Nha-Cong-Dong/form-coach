@@ -55,3 +55,21 @@ Mẫu:
 - **Nguyên nhân:** Rep bắt đầu và kết thúc ở điểm cao nhất của khuỷu. Đồ thị `--plot` xác nhận: lúc giữ plank chờ, khuỷu dao động 155–176° và cao nhất ở đầu lúc giữ, nên rep 1 bắt đầu sớm khoảng 6 s; lúc đứng dậy, tay duỗi thêm tới 179° (thân đã bắt đầu gập) nên rep cuối bị kéo sang đó.
 - **Cách sửa:** Ranh giới theo độ ổn định gần đỉnh. Rep kết thúc ở khung đầu tiên mà 0,5 s tới khuỷu không tăng thêm quá 10°; bắt đầu ở khung cuối cùng mà 0,5 s trước đó khuỷu chưa cao hơn nó quá 10°. Cách đầu tiên định làm ("trong 10° dưới đỉnh") vẫn hỏng khi đỉnh bị đẩy lên 179°, nên đã bỏ. Kết quả trên hiệp thật: số rep không đổi (6 hiệp × 4, 23-38-38 ra 5, 3 video ra 7/7/6); rep 1 hiệp shallow 10,2 → 2,7 s; mọi rep của 6 hiệp quay thử dài 1,7–3,7 s; góc thân nhỏ nhất rep 1/rep 4 hiệp neck_drop 131,8/133,3° → 172,0/171,1°.
 - **Bài học:** Đếm đúng số rep chưa đủ. Ranh giới rep quyết định đặc trưng nào được tính; không sửa thì luật sẽ bắt nhầm lỗi hông do lúc vào/ra tư thế.
+
+## 2026-10-20 — Hông võng nhưng góc thân không thấy, rồi hiệp võng lại quá nhẹ
+- **Chuyện gì xảy ra:** Góc thân (vai–hông–cổ chân) của hiệp `hip_sag` là 158–170°, trùng với tập đúng (162–171°). Thêm `hip_offset` có dấu (độ lệch hông khỏi đường vai–cổ chân) thì `hip_high` tách rõ (hông cao hơn 10–30 cm), nhưng `hip_sag` vẫn sát tập đúng.
+- **Nguyên nhân:** Góc 3 khớp không biết thân cong lên hay xuống. Còn hiệp `hip_sag` thì võng thật sự rất nhẹ (~5 cm ở rep 3–4), bằng mức tập đúng tự võng ở đáy rep.
+- **Cách sửa:** Đo bằng `hip_offset` có dấu; `hip_high` dùng ngưỡng `min_hip_offset > 0,01`. Chưa đặt ngưỡng `hip_sag`, sẽ quay lại hiệp võng rõ (≥ ~10 cm).
+- **Bài học:** Chọn đúng cách đo quan trọng hơn chỉnh ngưỡng. Và khi cố ý làm lỗi để lấy dữ liệu, mình làm nhẹ hơn mình nghĩ: phải kiểm tra số đo ngay sau khi quay.
+
+## 2026-10-20 — Góc cổ nhiễu: giá trị nhỏ nhất bắt nhầm, trung vị thì không
+- **Chuyện gì xảy ra:** `min_neck_angle` của 3 rep không gục đầu (111–116°) nằm trong vùng của rep `neck_drop` (108–113°).
+- **Nguyên nhân:** Vị trí tai nhảy ±10° giữa các khung; min chỉ lấy một khung nên đo cả nhiễu. Đồ thị cho thấy cổ của hiệp `neck_drop` giữ ~120° suốt hiệp: lỗi này là tư thế kéo dài, không phải một khoảnh khắc. NaN của góc cổ chỉ nằm ngoài rep (lúc đi lại), không phải nguyên nhân.
+- **Cách sửa:** Thêm `median_<tín hiệu>` cho mọi tín hiệu. Trung vị tách được `neck_drop` (122–127°) khỏi rep khác (≥ 129°); 1 rep nghi ngờ hoá ra không gục, 1 rep (`shallow`, mỏi cuối hiệp) đúng là có gục và được thêm nhãn. Ngưỡng `median_neck_angle < 128°`; gục thoáng qua không tính.
+- **Bài học:** Với tín hiệu nhiễu, đặc trưng "một khung" (min/max) đo nhiễu nhiều hơn đo tư thế. Lỗi giữ suốt rep thì dùng trung vị; lỗi thoáng qua thì phải chấp nhận khó đo.
+
+## 2026-10-20 — Đỉnh của rep phải đo SAU rep, không phải trong rep
+- **Chuyện gì xảy ra:** Định dùng `max_elbow_angle` (góc khuỷu lớn nhất trong rep) để bắt `incomplete_lockout`. Test tổng hợp đỏ: rep 1 có max 165° dù sau rep đó chỉ lên tới 110°.
+- **Nguyên nhân:** Rep bắt đầu ngay sau đỉnh của rep TRƯỚC (hoặc lúc giữ plank), nên max trong rep đo đỉnh trước rep chứ không phải lúc đẩy lên của chính rep. Rep lại kết thúc ở chỗ "đã lên gần hết", đỉnh thật nằm sau đó.
+- **Cách sửa:** Thêm `top_elbow_angle` = góc lớn nhất trong 0,5 s ngay sau rep. Trên buổi quay thử: rep chưa duỗi hết tay 112–135°, mọi rep khác 157,5–181° → cách nhau ~22°, lỗi tách rõ nhất trong 5 lỗi. Ngưỡng `< 146°`.
+- **Bài học:** Trước khi dùng một đặc trưng, phải hỏi nó đo đúng khoảnh khắc nào của rep. Tên "max trong rep" nghe đúng nhưng đo nhầm thời điểm.
