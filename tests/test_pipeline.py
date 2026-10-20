@@ -10,12 +10,16 @@ from formcoach.pipeline import analyze, frame_timing, load_source
 from tests.synthetic import make_session
 
 
-def five_rep_session() -> dict:
-    """Giữ plank 1 s → 5 rep (165° ↔ 70°, 2,4 s/rep) → giữ plank 1 s, như file trang quay."""
+def five_rep_session_elbow() -> np.ndarray:
+    """Giữ plank 1 s → 5 rep (165° ↔ 70°, 2,4 s/rep) → giữ plank 1 s."""
     t = np.arange(int(5 * 2.4 * 30)) / 30
     reps = 117.5 + 47.5 * np.cos(2 * np.pi * t / 2.4)
-    elbow = np.concatenate([np.full(30, 165.0), reps, np.full(30, 165.0)])
-    return make_session(elbow, jitter_ms=8.0)
+    return np.concatenate([np.full(30, 165.0), reps, np.full(30, 165.0)])
+
+
+def five_rep_session() -> dict:
+    """Như file trang quay: giữ plank 1 s → 5 rep → giữ plank 1 s."""
+    return make_session(five_rep_session_elbow(), jitter_ms=8.0)
 
 
 @pytest.fixture
@@ -67,3 +71,49 @@ def test_cli_analyze_plot(session_file: Path, tmp_path: Path) -> None:
 def test_cli_requires_command() -> None:
     with pytest.raises(SystemExit):
         main([])
+
+
+def test_cli_prints_rule_predictions_against_saved_labels(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # File đặt đúng cấu trúc <data>/sessions/pushup/ và có nhãn đã lưu → so luật với nhãn.
+    import dataclasses
+
+    from formcoach.labels import default_labels, save_labels
+    from formcoach.pose.session_json import parse_session
+
+    data = make_session(five_rep_session_elbow(), jitter_ms=8.0)
+    folder = tmp_path / "sessions" / "pushup"
+    folder.mkdir(parents=True)
+    path = folder / f"{data['session_id']}.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    pose, meta = parse_session(data)
+    _, reps = analyze(pose, PushUp())
+    times = (meta.timestamps_ms - meta.timestamps_ms[0]) / 1000
+    labels = default_labels(meta.session_id, "pushup", reps, times, frozenset({"shallow"}),
+                            PushUp().phase_thresholds())  # fmt: skip
+    first, second, third, *rest = labels.reps
+    second = dataclasses.replace(second, valid=False, errors=frozenset())
+    third = dataclasses.replace(third, errors=frozenset({"shallow", "hip_sag"}))
+    save_labels(dataclasses.replace(labels, reps=(first, second, third, *rest)), tmp_path)
+
+    main(["analyze", str(path)])
+    out = capsys.readouterr().out
+    assert "chưa có luật cho: hip_sag" in out
+    # Khuỷu xuống tới 70° > 67° → luật bắt shallow, khớp với nhãn.
+    assert "rep 1: luật shallow | nhãn shallow  khớp" in out
+    assert "rep 2: luật shallow | nhãn: không phải rep" in out
+    # hip_sag chưa có luật: không so, và phải nói rõ thay vì chỉ ghi "khớp".
+    assert (
+        "rep 3: luật shallow | nhãn hip_sag, shallow  khớp (không so hip_sag: chưa có luật)" in out
+    )
+    assert "khớp hoàn toàn 4/4 rep" in out
+
+
+def test_cli_without_labels_still_prints_rules(
+    session_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["analyze", str(session_file)])
+    out = capsys.readouterr().out
+    assert "Lỗi theo luật:" in out and "khớp hoàn toàn" not in out

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formcoach.exercises.base import Exercise
+from formcoach.exercises.base import ErrorRule, Exercise
 
 
 class PushUp(Exercise):
@@ -71,6 +71,15 @@ class PushUp(Exercise):
             "min_joint_visibility": 0.5,
         }
 
-    def rule_thresholds(self) -> dict[str, float]:
-        # Tuần 2: ngưỡng lỗi lấy từ docs/labeling-criteria.md, do người dùng quyết định.
-        return {}
+    def error_rules(self) -> dict[str, ErrorRule | None]:
+        # Ngưỡng do người dùng chọn từ buổi quay thử 2026-10-20 (docs/labeling-criteria.md, có số
+        # đo và lý do). Đổi ở đây thì đổi cả file đó: test_pushup kiểm tra hai nơi khớp nhau.
+        return {
+            "shallow": ErrorRule("min_elbow_angle", ">", 67.0),
+            "incomplete_lockout": ErrorRule("top_elbow_angle", "<", 146.0),
+            # Chờ quay lại hiệp võng rõ: hiệp quay thử võng quá nhẹ, không tách được tập đúng.
+            "hip_sag": None,
+            "hip_high": ErrorRule("min_hip_offset", ">", 0.01),  # hông trên đường suốt rep
+            # Trung vị: lỗi cổ phải giữ phần lớn rep; giá trị nhỏ nhất bị nhiễu vị trí tai.
+            "neck_drop": ErrorRule("median_neck_angle", "<", 128.0),
+        }

@@ -3,6 +3,21 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Literal
+
+
+@dataclass(frozen=True)
+class ErrorRule:
+    """Luật bắt một lỗi: lỗi xảy ra khi `features[feature] <op> threshold`.
+
+    Ví dụ ErrorRule("min_elbow_angle", ">", 67.0): chưa xuống dưới 67° → shallow.
+    `feature` là một khoá của Rep.features (vd "min_elbow_angle", "median_neck_angle").
+    """
+
+    feature: str
+    op: Literal["<", ">"]
+    threshold: float
 
 
 class Exercise(ABC):
@@ -64,6 +79,10 @@ class Exercise(ABC):
         ...
 
     @abstractmethod
-    def rule_thresholds(self) -> dict[str, float]:
-        """Ngưỡng cho baseline phát hiện lỗi bằng luật (dùng từ tuần 2)."""
+    def error_rules(self) -> dict[str, ErrorRule | None]:
+        """Luật cho baseline phát hiện lỗi: mỗi lỗi trong `error_labels` một luật.
+
+        None = chưa có ngưỡng (vd chưa đo được): RuleBased bỏ qua lỗi đó. Ngưỡng lấy từ
+        docs/labeling-criteria.md, do người dùng quyết định, không tự chọn trong code.
+        """
         ...
