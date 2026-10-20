@@ -74,6 +74,7 @@ def build_review(
         "exercise": meta.exercise,
         "recorded_at": meta.recorded_at,
         "set_errors": sorted(meta.set_errors),
+        "notes": meta.notes,
         "error_labels": list(exercise.error_labels),
         "frame_size": list(pose.frame_size),
         "fps": round(pose.fps, 2),

@@ -40,6 +40,7 @@ def test_typescript_session_passes_python_validation(tmp_path: Path) -> None:
     assert pose.frame_size == (1280, 720)
     assert meta.session_id == "2026-10-20T19-05-12_pushup"
     assert meta.set_errors == frozenset({"shallow"})
+    assert meta.notes == "tối, áo đen"
     assert meta.recorded_at.startswith("2026-10-20T19:05:12")
     assert meta.source == {
         "pose": "mediapipe-js",

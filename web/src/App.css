@@ -135,6 +135,171 @@ fieldset {
   font-variant-numeric: tabular-nums;
 }
 
+/* Thanh tab Quay / Gán nhãn (link #capture / #label). */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 8px;
+}
+
+.tabs a {
+  padding: 8px 16px;
+  color: #4b5563;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+
+.tabs a.active {
+  color: #1f2937;
+  font-weight: 600;
+  border-bottom-color: #16a34a;
+}
+
+/* Danh sách hiệp ở màn gán nhãn: bấm một hàng để mở hiệp đó. */
+.sessions {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.sessions th,
+.sessions td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sessions th {
+  font-weight: normal;
+  color: #555;
+}
+
+.sessions tr.pick {
+  cursor: pointer;
+}
+
+.sessions tr.pick:hover {
+  background: #f0fdf4;
+}
+
+/* Màn xem lại một hiệp: người que, thanh thời gian, đồ thị góc. */
+.review-stage {
+  display: flex;
+  justify-content: center;
+  background: #111;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.stick {
+  max-width: 100%;
+  max-height: 55vh;
+  object-fit: contain;
+}
+
+.playback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.readout {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.scrub {
+  width: 100%;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.controls button + button {
+  margin-left: 6px;
+}
+
+/* Bảng nhãn rep. */
+.reps {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reps th,
+.reps td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.reps th {
+  font-weight: normal;
+  color: #555;
+}
+
+.reps th.set-error {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.reps tbody tr {
+  cursor: pointer;
+}
+
+.reps tr.current {
+  background: #f0fdf4;
+}
+
+.reps tr.invalid {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.reps input.note {
+  width: 12em;
+}
+
+.panel .hint {
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+/* Ô ghi chú buổi quay (trang quay) và cột ghi chú ở danh sách hiệp. */
+.notes-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.notes-field input {
+  font-size: 1rem;
+  padding: 6px 8px;
+}
+
+.session-notes {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  background: #fefce8;
+  border-left: 3px solid #eab308;
+  font-size: 0.9rem;
+}
+
+.notes-cell {
+  color: #4b5563;
+  font-size: 0.85rem;
+}
+
 /* Điện thoại xoay ngang (màn hình ngang và thấp): video bên trái vừa chiều cao màn hình,
    cột bên phải có nút Bắt đầu/Xong ở trên cùng, để vừa nhìn khung hình vừa bấm được mà
    không phải cuộn. Chỉ đổi bố cục hiển thị, không ảnh hưởng dữ liệu. */
@@ -144,8 +309,10 @@ fieldset {
     padding: 4px 8px;
   }
 
-  main > h1,
-  main > .hint {
+  /* Gán nhãn làm trên laptop: trên điện thoại ngang ẩn cả thanh tab để màn Quay vừa màn hình. */
+  main h1,
+  main .hint,
+  .tabs {
     display: none;
   }
 

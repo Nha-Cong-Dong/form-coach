@@ -80,20 +80,24 @@ def test_duplicate_session_is_409_and_not_overwritten(client: TestClient, tmp_pa
 # --- gán nhãn: danh sách hiệp, xem lại, lưu nhãn ---
 
 
-def upload(client: TestClient, session_id: str, set_errors=()) -> dict:
+def upload(client: TestClient, session_id: str, set_errors=(), notes: str | None = None) -> dict:
     payload = three_rep_session(set_errors)
     payload["session_id"] = session_id
+    if notes is not None:
+        payload["notes"] = notes
     assert client.post("/api/sessions", json=payload).status_code == 201
     return payload
 
 
 def test_list_sessions(client: TestClient) -> None:
     assert client.get("/api/sessions/pushup").json() == []
-    upload(client, "a_pushup", ["shallow"])
-    upload(client, "b_pushup")
+    upload(client, "a_pushup", ["shallow"], notes="tối, áo đen")
+    upload(client, "b_pushup")  # file không có "notes"
     items = client.get("/api/sessions/pushup").json()
     assert [i["session_id"] for i in items] == ["b_pushup", "a_pushup"]  # mới nhất trước
     assert items[1]["set_errors"] == ["shallow"]
+    assert [i["notes"] for i in items] == ["", "tối, áo đen"]
+    assert client.get("/api/sessions/pushup/a_pushup/review").json()["notes"] == "tối, áo đen"
     assert all(i["n_reps"] == 3 and i["labeled"] is False for i in items)
 
 

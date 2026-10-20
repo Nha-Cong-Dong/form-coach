@@ -25,6 +25,13 @@ def test_valid_session() -> None:
     assert meta.set_errors == frozenset()
     assert meta.source["pose"] == "mediapipe-js"
     assert meta.timestamps_ms.shape == (60,)
+    assert meta.notes == ""  # file không có "notes" (như các hiệp quay trước 2026-10-20)
+
+
+def test_notes_parsed() -> None:
+    data = make_session()
+    data["notes"] = "tối, đèn trần, áo đen"
+    assert parse_session(data)[1].notes == "tối, đèn trần, áo đen"
 
 
 def test_fps_from_jittery_timestamps() -> None:
@@ -117,6 +124,8 @@ def broken(**changes) -> dict:
         (broken(frame_size=[1280.5, 720]), "frame_size"),
         (broken(joint_names=MEDIAPIPE_JOINTS[:32]), "joint_names"),
         (broken(frames=[]), "ít nhất 2 khung"),
+        (broken(notes=["tối"]), "'notes'"),
+        (broken(notes="x" * 1001), "'notes'"),
     ],
 )
 def test_format_errors(data, message: str) -> None:
