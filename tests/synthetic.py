@@ -52,3 +52,12 @@ def make_session(
         "joint_names": list(MEDIAPIPE_JOINTS),
         "frames": [{"t_ms": round(float(t), 1), "kp": kp[i].tolist()} for i, t in enumerate(t_ms)],
     }
+
+
+def three_rep_session(set_errors=()) -> dict:
+    """File quay tổng hợp: giữ plank 1 s → 3 rep (165° ↔ 70°, 2,4 s/rep) → giữ plank 1 s."""
+    t = np.arange(int(3 * 2.4 * 30)) / 30
+    reps = 117.5 + 47.5 * np.cos(2 * np.pi * t / 2.4)
+    data = make_session(np.concatenate([np.full(30, 165.0), reps, np.full(30, 165.0)]), 5.0)
+    data["set_errors"] = list(set_errors)
+    return data

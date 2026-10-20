@@ -187,11 +187,14 @@ Ghi chú:
 
 ## 4. Backend và web (bản nháp, chốt API đầu tuần 3)
 
-### Đã có (tuần 1, `backend/app.py`)
+### Đã có (`backend/app.py`)
 | Method | Đường dẫn | Việc |
 |---|---|---|
 | `GET` | `/api/exercises/{name}` | Tên bài + `error_labels` (trang quay lấy danh sách lỗi từ đây). Tên lạ → 404 |
-| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → lưu nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` (mặc định `data/`) → trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person`. Sai định dạng → 422 kèm lý do; trùng `session_id` → 409, không ghi đè. **Chưa** chạy pipeline, chưa DB/đăng nhập |
+| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → lưu nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` (mặc định `data/`) → trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person`. Sai định dạng → 422 kèm lý do; trùng `session_id` → 409, không ghi đè. Chưa DB/đăng nhập |
+| `GET` | `/api/sessions/{exercise}` | Danh sách hiệp (mới nhất trước): `session_id, recorded_at, set_errors, duration_s, n_reps, labeled`. File hỏng vẫn hiện kèm `error` |
+| `GET` | `/api/sessions/{exercise}/{session_id}/review` | `formcoach.review.build_review`: thời gian từng khung, tín hiệu đã lọc, khung xương rút gọn (15 khớp, NaN → `null`), rep + đặc trưng, nhãn đã lưu hoặc nhãn mặc định, `alignment_problems` nếu nhãn đã lưu không khớp rep hiện tại |
+| `PUT` | `/api/sessions/{exercise}/{session_id}/labels` | Body = file nhãn §2c → kiểm tra (`from_dict`), đúng hiệp, **khớp rep hiện tại** (`check_alignment`, lệch → 409) → lưu `data/labels/...` |
 
 Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện thoại đi qua proxy Vite).
 
@@ -201,7 +204,6 @@ Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện tho
 | `POST` | `/api/auth/register`, `/api/auth/login` | Đăng nhập |
 | `POST` | `/api/sessions` | Nhận JSON keypoint (mục 2b) → chạy pipeline → lưu → trả rep + nhãn |
 | `GET` | `/api/sessions/{id}` | Kết quả một buổi, kèm nhận xét coach |
-| `PATCH` | `/api/sessions/{id}/reps/{idx}` | Sửa nhãn một rep (màn hình gán nhãn) |
 | `WS` | `/api/live` | Nhận keypoint từng khung, trả số rep hiện tại |
 | `GET`/`PUT` | `/api/goals` | Đọc / đặt mục tiêu |
 | `GET` | `/api/progress?from=&to=` | Tổng rep, tỉ lệ rep đúng, streak, dữ liệu đồ thị |
@@ -228,6 +230,7 @@ formcoach/             # lõi Python, không phụ thuộc web/DB
  ├── models/           # FormClassifier, RuleBased, RandomForest
  ├── coach/            # Coach, TemplateCoach, DeepSeekCoach
  ├── labels.py         # nhãn từng rep: lưu/đọc/kiểm tra file nhãn (§2c)
+ ├── review.py         # dữ liệu cho màn hình gán nhãn (hàm thuần, backend chỉ gọi)
  ├── progress/         # tính mục tiêu, tỉ lệ rep đúng, streak (hàm thuần)
  ├── video/            # đọc video cho đường offline
  ├── pipeline.py       # ghép các bước

@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
-from tests.synthetic import make_session
+from tests.synthetic import make_session, three_rep_session
 
 
 @pytest.fixture
@@ -75,3 +75,81 @@ def test_duplicate_session_is_409_and_not_overwritten(client: TestClient, tmp_pa
     assert r.status_code == 409
     saved = tmp_path / "sessions" / "pushup" / f"{first['session_id']}.json"
     assert json.loads(saved.read_text(encoding="utf-8")) == first
+
+
+# --- gán nhãn: danh sách hiệp, xem lại, lưu nhãn ---
+
+
+def upload(client: TestClient, session_id: str, set_errors=()) -> dict:
+    payload = three_rep_session(set_errors)
+    payload["session_id"] = session_id
+    assert client.post("/api/sessions", json=payload).status_code == 201
+    return payload
+
+
+def test_list_sessions(client: TestClient) -> None:
+    assert client.get("/api/sessions/pushup").json() == []
+    upload(client, "a_pushup", ["shallow"])
+    upload(client, "b_pushup")
+    items = client.get("/api/sessions/pushup").json()
+    assert [i["session_id"] for i in items] == ["b_pushup", "a_pushup"]  # mới nhất trước
+    assert items[1]["set_errors"] == ["shallow"]
+    assert all(i["n_reps"] == 3 and i["labeled"] is False for i in items)
+
+
+def test_list_shows_corrupt_file_with_error(client: TestClient, tmp_path: Path) -> None:
+    folder = tmp_path / "sessions" / "pushup"
+    folder.mkdir(parents=True)
+    (folder / "hong.json").write_text("{}", encoding="utf-8")
+    items = client.get("/api/sessions/pushup").json()
+    assert items[0]["session_id"] == "hong" and "error" in items[0]
+
+
+def test_list_unknown_exercise_is_404(client: TestClient) -> None:
+    assert client.get("/api/sessions/deadlift").status_code == 404
+
+
+def test_review_and_save_labels(client: TestClient, tmp_path: Path) -> None:
+    upload(client, "s1", ["hip_sag"])
+    review = client.get("/api/sessions/pushup/s1/review").json()
+    assert len(review["reps"]) == 3 and review["labels_saved"] is False
+
+    labels = review["labels"]
+    labels["reps"][0]["errors"] = ["hip_sag", "shallow"]
+    labels["reps"][2] |= {"valid": False, "errors": []}
+    r = client.put("/api/sessions/pushup/s1/labels", json=labels)
+    assert r.status_code == 200 and r.json()["n_reps"] == 3
+    assert (tmp_path / "labels" / "pushup" / "s1.json").exists()
+
+    again = client.get("/api/sessions/pushup/s1/review").json()
+    assert again["labels_saved"] is True
+    assert again["labels"]["reps"][0]["errors"] == ["hip_sag", "shallow"]
+    assert again["labels"]["reps"][2]["valid"] is False
+    assert client.get("/api/sessions/pushup").json()[0]["labeled"] is True
+
+
+def test_put_invalid_labels_is_422(client: TestClient) -> None:
+    upload(client, "s1")
+    labels = client.get("/api/sessions/pushup/s1/review").json()["labels"]
+    labels["reps"][0]["errors"] = ["good"]
+    assert client.put("/api/sessions/pushup/s1/labels", json=labels).status_code == 422
+
+
+def test_put_labels_for_other_session_is_422(client: TestClient) -> None:
+    upload(client, "s1")
+    upload(client, "s2")
+    labels = client.get("/api/sessions/pushup/s1/review").json()["labels"]
+    assert client.put("/api/sessions/pushup/s2/labels", json=labels).status_code == 422
+
+
+def test_put_misaligned_labels_is_409(client: TestClient) -> None:
+    upload(client, "s1")
+    labels = client.get("/api/sessions/pushup/s1/review").json()["labels"]
+    labels["reps"] = labels["reps"][:2]  # thiếu một rep so với rep hiện tại
+    r = client.put("/api/sessions/pushup/s1/labels", json=labels)
+    assert r.status_code == 409 and "số rep khác" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("session_id", ["khong_co", "..", "a.b"])
+def test_review_unknown_session_is_404(client: TestClient, session_id: str) -> None:
+    assert client.get(f"/api/sessions/pushup/{session_id}/review").status_code == 404
