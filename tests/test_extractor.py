@@ -24,11 +24,15 @@ def make_pose(
     n: int = 300,
     visible_side: str = "right",
     standing: bool = False,
+    hip_dy: float = 0.0,
+    head_dy: float = 0.0,
 ) -> PoseSequence:
     """Push-up tổng hợp, dựng trong toạ độ pixel rồi chuẩn hoá về 0–1 như MediaPipe.
 
     Bên `visible_side` có hình học đúng và visibility 0,9; bên kia toạ độ rác, visibility 0,2.
     standing=True: thân dựng đứng (vai thẳng trên cổ chân) thay vì nằm ngang.
+    hip_dy: dời hông theo trục y của ảnh (pixel; âm = lên trên = hông nhô, dương = võng).
+    head_dy: dời tai theo trục y (pixel; dương = gục xuống, âm = ngửa lên); 0 = cổ thẳng theo thân.
     """
     t = np.arange(n) / FPS
     kp = np.full((n, 33, 3), 0.5)
@@ -41,8 +45,16 @@ def make_pose(
     if standing:
         hip, ankle = shoulder + [0.0, 300.0], shoulder + [0.0, 600.0]
     else:
-        hip, ankle = shoulder + [300.0, 0.0], shoulder + [600.0, 0.0]
-    points = {"shoulder": shoulder, "elbow": elbow, "wrist": wrist, "hip": hip, "ankle": ankle}
+        hip, ankle = shoulder + [300.0, hip_dy], shoulder + [600.0, 0.0]
+    ear = shoulder + ([0.0, -80.0] if standing else [-80.0, head_dy])  # đầu nối dài thân
+    points = {
+        "ear": ear,
+        "shoulder": shoulder,
+        "elbow": elbow,
+        "wrist": wrist,
+        "hip": hip,
+        "ankle": ankle,
+    }
 
     other = "left" if visible_side == "right" else "right"
     rng = np.random.default_rng(0)
@@ -74,7 +86,7 @@ def test_smoothed_elbow_stays_close_to_formula() -> None:
 
 def test_returns_smoothed_and_raw_signals() -> None:
     feats = FeatureExtractor().extract(make_pose(), PushUp())
-    names = {"elbow_angle", "body_angle", "body_tilt"}
+    names = {"elbow_angle", "body_angle", "neck_angle", "body_tilt", "hip_offset"}
     assert set(feats.signals) == names | {f"{n}_raw" for n in names}
     for sig in feats.signals.values():
         assert sig.shape == (300,)
@@ -84,6 +96,34 @@ def test_straight_horizontal_body() -> None:
     feats = FeatureExtractor().extract(make_pose(), PushUp())
     np.testing.assert_allclose(feats.signals["body_angle"], 180.0, atol=1e-6)
     np.testing.assert_allclose(feats.signals["body_tilt"], 0.0, atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("hip_dy", "expected"),
+    [(-60.0, 0.1), (60.0, -0.1), (0.0, 0.0)],  # vai–cổ chân dài 600 px → 60 px = 0,1
+)
+def test_hip_offset_sign_and_size(hip_dy: float, expected: float) -> None:
+    # Hông nhô (lên trên ảnh) → dương; võng → âm. Hai trường hợp có CÙNG body_angle:
+    # đó là lý do cần hip_offset.
+    feats = FeatureExtractor().extract(make_pose(hip_dy=hip_dy), PushUp())
+    np.testing.assert_allclose(feats.signals["hip_offset"], expected, atol=1e-6)
+
+
+def test_body_angle_cannot_tell_sag_from_high() -> None:
+    up = FeatureExtractor().extract(make_pose(hip_dy=-60.0), PushUp()).signals
+    down = FeatureExtractor().extract(make_pose(hip_dy=60.0), PushUp()).signals
+    np.testing.assert_allclose(up["body_angle"], down["body_angle"], atol=1e-6)
+    assert up["hip_offset"][0] > 0 > down["hip_offset"][0]
+
+
+@pytest.mark.parametrize(
+    ("head_dy", "expected"),
+    [(0.0, 180.0), (80.0, 135.0), (-80.0, 135.0)],  # tai cách vai 80 px theo thân
+)
+def test_neck_angle(head_dy: float, expected: float) -> None:
+    # Cổ thẳng theo thân 180°; gục xuống hay ngửa lên cùng mức → cùng một góc nhỏ hơn.
+    feats = FeatureExtractor().extract(make_pose(head_dy=head_dy), PushUp())
+    np.testing.assert_allclose(feats.signals["neck_angle"], expected, atol=1e-6)
 
 
 def test_standing_body_is_vertical() -> None:

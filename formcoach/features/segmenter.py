@@ -166,6 +166,9 @@ def _rep_features(span: RepSpan, signals: dict[str, np.ndarray], fps: float) -> 
         if np.isfinite(values).any():
             feats[f"min_{name}"] = float(np.nanmin(values))
             feats[f"max_{name}"] = float(np.nanmax(values))
+            # Trung vị: tư thế giữ suốt rep (cổ gục, hông võng). min/max chỉ là MỘT khung nên bị
+            # nhiễu kéo đi: góc cổ nhảy ±10° giữa các khung (buổi quay thử 2026-10-20).
+            feats[f"median_{name}"] = float(np.nanmedian(values))
     return feats
 
 
@@ -188,12 +191,19 @@ class RepSegmenter:
             for i, (a, t) in enumerate(zip(angle, tilt, strict=True))
         ]
         spans.append(machine.finish())
+
+        top_name = f"top_{exercise.primary_signal()}"
+
+        def features_of(span: RepSpan) -> dict[str, float]:
+            feats = _rep_features(span, signals, features.fps)
+            # Đỉnh SAU rep (cho incomplete_lockout): rep kết thúc ở chỗ "đã lên gần hết", đỉnh
+            # thật nằm trong top_settle_s ngay sau đó. max_<góc> trong rep không phải đỉnh này.
+            after = angle[span.end_frame : span.end_frame + machine.settle_frames + 1]
+            if np.isfinite(after).any():
+                feats[top_name] = float(np.nanmax(after))
+            return feats
+
         return [
-            Rep(
-                index=k,
-                start_frame=s.start_frame,
-                end_frame=s.end_frame,
-                features=_rep_features(s, signals, features.fps),
-            )
+            Rep(index=k, start_frame=s.start_frame, end_frame=s.end_frame, features=features_of(s))
             for k, s in enumerate(s for s in spans if s is not None)
         ]

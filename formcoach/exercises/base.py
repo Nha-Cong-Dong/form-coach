@@ -38,6 +38,15 @@ class Exercise(ABC):
         """
         return {}
 
+    def offset_definitions(self) -> dict[str, tuple[str, str, str]]:
+        """Tên tín hiệu -> (khớp P, khớp A, khớp B); độ lệch có dấu của P khỏi đường A–B.
+
+        Chia cho độ dài A–B (không có đơn vị). Dương = P nằm phía trên đường theo ảnh, âm =
+        phía dưới. Dùng cho lỗi lệch về hai phía mà góc 3 khớp không phân biệt được (hông nhô
+        hay võng). Tên khớp không có tiền tố bên. Mặc định không có; bài nào cần thì ghi đè.
+        """
+        return {}
+
     @abstractmethod
     def primary_signal(self) -> str:
         """Tên tín hiệu dùng để cắt rep, phải là một khoá của `angle_definitions()`."""

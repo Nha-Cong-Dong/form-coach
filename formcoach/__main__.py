@@ -16,12 +16,17 @@ from formcoach.features.extractor import choose_side, side_visibility
 from formcoach.pipeline import DEFAULT_MODEL, analyze, frame_timing, load_source
 
 
-def _percentiles(x: np.ndarray) -> str:
+def _fmt(value: float, is_offset: bool) -> str:
+    # Góc in bằng độ; độ lệch (hip_offset) là tỉ lệ theo độ dài thân, không có đơn vị.
+    return f"{value:+6.3f}" if is_offset else f"{value:6.1f}°"
+
+
+def _percentiles(x: np.ndarray, is_offset: bool) -> str:
     v = x[np.isfinite(x)]
     if v.size == 0:
         return "không có giá trị"
-    p5, p50, p95 = np.percentile(v, [5, 50, 95])
-    return f"p5 {p5:6.1f}°  p50 {p50:6.1f}°  p95 {p95:6.1f}°  (NaN {np.isnan(x).sum()}/{x.size})"
+    p5, p50, p95 = (_fmt(p, is_offset) for p in np.percentile(v, [5, 50, 95]))
+    return f"p5 {p5}  p50 {p50}  p95 {p95}  (NaN {np.isnan(x).sum()}/{x.size})"
 
 
 def cmd_analyze(args: argparse.Namespace) -> None:
@@ -46,18 +51,31 @@ def cmd_analyze(args: argparse.Namespace) -> None:
         f"Bên dùng: {choose_side(pose, exercise)} "
         f"(visibility TB trái {vis['left']:.2f}, phải {vis['right']:.2f})"
     )
+    offsets = set(exercise.offset_definitions())
     for name, sig in features.signals.items():
         if not name.endswith("_raw"):
-            print(f"  {name:<12} {_percentiles(sig)}")
+            print(f"  {name:<12} {_percentiles(sig, name in offsets)}")
 
     print(f"\nĐếm được {len(reps)} rep:")
     for r in reps:
         f = r.features
         line = f"  rep {r.index + 1}: {t[r.start_frame]:5.1f}–{t[r.end_frame]:5.1f} s"
         line += f"  dài {f['duration_s']:.1f} s"
+        # Mỗi góc: nhỏ nhất trong rep (một khung) và trung vị (tư thế giữ suốt rep, "tv").
         line += "".join(
-            f"  {k} {v:5.1f}°" for k, v in f.items() if k.startswith("min_") and "tilt" not in k
+            f"  {k} {v:5.1f}° (tv {f[f'median_{k[4:]}']:5.1f}°)"
+            for k, v in f.items()
+            if k.startswith("min_") and "tilt" not in k and k[4:] not in offsets
         )
+        # Đỉnh sau rep (incomplete_lockout).
+        line += "".join(f"  {k} {v:5.1f}°" for k, v in f.items() if k.startswith("top_"))
+        # Độ lệch có hai phía (nhô/võng) nên in cả nhỏ nhất và lớn nhất.
+        for name in offsets:
+            if f"min_{name}" in f:
+                line += (
+                    f"  {name} {f[f'min_{name}']:+.3f}…{f[f'max_{name}']:+.3f}"
+                    f" (tv {f[f'median_{name}']:+.3f})"
+                )
         print(line)
 
     if args.plot:

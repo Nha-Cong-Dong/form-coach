@@ -24,6 +24,7 @@ def plot_session(
     primary = exercise.primary_signal()
     others = [n for n in signals if not n.endswith("_raw") and n != primary]
     tilts = set(exercise.tilt_definitions())
+    offsets = set(exercise.offset_definitions())
 
     fig = Figure(figsize=(14, 3 * (len(others) + 2)))
     axes = fig.subplots(len(others) + 2, 1, sharex=True)
@@ -50,7 +51,9 @@ def plot_session(
 
     for ax, name in zip(axes[1:-1], others, strict=True):
         ax.plot(t, signals[name], lw=1.2, color="tab:orange" if name in tilts else "tab:purple")
-        ax.set_ylabel(f"{name} (°)")
+        ax.set_ylabel(name if name in offsets else f"{name} (°)")
+        if name in offsets:  # độ lệch có dấu: trên 0 = nhô, dưới 0 = võng
+            ax.axhline(0, color="gray", lw=0.8)
         if name in tilts:
             limit = th["ready_max_tilt_deg"]
             ax.axhline(limit, color="tab:red", ls="--", label=f"ready_max_tilt {limit:.0f}°")

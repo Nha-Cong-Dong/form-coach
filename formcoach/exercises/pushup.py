@@ -13,10 +13,19 @@ class PushUp(Exercise):
         return {
             "elbow_angle": ("shoulder", "elbow", "wrist"),  # ~160–170° thẳng tay, ~60–70° đáy
             "body_angle": ("shoulder", "hip", "ankle"),  # ~180° thân thẳng
+            # Cổ thẳng theo thân ~180°; gục đầu xuống hoặc rướn cổ lên đều làm góc nhỏ đi (cả hai
+            # là neck_drop). Thử nghiệm: tai khi quay ngang có thể đặt kém chính xác.
+            "neck_angle": ("ear", "shoulder", "hip"),
         }
 
     def tilt_definitions(self) -> dict[str, tuple[str, str]]:
         return {"body_tilt": ("shoulder", "ankle")}  # nhỏ khi plank, ~90° khi đứng
+
+    def offset_definitions(self) -> dict[str, tuple[str, str, str]]:
+        # Dương = hông cao hơn đường vai–cổ chân (hip_high), âm = võng (hip_sag); tính theo
+        # phần độ dài vai–cổ chân. body_angle không biết cong lên hay xuống: góc thân của hiệp
+        # hip_sag (158–170°) trùng với tập đúng (162–171°) ở buổi quay thử.
+        return {"hip_offset": ("hip", "shoulder", "ankle")}
 
     def primary_signal(self) -> str:
         return "elbow_angle"

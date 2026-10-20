@@ -80,7 +80,12 @@ def build_review(
         "fps": round(pose.fps, 2),
         "times_s": _series(times, 3),
         "primary_signal": exercise.primary_signal(),
-        "signals": {n: _series(v) for n, v in features.signals.items() if not n.endswith("_raw")},
+        # Góc (độ) làm tròn 1 chữ số; độ lệch (tỉ lệ ~0,05–0,2) cần 3 chữ số.
+        "signals": {
+            n: _series(v, 3 if n in exercise.offset_definitions() else 1)
+            for n, v in features.signals.items()
+            if not n.endswith("_raw")
+        },
         "thresholds": {k: th[k] for k in ("top_min", "min_amplitude_deg")},
         "joints": STICK_JOINTS,
         "keypoints": keypoints,  # [khung][khớp] = [x, y] chuẩn hoá 0–1, hoặc None

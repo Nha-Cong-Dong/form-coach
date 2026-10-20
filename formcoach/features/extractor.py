@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from formcoach.exercises.base import Exercise
-from formcoach.features.geometry import joint_angle, segment_tilt, to_pixel_space
+from formcoach.features.geometry import joint_angle, segment_tilt, signed_offset, to_pixel_space
 from formcoach.features.smoothing import interpolate_gaps, smooth
 from formcoach.types import FeatureSeries, PoseSequence
 
@@ -20,7 +20,11 @@ SIDES = ("left", "right")
 def used_joints(exercise: Exercise) -> list[str]:
     """Tên khớp (không có bên) mà bài tập dùng, theo thứ tự xuất hiện, không trùng."""
     names: list[str] = []
-    for joints in (*exercise.angle_definitions().values(), *exercise.tilt_definitions().values()):
+    for joints in (
+        *exercise.angle_definitions().values(),
+        *exercise.tilt_definitions().values(),
+        *exercise.offset_definitions().values(),
+    ):
         for j in joints:
             if j not in names:
                 names.append(j)
@@ -58,7 +62,8 @@ def choose_side(pose: PoseSequence, exercise: Exercise) -> str:
 
 
 class FeatureExtractor:
-    """Tính mọi góc trong `angle_definitions` và độ nghiêng trong `tilt_definitions`."""
+    """Tính mọi góc (`angle_definitions`), độ nghiêng (`tilt_definitions`) và độ lệch có dấu
+    (`offset_definitions`)."""
 
     def extract(self, pose: PoseSequence, exercise: Exercise) -> FeatureSeries:
         side = choose_side(pose, exercise)
@@ -85,6 +90,9 @@ class FeatureExtractor:
         for name, (a, b) in exercise.tilt_definitions().items():
             raw[name] = segment_tilt(xy(a), xy(b))
             masks[name] = reliable((a, b))
+        for name, (p, a, b) in exercise.offset_definitions().items():
+            raw[name] = signed_offset(xy(p), xy(a), xy(b))  # trong pixel: khung không vuông
+            masks[name] = reliable((p, a, b))
 
         max_gap = int(round(th["max_gap_s"] * pose.fps))
         signals: dict[str, np.ndarray] = {}

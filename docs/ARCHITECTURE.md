@@ -57,6 +57,8 @@ class Rep:
     start_frame: int
     end_frame: int
     features: dict[str, float]       # ví dụ {"min_elbow_angle": 82.0, "descent_time_s": 1.1}
+    # mỗi tín hiệu: min_/max_/median_<tên>; thêm top_<tín hiệu chính> = đỉnh trong
+    # top_settle_s ngay SAU rep (cho incomplete_lockout); duration_s, descent_time_s, bottom_frame
 
 @dataclass(frozen=True)
 class RepResult:
@@ -149,6 +151,10 @@ class Exercise(ABC):
     def tilt_definitions(self) -> dict[str, tuple[str, str]]: ...   # mặc định {}
         # tên tín hiệu -> (khớp A, khớp B): góc đoạn A→B so với phương ngang (0° nằm, 90° đứng)
         # ví dụ "body_tilt": ("shoulder", "ankle") để biết đang plank hay đang đứng
+    def offset_definitions(self) -> dict[str, tuple[str, str, str]]: ...   # mặc định {}
+        # tên tín hiệu -> (khớp P, khớp A, khớp B): độ lệch có dấu của P khỏi đường A–B,
+        # chia cho độ dài A–B; dương = P phía trên đường (theo ảnh), âm = phía dưới
+        # ví dụ "hip_offset": ("hip", "shoulder", "ankle"): dương = hông nhô, âm = hông võng
     def primary_signal(self) -> str: ...    # tín hiệu dùng để cắt rep, ví dụ "elbow_angle"
     def phase_thresholds(self) -> dict[str, float]: ...  # ngưỡng cho máy trạng thái
         # góc tính bằng độ; thời gian tính bằng giây, tên có hậu tố _s (ví dụ "min_rep_duration_s")
@@ -282,6 +288,8 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-19 — `load_session_json` trả `(PoseSequence, SessionMeta)`; thêm `EXERCISES` / `get_exercise`.** — File quay mang thông tin không thuộc `PoseSequence` (session_id, bài tập, tập lỗi của hiệp, t_ms gốc) mà backend và màn hình gán nhãn cần; bảng tra tên → `Exercise` để kiểm tra `set_errors` và để backend tạo bài tập từ tên. — Đã loại: nhét metadata vào `PoseSequence` (đổi kiểu dữ liệu lõi cho một nguồn); trả dict tự do (không có type).
 - **2026-10-20 — Nhãn lưu mỗi hiệp một file JSON (§2c), không dùng chung `reps.csv`.** — Mỗi lần lưu chỉ đụng một file (không sửa chung một CSV); giữ ranh giới rep + ngưỡng bộ đếm để phát hiện nhãn lệch khi rep được cắt lại. Bảng CSV để train sẽ được xuất ra từ các file này. — Đã loại: một `reps.csv` chung (ghi đè lẫn nhau, không giữ được ngưỡng lúc cắt).
 - **2026-10-20 — Đánh giá bằng kiểm định chéo bỏ ra một buổi (leave-one-session-out).** — Chỉ có 5–6 buổi: một buổi test (~25 rep, mỗi lỗi ~4–5 rep) cho F1 dao động quá mạnh; kiểm định chéo cho mỗi buổi làm test một lần, báo trung bình ± dao động, vẫn chia theo buổi nên không rò rỉ. Ngưỡng luật chốt từ buổi quay thử rồi giữ cố định khi chấm; mọi thứ fit theo dữ liệu chỉ fit trên phần train của từng lần. — Đã loại: 80/20 một lần (quá ít rep test); khoá thêm một buổi ngoài kiểm định chéo (bớt dữ liệu).
+- **2026-10-20 — Thêm `Exercise.offset_definitions()` (mặc định `{}`) và `geometry.signed_offset`.** PushUp: `hip_offset = (hip, shoulder, ankle)`. Tính trong toạ độ pixel, chia cho độ dài vai–cổ chân; dấu theo hướng "lên" của ảnh (không đổi khi đảo chiều đoạn hay lật ảnh trái–phải). — Góc vai–hông–cổ chân bằng nhau khi hông nhô hay võng cùng mức; buổi quay thử: góc thân hiệp `hip_sag` 158–170° trùng với tập đúng 162–171°. — Đã loại: dấu theo tích có hướng (đổi dấu khi người quay đầu sang phía kia); chênh y thô của hông (phụ thuộc khoảng cách tới camera và độ nghiêng thân).
+- **2026-10-20 — Buổi quay thử (bước 0) không đưa vào chấm điểm.** Chỉ dùng để chọn ngưỡng luật (`labeling-criteria.md`); kiểm định chéo chạy trên các buổi quay sau. — Ngưỡng được chọn để tách đúng chính các rep của buổi này; nếu nó làm tập test ở một lần chia thì kết quả lần đó đẹp giả (rò rỉ). — Đã loại: vẫn đưa vào và báo hai bộ kết quả có/không có buổi này (phức tạp, dễ quên).
 - **2026-10-20 — Chốt: không lấy mẫu lại `t_ms`.** — Đo trên hiệp quay thật (điện thoại, camera trước): khoảng cách khung trung vị 82,7 ms, lệch chuẩn 14 ms (17%), p95 100 ms, lớn nhất 108 ms, không lần khựng nào > 3× trung vị; bộ đếm ra đúng 5/5 rep. Khung chậm nhưng đều, coi cách đều theo trung vị là đủ. — Đã loại: lấy mẫu lại về fps cố định (phức tạp hơn, không cải thiện gì ở mức dao động này).
 - **2026-10-19 — fps của file quay = 1000 / trung vị khoảng cách `t_ms`, chưa lấy mẫu lại.** — Trung vị không bị kéo tụt khi trình duyệt khựng; giữ nguyên khung đơn giản và đủ dùng cho tới khi có số đo thật. — Đã loại (tạm): lấy mẫu lại về fps cố định ngay (quyết định ở bước 10); fps trung bình (bị khựng kéo tụt).
 - **2026-10-19 — FeatureExtractor bỏ khung có khớp mờ (`min_joint_visibility` = 0,5 trong `phase_thresholds`).** Mỗi góc chỉ được tính ở khung mà mọi khớp tạo nên nó có visibility ≥ ngưỡng, còn lại = NaN (lỗ ngắn được lấp, lỗ dài làm bộ đếm về chờ); `<tên>_raw` vẫn giữ góc thô. — Hiệp quay thật trên điện thoại: lúc đi sát điện thoại bấm Xong, khớp mờ (~0,2), MediaPipe đoán bừa thân "nằm" + khuỷu gập 19° → một rep ma. — Đã loại: chặn bằng thời gian sau khi đứng dậy (không tổng quát); dựa vào độ nghiêng thân (chính nó cũng bị đoán bừa).

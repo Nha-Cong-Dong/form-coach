@@ -252,6 +252,52 @@ def test_same_reps_at_different_fps(fps: float) -> None:
 
 def test_rep_features_include_every_signal() -> None:
     feats = count(session(2))[0].features
-    for key in ("min_elbow_angle", "max_elbow_angle", "min_body_tilt", "max_body_tilt"):
+    for key in ("min_elbow_angle", "max_elbow_angle", "median_elbow_angle", "min_body_tilt"):
         assert key in feats
     assert feats["descent_time_s"] < feats["duration_s"]
+
+
+def test_median_ignores_single_noisy_frame() -> None:
+    # Tín hiệu phụ (vd góc cổ) giữ 130° suốt rep nhưng có MỘT khung nhiễu 100°:
+    # min bị kéo theo khung đó, trung vị thì không.
+    elbow = session(2)
+    neck = np.full(elbow.size, 130.0)
+    rep = count(elbow)[0]
+    neck[(rep.start_frame + rep.end_frame) // 2] = 100.0
+    fs = features(elbow)
+    fs.signals["neck_angle"] = neck
+    feats = RepSegmenter().segment(fs, PushUp())[0].features
+    assert feats["min_neck_angle"] == 100.0
+    assert feats["median_neck_angle"] == 130.0
+
+
+def test_median_skips_nan_frames() -> None:
+    elbow = session(2)
+    neck = np.full(elbow.size, 130.0)
+    neck[: elbow.size // 2] = np.nan  # nửa đầu không thấy tai
+    fs = features(elbow)
+    fs.signals["neck_angle"] = neck
+    feats = RepSegmenter().segment(fs, PushUp())[-1].features
+    assert feats["median_neck_angle"] == 130.0
+
+
+def test_top_after_rep_measures_lockout() -> None:
+    # Như hiệp incomplete_lockout quay thử: đỉnh giữa các rep chỉ 110°, 133°, 135°; rep cuối lên
+    # hết 165°. top_elbow_angle = đỉnh ngay sau mỗi rep.
+    elbow = np.concatenate(
+        [hold(165, 1.0), extremes([165, 40, 110, 50, 133, 48, 135, 48, 165]), hold(165, 1.0)]
+    )
+    result = count(elbow)
+    tops = [r.features["top_elbow_angle"] for r in result]
+    np.testing.assert_allclose(tops, [110, 133, 135, 165], atol=1.0)
+    # Vì sao không dùng max trong rep: rep bắt đầu ngay sau đỉnh TRƯỚC nó, nên max của rep 1 là
+    # 165° (plank trước rep) dù sau rep 1 chỉ lên tới 110°.
+    assert result[0].features["max_elbow_angle"] > 155
+
+
+def test_top_after_last_rep_at_end_of_signal() -> None:
+    # Video dừng ngay khi vừa lên: cửa sổ sau rep bị cắt ngắn nhưng vẫn có giá trị.
+    elbow = np.concatenate([hold(165, 1.0), reps(2)])
+    result = count(elbow)
+    assert len(result) == 2
+    assert result[-1].features["top_elbow_angle"] == pytest.approx(165.0, abs=1.0)
