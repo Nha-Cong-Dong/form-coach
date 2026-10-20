@@ -1,15 +1,26 @@
-"""Cắt chuỗi tín hiệu thành từng rep bằng máy trạng thái (State pattern).
+"""Cắt chuỗi tín hiệu thành từng rep bằng máy trạng thái (State pattern), đếm theo BIÊN ĐỘ.
 
 Máy trạng thái nhận TỪNG MẪU một (`RepStateMachine.step`), nên tuần 3 bộ đếm realtime
 (OnlineRepCounter) dùng lại được nguyên; `RepSegmenter` chỉ là vòng lặp chạy nó trên cả hiệp.
 
-Trạng thái:
-    WAITING_READY ──(khuỷu > top_min và thân nằm, giữ ready_hold_s)──► TOP
-    TOP ──(khuỷu < descent_trigger)──► DOWN
-    DOWN ──(khuỷu > top_min, rep đủ dài)──► TOP, +1 rep
-    bất kỳ ──(thân dựng lên, hoặc mất tín hiệu)──► WAITING_READY, bỏ rep đang dở
-Hai ngưỡng khác nhau (top_min > descent_trigger) là hysteresis: dao động nhiễu quanh một
-ngưỡng không tạo ra rep giả.
+Đếm theo biên độ thay cho ngưỡng cố định (đổi ngày 2026-10-20): rep chưa duỗi hết tay (đỉnh chỉ
+~110–135°) và rep nông (đáy ~100–114°) đòi hai ngưỡng cố định ngược nhau; biên độ thì không.
+Gọi D = min_amplitude_deg:
+
+    WAITING_READY ──(góc > top_min và thân nằm, giữ ready_hold_s)──► UP
+    UP   (theo dõi đỉnh) ──(góc ≤ đỉnh − D)──► DOWN       ; nếu đang có rep chờ → chốt rep đó
+    DOWN (theo dõi đáy)  ──(góc ≥ đáy + D)──► UP, có "rep chờ" (đã đếm được, chưa biết đỉnh cuối)
+    bất kỳ ──(thân dựng lên / mất tín hiệu)──► WAITING_READY  ; rep chờ (nếu có) được chốt
+
+Ranh giới rep (sửa 2026-10-20): đỉnh tuyệt đối dễ rơi vào lúc giữ plank chờ hoặc lúc rời tư thế
+(tay duỗi thêm khi đứng dậy), kéo rep lấn sang những đoạn đó. Nên ranh giới dựa vào độ ổn định
+cục bộ, với T = top_tolerance_deg, W = top_settle_s:
+- rep KẾT THÚC ở khung đầu tiên (sau đáy) mà trong W giây tới góc không tăng thêm quá T ("đã lên");
+- rep BẮT ĐẦU ở khung cuối cùng (trước khi xuống) mà trong W giây trước đó góc chưa từng cao hơn
+  nó quá T ("chưa tụt").
+Thời gian nghỉ ở đỉnh giữa hai rep không tính vào rep nào.
+Dao động nhỏ hơn D (nhiễu, giữ plank) không tạo rep: đây là hysteresis theo biên độ.
+Rep chỉ xuống rồi dừng ở đáy (chưa lên lại D) không được đếm.
 """
 
 from __future__ import annotations
@@ -25,7 +36,7 @@ from formcoach.types import FeatureSeries, Rep
 
 class Phase(Enum):
     WAITING_READY = auto()
-    TOP = auto()
+    UP = auto()
     DOWN = auto()
 
 
@@ -39,12 +50,14 @@ class RepSpan:
 
 
 class RepStateMachine:
-    """Nhận từng mẫu (góc chính, độ nghiêng thân), báo khi vừa xong một rep."""
+    """Nhận từng mẫu (góc chính, độ nghiêng thân), trả rep khi nó được chốt."""
 
     def __init__(self, exercise: Exercise, fps: float) -> None:
         th = exercise.phase_thresholds()
         self.top_min = th["top_min"]
-        self.descent_trigger = th["descent_trigger"]
+        self.amplitude = th["min_amplitude_deg"]
+        self.tolerance = th["top_tolerance_deg"]
+        self.settle_frames = max(1, int(round(th["top_settle_s"] * fps)))
         self.max_tilt = th["ready_max_tilt_deg"]
         self.ready_frames = max(1, int(round(th["ready_hold_s"] * fps)))
         self.min_rep_frames = int(round(th["min_rep_duration_s"] * fps))
@@ -53,45 +66,90 @@ class RepStateMachine:
     def reset(self) -> None:
         self.phase = Phase.WAITING_READY
         self.ready_count = 0
-        self.last_top = -1  # khung gần nhất còn ở tư thế trên, dùng làm điểm bắt đầu rep
+        self.top_value = -np.inf  # đỉnh của pha UP hiện tại (chỉ dùng để phát hiện xuống)
+        self.up_first = -1  # khung đầu của pha UP hiện tại
+        self.up_angles: list[float] = []  # góc từng khung của pha UP: tìm ranh giới rep
+        self.bottom_frame, self.bottom_value = -1, np.inf  # đáy đang theo dõi (pha DOWN)
         self.rep_start = -1
-        self.bottom = -1
-        self.bottom_value = np.inf
+        self.pending: tuple[int, int] | None = None  # (start, bottom) của rep đã đếm, chờ đỉnh cuối
+
+    @property
+    def has_pending(self) -> bool:
+        """Có rep đã đủ biên độ nhưng chưa chốt đỉnh cuối (bộ đếm realtime đếm luôn rep này)."""
+        return self.pending is not None
+
+    def _enter_up(self, i: int, angle: float) -> None:
+        self.phase = Phase.UP
+        self.top_value, self.up_first, self.up_angles = angle, i, [angle]
+
+    def _settled_end(self) -> int:
+        """Khung đầu tiên của pha UP mà W khung tới không tăng thêm quá T."""
+        a, w = self.up_angles, self.settle_frames
+        k = next(k for k in range(len(a)) if max(a[k : k + w + 1]) <= a[k] + self.tolerance)
+        return self.up_first + k  # luôn có: khung cuối cùng tự thoả
+
+    def _settled_start(self) -> int:
+        """Khung cuối cùng của pha UP mà W khung trước đó không cao hơn nó quá T."""
+        a, w = self.up_angles, self.settle_frames
+        k = next(
+            k
+            for k in reversed(range(len(a)))
+            if max(a[max(0, k - w) : k + 1]) <= a[k] + self.tolerance
+        )
+        return self.up_first + k  # luôn có: khung đầu tiên tự thoả
+
+    def _close_pending(self) -> RepSpan | None:
+        """Chốt rep chờ tại điểm "đã lên" của pha UP hiện tại; bỏ nếu quá ngắn."""
+        if self.pending is None:
+            return None
+        start, bottom = self.pending
+        self.pending = None
+        end = self._settled_end()
+        if end - start < self.min_rep_frames:
+            return None
+        return RepSpan(start, bottom, end)
 
     def step(self, i: int, angle: float, tilt: float) -> RepSpan | None:
-        """Xử lý khung i. Trả RepSpan nếu khung này kết thúc một rep hợp lệ, ngược lại None."""
+        """Xử lý khung i. Trả RepSpan nếu khung này chốt xong một rep, ngược lại None."""
         lying = np.isfinite(tilt) and tilt <= self.max_tilt
         if not np.isfinite(angle) or not lying:
             # Mất tín hiệu, hoặc thân dựng lên (đứng, quỳ): không phải đang tập → chờ lại.
+            # Rep đã lên lại đủ biên độ thì vẫn tính (vd đẩy lên rồi đứng dậy luôn).
+            span = self._close_pending() if self.phase is Phase.UP else None
             self.reset()
-            return None
+            return span
 
         if self.phase is Phase.WAITING_READY:
             self.ready_count = self.ready_count + 1 if angle > self.top_min else 0
             if self.ready_count >= self.ready_frames:
-                self.phase = Phase.TOP
-                self.last_top = i
+                self._enter_up(i, angle)
             return None
 
-        if self.phase is Phase.TOP:
-            if angle >= self.top_min:
-                self.last_top = i
-            elif angle < self.descent_trigger:
-                self.phase = Phase.DOWN
-                self.rep_start = self.last_top
-                self.bottom, self.bottom_value = i, angle
-            return None
+        if self.phase is Phase.UP:
+            if angle > self.top_value - self.amplitude:
+                self.up_angles.append(angle)
+                self.top_value = max(self.top_value, angle)
+                return None
+            # Đã xuống ≥ D so với đỉnh: chốt rep trước (nếu có), rep mới bắt đầu.
+            span = self._close_pending()
+            self.rep_start = self._settled_start()
+            self.phase = Phase.DOWN
+            self.bottom_frame, self.bottom_value = i, angle
+            return span
 
         # Phase.DOWN
         if angle < self.bottom_value:
-            self.bottom, self.bottom_value = i, angle
-        if angle > self.top_min:
-            span = RepSpan(self.rep_start, self.bottom, i)
-            self.phase = Phase.TOP
-            self.last_top = i
-            if i - self.rep_start >= self.min_rep_frames:
-                return span
+            self.bottom_frame, self.bottom_value = i, angle
+        elif angle >= self.bottom_value + self.amplitude:
+            self.pending = (self.rep_start, self.bottom_frame)
+            self._enter_up(i, angle)
         return None
+
+    def finish(self) -> RepSpan | None:
+        """Hết tín hiệu: chốt rep chờ (nếu có). Rep đang xuống dở thì bỏ."""
+        span = self._close_pending() if self.phase is Phase.UP else None
+        self.reset()
+        return span
 
 
 def _rep_features(span: RepSpan, signals: dict[str, np.ndarray], fps: float) -> dict[str, float]:
@@ -125,16 +183,17 @@ class RepSegmenter:
             tilt = np.zeros_like(angle)
 
         machine = RepStateMachine(exercise, features.fps)
-        reps: list[Rep] = []
-        for i, (a, t) in enumerate(zip(angle, tilt, strict=True)):
-            span = machine.step(i, float(a), float(t))
-            if span is not None:
-                reps.append(
-                    Rep(
-                        index=len(reps),
-                        start_frame=span.start_frame,
-                        end_frame=span.end_frame,
-                        features=_rep_features(span, signals, features.fps),
-                    )
-                )
-        return reps
+        spans = [
+            machine.step(i, float(a), float(t))
+            for i, (a, t) in enumerate(zip(angle, tilt, strict=True))
+        ]
+        spans.append(machine.finish())
+        return [
+            Rep(
+                index=k,
+                start_frame=s.start_frame,
+                end_frame=s.end_frame,
+                features=_rep_features(s, signals, features.fps),
+            )
+            for k, s in enumerate(s for s in spans if s is not None)
+        ]

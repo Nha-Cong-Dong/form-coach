@@ -27,16 +27,25 @@ def test_good_is_not_an_error_label() -> None:
     assert len(set(labels)) == len(labels)
 
 
-def test_hysteresis_gap() -> None:
+def test_amplitude_between_noise_and_real_reps() -> None:
+    # Lớn hơn nhiễu (vài độ) nhưng nhỏ hơn biên độ rep nông nhất đo được (~60°).
+    amp = PushUp().phase_thresholds()["min_amplitude_deg"]
+    assert 15 < amp < 60
+
+
+def test_top_tolerance_well_below_amplitude() -> None:
+    # Ranh giới rep phải nằm gần đỉnh: dung sai lớn hơn nhiễu nhưng nhỏ hơn hẳn biên độ đếm.
     th = PushUp().phase_thresholds()
-    assert th["descent_trigger"] < th["top_min"]
+    assert 3 < th["top_tolerance_deg"] < th["min_amplitude_deg"] / 2
 
 
 def test_required_phase_keys() -> None:
     th = PushUp().phase_thresholds()
     for key in (
         "top_min",
-        "descent_trigger",
+        "min_amplitude_deg",
+        "top_tolerance_deg",
+        "top_settle_s",
         "ready_hold_s",
         "ready_max_tilt_deg",
         "min_rep_duration_s",

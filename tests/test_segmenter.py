@@ -1,7 +1,7 @@
 """Test bộ đếm rep bằng tín hiệu tổng hợp có đáp án biết trước.
 
-Ngưỡng lấy từ PushUp thật (top_min 140, descent_trigger 125, ready_hold 0,5 s,
-ready_max_tilt 35°, min_rep 0,8 s) để test bám đúng cấu hình đang dùng.
+Ngưỡng lấy từ PushUp thật (top_min 140 cho sẵn sàng, min_amplitude 35°, ready_hold 0,5 s,
+ready_max_tilt 35°, min_rep 0,4 s) để test bám đúng cấu hình đang dùng.
 """
 
 import numpy as np
@@ -41,6 +41,14 @@ def count(elbow: np.ndarray, tilt: np.ndarray | float = PLANK_TILT, fps: float =
     return RepSegmenter().segment(features(elbow, tilt, fps), PushUp())
 
 
+def extremes(points: list[float], half_period_s: float = 1.2) -> np.ndarray:
+    """Đi qua lần lượt các đỉnh/đáy cho trước bằng nửa chu kỳ cos (trơn như chuyển động thật)."""
+    n = int(round(half_period_s * FPS))
+    u = (1 - np.cos(np.pi * np.arange(n) / n)) / 2  # 0 → 1 trơn
+    parts = [a + (b - a) * u for a, b in zip(points, points[1:], strict=False)]
+    return np.concatenate([*parts, [points[-1]]])
+
+
 def session(n: int = 5, **kw) -> np.ndarray:
     """Giữ plank 1 s → n rep → giữ plank 1 s."""
     fps = kw.get("fps", FPS)
@@ -57,10 +65,38 @@ def test_five_clean_reps() -> None:
         bottom = r.features["bottom_frame"]
         assert r.start_frame < bottom < r.end_frame
         assert r.features["min_elbow_angle"] == pytest.approx(70.0, abs=0.5)
-        assert 1.5 < r.features["duration_s"] < 2.4
+        # Chu kỳ 2,4 s trừ đoạn sát đỉnh (trong 10° dưới đỉnh ≈ ±0,25 s) ở hai đầu.
+        assert r.features["duration_s"] == pytest.approx(1.9, abs=0.15)
     for a, b in zip(result, result[1:], strict=False):
         assert a.end_frame <= b.start_frame  # không chồng nhau
     assert [r.index for r in result] == list(range(5))
+
+
+def test_long_wobbly_hold_before_first_rep_not_included() -> None:
+    # Như hiệp shallow quay thử: giữ plank 6 s, khuỷu dao động 155–176°, cao nhất ở ĐẦU lúc giữ.
+    t = np.arange(int(6 * FPS)) / FPS
+    wait = 165 + 10 * np.cos(2 * np.pi * t / 1.5)
+    wait[: int(0.5 * FPS)] = 176
+    elbow = np.concatenate([wait, reps(3), hold(165, 1.0)])
+    result = count(elbow)
+    assert len(result) == 3
+    assert result[0].start_frame / FPS > 5.0  # bắt đầu ngay trước khi xuống, không phải lúc 0,5 s
+    assert result[0].features["duration_s"] < 2.5
+
+
+def test_arm_extension_while_getting_up_not_included() -> None:
+    # Như hiệp neck_drop quay thử: rep cuối lên tới ~160° rồi nghỉ 1,5 s; lúc đứng dậy tay duỗi
+    # thẳng tới 179° (thân vẫn còn nằm), sau đó thân dựng lên.
+    last = extremes([165, 60, 160])
+    rest = hold(160, 1.5)
+    exit_arm = np.linspace(160, 179, int(0.3 * FPS))
+    elbow = np.concatenate([hold(165, 1.0), reps(2), last, rest, exit_arm, hold(179, 0.5)])
+    tilt = np.full(elbow.size, PLANK_TILT)
+    tilt[-int(0.5 * FPS) :] = STAND_TILT
+    result = count(elbow, tilt)
+    assert len(result) == 3
+    rest_start = elbow.size - int(0.5 * FPS) - exit_arm.size - rest.size
+    assert result[-1].end_frame < rest_start  # kết thúc khi vừa lên tới 160°, trước lúc nghỉ
 
 
 def test_noise_does_not_create_extra_reps() -> None:
@@ -84,16 +120,27 @@ def test_fast_shallow_reps_are_counted() -> None:
 
 
 def test_incomplete_lockout_reps_are_counted() -> None:
-    # Đỉnh chỉ 148° (chưa duỗi hết tay) nhưng vẫn trên top_min 140 → vẫn đếm.
+    # Đỉnh chỉ 148° (chưa duỗi hết tay) → vẫn đếm.
     elbow = np.concatenate([hold(165, 1.0), reps(4, top=148.0), hold(165, 1.0)])
     assert len(count(elbow)) == 4
+
+
+def test_incomplete_lockout_tops_below_top_min_are_counted() -> None:
+    # Tái hiện hiệp quay 2026-10-20T10-15-32: 4 rep, đỉnh giữa chỉ 110°, 133°, 135° (dưới cả
+    # top_min 140°). Bộ đếm ngưỡng cố định cũ gộp cả 4 thành 1 rep dài 10,6 s.
+    elbow = np.concatenate(
+        [hold(165, 1.0), extremes([165, 40, 110, 50, 133, 48, 135, 48, 165]), hold(165, 1.0)]
+    )
+    result = count(elbow)
+    assert len(result) == 4
+    assert [round(r.features["min_elbow_angle"]) for r in result] == [40, 50, 48, 48]
 
 
 # --- không đếm thừa ---
 
 
-def test_oscillation_near_descent_trigger_counts_once() -> None:
-    # Xuống tới ~125 rồi dao động 120–130 một lúc mới lên: chỉ là 1 rep.
+def test_wobble_at_bottom_counts_once() -> None:
+    # Xuống tới ~125 rồi dao động 120–130 (nhỏ hơn biên độ 35°) một lúc mới lên: chỉ là 1 rep.
     wobble = 125 + 5 * np.sin(np.linspace(0, 8 * np.pi, 60))
     elbow = np.concatenate(
         [hold(165, 1.0), np.linspace(165, 125, 20), wobble, np.linspace(125, 165, 20), hold(165, 1)]
@@ -101,13 +148,13 @@ def test_oscillation_near_descent_trigger_counts_once() -> None:
     assert len(count(elbow)) == 1
 
 
-def test_slow_oscillation_near_top_min_counts_nothing() -> None:
-    # Giữ plank, khuỷu dao động CHẬM quanh 140 (chu kỳ 2 s) nhưng không xuống dưới 125 → 0 rep.
-    # Chu kỳ dài hơn min_rep_duration để chỉ còn hysteresis chặn được; dao động nhanh thì
+def test_slow_wobble_smaller_than_amplitude_counts_nothing() -> None:
+    # Giữ plank, khuỷu dao động CHẬM 138–162° (chu kỳ 2 s, biên độ 24° < 35°) → 0 rep.
+    # Chu kỳ dài hơn min_rep_duration để chỉ còn ngưỡng biên độ chặn được; dao động nhanh thì
     # min_rep_duration cũng chặn, test sẽ không phân biệt được hai cơ chế.
     t = np.arange(int(8 * FPS)) / FPS
-    wobble = 140 + 8 * np.sin(2 * np.pi * t / 2.0)
-    assert wobble.min() > 125
+    wobble = 150 + 12 * np.sin(2 * np.pi * t / 2.0)
+    assert 165 - wobble.min() < 35  # tiền đề: kể cả từ đỉnh giữ plank xuống cũng < biên độ
     elbow = np.concatenate([hold(165, 1.0), wobble])
     assert len(count(elbow)) == 0
 
@@ -123,7 +170,9 @@ def test_standing_up_from_bottom_does_not_count() -> None:
     rise = np.linspace(70, 175, 30)  # chống tay đứng dậy, khuỷu duỗi ra
     elbow = np.concatenate([hold(165, 1.0), reps(2), third, rise])
     tilt = np.full(elbow.size, PLANK_TILT)
-    tilt[-len(rise) :] = np.linspace(PLANK_TILT, STAND_TILT, len(rise))
+    # Thân dựng lên nhanh (1/3 giây đầu), trước khi khuỷu kịp duỗi đủ 35°.
+    tilt[-len(rise) :] = STAND_TILT
+    tilt[-len(rise) : -len(rise) + 10] = np.linspace(PLANK_TILT, STAND_TILT, 10)
     assert len(count(elbow, tilt)) == 2
 
 
@@ -145,12 +194,20 @@ def test_not_ready_long_enough_misses_first_rep_only() -> None:
     assert len(count(elbow)) == 3
 
 
-def test_session_ending_mid_rep_does_not_count_partial() -> None:
-    # Như clip clean thật: video dừng khi đang đẩy lên, khuỷu mới ~135°.
-    partial = reps(1)[: int(1.9 * FPS)]
+def test_session_ending_at_bottom_does_not_count_partial() -> None:
+    # Video dừng khi đang ở đáy, chưa đẩy lên: rep dở không đếm.
+    partial = reps(1)[: int(1.2 * FPS)]
     elbow = np.concatenate([hold(165, 1.0), reps(3), partial])
-    assert partial[-1] < 140
     assert len(count(elbow)) == 3
+
+
+def test_session_ending_mid_ascent_counts_rep() -> None:
+    # Như clip clean thật: video dừng khi đang đẩy lên, khuỷu ~130° (đã lên lại > 35° từ đáy 70°).
+    # Người tập đã làm rep này: đếm (đáp án thật của clip clean là 7).
+    partial = reps(1)[: int(1.9 * FPS)]
+    assert partial[-1] - 70 > 35  # tiền đề
+    elbow = np.concatenate([hold(165, 1.0), reps(3), partial])
+    assert len(count(elbow)) == 4
 
 
 def test_session_starting_at_bottom_has_no_ghost_rep() -> None:
