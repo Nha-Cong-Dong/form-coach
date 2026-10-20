@@ -91,6 +91,7 @@ Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScri
   "exercise": "pushup",
   "set_errors": [],
   "recorded_at": "2026-10-20T19:05:12+07:00",
+  "notes": "tối, đèn trần, áo đen",
   "source": {"pose": "mediapipe-js", "version": "?", "model": "pose_landmarker_full"},
   "frame_size": [1280, 720],
   "joint_names": ["nose", "...", "right_foot_index"],
@@ -101,13 +102,14 @@ Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScri
 }
 ```
 - `kp: null` = khung không phát hiện người (đọc vào thành hàng NaN).
+- `notes` (**tuỳ chọn**, thêm 2026-10-20, `format_version` vẫn 1) = ghi chú điều kiện quay (ánh sáng, quần áo, chỗ quay, đau mỏi), nhập ở trang quay. Dùng khi kiểm định chéo để giải thích một buổi lệch hẳn các buổi khác. File cũ không có trường này → `SessionMeta.notes = ""`.
 - `set_errors` = tập lỗi cố ý của cả hiệp, chọn trước khi quay (`[]` = hiệp tập đúng). Mọi rep của hiệp nhận tập này làm nhãn ban đầu, sửa từng rep sau trong màn hình gán nhãn.
 
 Quy tắc kiểm tra (sai thì `SessionFormatError` nói rõ trường / khung / khớp nào sai):
 - Đủ mọi trường ở trên; `format_version == 1`.
 - `session_id` chỉ gồm `[A-Za-z0-9_-]`, 1–100 ký tự (được dùng làm tên file, chặn `../`).
 - `exercise` có trong `formcoach.exercises.EXERCISES`; `set_errors` là danh sách không trùng, mỗi phần tử thuộc `error_labels` của bài đó.
-- `recorded_at` dạng ISO 8601; `source` là object có giá trị chuỗi.
+- `recorded_at` dạng ISO 8601; `source` là object có giá trị chuỗi; `notes` (nếu có) là chuỗi ≤ 1000 ký tự.
 - `frame_size` = `[width, height]` số nguyên dương; `joint_names` đúng 33 tên MediaPipe theo thứ tự.
 - `frames` ≥ 2 khung; `t_ms` là số không âm, **tăng ngặt**; `kp` là `null` hoặc 33 × `[x, y, visibility]` số hữu hạn (không nhận `true/false`).
 

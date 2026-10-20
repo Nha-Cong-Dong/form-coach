@@ -40,6 +40,8 @@ export default function CaptureView() {
   const [errorLabels, setErrorLabels] = useState<string[] | null>(null)
   const [labelsError, setLabelsError] = useState('')
   const [setErrors, setSetErrors] = useState<string[]>([])
+  // Ghi chú điều kiện quay (D4). Giữ nguyên sau mỗi hiệp: cả buổi thường cùng điều kiện.
+  const [notes, setNotes] = useState('')
   const [cameraOn, setCameraOn] = useState(false)
   // Khung camera đang DỌC (cao > rộng). Không cho ghi: người nằm ngang ngoài đời sẽ thành
   // dựng đứng trong hình, độ nghiêng thân bị lật 90° và bộ đếm không đếm được rep nào
@@ -155,6 +157,7 @@ export default function CaptureView() {
     const session = buildSession({
       exercise: EXERCISE,
       setErrors,
+      notes,
       startedAt: startedAtRef.current!,
       frameSize: frameSizeRef.current,
       frames,
@@ -197,6 +200,17 @@ export default function CaptureView() {
             ))}
           </fieldset>
         )}
+        <label className="notes-field">
+          Ghi chú buổi quay (tuỳ chọn, giữ cho các hiệp sau)
+          <input
+            type="text"
+            value={notes}
+            maxLength={1000}
+            disabled={recording}
+            placeholder="vd: tối, đèn trần, áo đen, cổ tay đau"
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </label>
 
         <div className="controls">
           {!recording ? (

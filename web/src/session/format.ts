@@ -56,6 +56,7 @@ export interface SessionFile {
   exercise: string
   set_errors: string[]
   recorded_at: string
+  notes: string // ghi chú tuỳ chọn về điều kiện quay (ánh sáng, quần áo, chỗ quay…); "" nếu không ghi
   source: { pose: string; version: string; model: string }
   frame_size: [number, number]
   joint_names: string[]
@@ -130,6 +131,7 @@ export class FrameRecorder {
 export function buildSession(args: {
   exercise: string
   setErrors: string[]
+  notes: string
   startedAt: Date
   frameSize: [number, number]
   frames: FrameRecord[]
@@ -141,6 +143,7 @@ export function buildSession(args: {
     exercise: args.exercise,
     set_errors: [...args.setErrors],
     recorded_at: localIsoString(args.startedAt),
+    notes: args.notes.trim(),
     source: { pose: 'mediapipe-js', version: args.source.version, model: args.source.model },
     frame_size: args.frameSize,
     joint_names: [...JOINT_NAMES],

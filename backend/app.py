@@ -117,6 +117,7 @@ def list_sessions(exercise: str) -> list[dict[str, Any]]:
                     "session_id": session_id,
                     "recorded_at": meta.recorded_at,
                     "set_errors": sorted(meta.set_errors),
+                    "notes": meta.notes,
                     "duration_s": round(float(t[-1] - t[0]) / 1000, 1),
                     "n_reps": len(reps),
                     "labeled": labels is not None,

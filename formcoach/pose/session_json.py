@@ -39,6 +39,7 @@ REQUIRED_KEYS = (
     "joint_names",
     "frames",
 )
+MAX_NOTES_LEN = 1000  # ghi chú tuỳ chọn (D4): vài câu về điều kiện quay, không phải văn bản dài
 
 
 class SessionFormatError(ValueError):
@@ -55,6 +56,7 @@ class SessionMeta:
     recorded_at: str  # ISO 8601, giữ nguyên chuỗi gốc
     source: dict[str, str]  # {"pose": "mediapipe-js", "version": ..., "model": ...}
     timestamps_ms: np.ndarray = field(repr=False)  # (T,) t_ms gốc, để đo độ đều của khung
+    notes: str = ""  # ghi chú tuỳ chọn về điều kiện quay; file cũ không có trường này → ""
 
 
 def _is_number(x: Any) -> bool:
@@ -131,6 +133,11 @@ def parse_session(data: Any) -> tuple[PoseSequence, SessionMeta]:
     if not isinstance(source, dict) or not all(isinstance(v, str) for v in source.values()):
         raise SessionFormatError("'source' phải là object có giá trị là chuỗi")
 
+    # Trường tuỳ chọn (thêm 2026-10-20, format_version vẫn 1): file cũ không có vẫn đọc được.
+    notes = data.get("notes", "")
+    if not isinstance(notes, str) or len(notes) > MAX_NOTES_LEN:
+        raise SessionFormatError(f"'notes' phải là chuỗi, tối đa {MAX_NOTES_LEN} ký tự")
+
     size = data["frame_size"]
     if (
         not isinstance(size, list)
@@ -158,6 +165,7 @@ def parse_session(data: Any) -> tuple[PoseSequence, SessionMeta]:
         recorded_at=recorded_at,
         source=dict(source),
         timestamps_ms=t_ms,
+        notes=notes,
     )
     return pose, meta
 
