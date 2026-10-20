@@ -80,7 +80,7 @@ def build_review(
         "times_s": _series(times, 3),
         "primary_signal": exercise.primary_signal(),
         "signals": {n: _series(v) for n, v in features.signals.items() if not n.endswith("_raw")},
-        "thresholds": {k: th[k] for k in ("top_min", "descent_trigger")},
+        "thresholds": {k: th[k] for k in ("top_min", "min_amplitude_deg")},
         "joints": STICK_JOINTS,
         "keypoints": keypoints,  # [khung][khớp] = [x, y] chuẩn hoá 0–1, hoặc None
         "reps": [

@@ -27,20 +27,30 @@ class PushUp(Exercise):
         # lúc đứng/quỳ 60–90°, một rep ~2,4–2,8 s. Dữ liệu từ trang quay (MediaPipe JS) có thể
         # cần chỉnh lại.
         return {
-            # Khuỷu > top_min = đã về tư thế trên. Đỉnh thấp nhất đo được ~150°; để 140°
-            # nên rep chưa duỗi hết tay (incomplete_lockout) vẫn được đếm.
+            # Chỉ dùng cho trạng thái sẵn sàng: phải giữ plank với khuỷu > top_min mới bắt đầu
+            # đếm. Không còn dùng để biết "đã lên lại" (xem min_amplitude_deg).
             "top_min": 140.0,
-            # Khuỷu < descent_trigger = bắt đầu xuống. Rep nông nhất xuống 114° vẫn dưới ngưỡng;
-            # cách top_min 15° (hysteresis) để nhiễu quanh một ngưỡng không thành nhiều rep.
-            "descent_trigger": 125.0,
+            # Đếm theo biên độ (2026-10-20): bắt đầu xuống khi khuỷu giảm ≥ ngần này so với đỉnh,
+            # tính rep khi tăng lại ≥ ngần này so với đáy. Biên độ đo được: rep đúng ~110°,
+            # rep chưa duỗi hết tay 70–87° (đỉnh chỉ 110–135°), rep nông ~60°; nhiễu vài độ.
+            # Ngưỡng cố định cũ (descent_trigger 125°, phải lên lại > 140°) gộp 4 rep chưa
+            # duỗi hết tay thành 1 rep.
+            "min_amplitude_deg": 35.0,
+            # Ranh giới rep (2026-10-20): rep kết thúc ở khung đầu tiên mà trong top_settle_s tới
+            # khuỷu không tăng thêm quá top_tolerance_deg ("đã lên"); bắt đầu ở khung cuối cùng mà
+            # trong top_settle_s trước đó khuỷu chưa cao hơn nó quá ngần ấy ("chưa tụt"). Lấy đỉnh
+            # tuyệt đối thì lúc giữ plank chờ (khuỷu dao động 155–176°) và lúc đứng dậy (tay duỗi
+            # thêm tới 179°) bị tính vào rep 1 và rep cuối: rep 1 dài 10,2 s, góc thân rep cuối
+            # tụt ~133° (buổi quay thử). T phải lớn hơn nhiễu và nhỏ hơn hẳn min_amplitude_deg.
+            "top_tolerance_deg": 10.0,
+            "top_settle_s": 0.5,
             # Phải giữ plank thẳng tay ít nhất ngần này mới bắt đầu đếm. 1,0 s làm mất rep đầu
             # của clip bắt đầu ngay ở plank (chỉ giữ 0,8 s rồi xuống).
             "ready_hold_s": 0.5,
             # Thân nghiêng quá góc này so với phương ngang = không phải plank (đứng, quỳ).
             "ready_max_tilt_deg": 35.0,
-            # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua. "Thời lượng" = lúc khuỷu rời khỏi
-            # vùng trên top_min tới lúc quay lại (không phải chu kỳ đáy-đáy ~2,4 s). Đo được:
-            # rep thường 1,1–1,7 s, rep nông/nhanh (hông nhô cao) chỉ ~0,7 s → 0,8 s làm sót rep.
+            # Rep ngắn hơn ngần này coi là nhiễu, bỏ qua. "Thời lượng" = từ đỉnh trước tới đỉnh
+            # sau của rep (đếm theo biên độ); rep thật ~1,5–2,5 s, cú giật nhiễu ~0,3 s.
             "min_rep_duration_s": 0.4,
             # Cửa sổ làm mượt Savitzky–Golay.
             "smoothing_window_s": 0.25,

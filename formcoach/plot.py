@@ -37,13 +37,12 @@ def plot_session(
     ax = axes[0]
     ax.plot(t, signals[f"{primary}_raw"], color="tab:blue", lw=0.8, alpha=0.35, label="thô")
     ax.plot(t, signals[primary], color="tab:blue", lw=1.4, label="đã lọc + làm mượt")
-    ax.axhline(th["top_min"], color="tab:green", ls="--", label=f"top_min {th['top_min']:.0f}°")
     ax.axhline(
-        th["descent_trigger"],
-        color="tab:red",
-        ls="--",
-        label=f"descent_trigger {th['descent_trigger']:.0f}°",
+        th["top_min"], color="tab:green", ls="--", label=f"top_min {th['top_min']:.0f}° (sẵn sàng)"
     )
+    for r in reps:  # đáy mỗi rep, để thấy biên độ (đếm khi lên lại ≥ min_amplitude_deg)
+        b = int(r.features["bottom_frame"])
+        ax.plot(t[b], signals[primary][b], "v", color="tab:red", ms=7)
     ax.set_ylabel(f"{primary} (°)")
     ax.set_ylim(0, 185)
     ax.legend(loc="lower right")

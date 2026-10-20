@@ -123,7 +123,7 @@ Mỗi hiệp một file `data/labels/<bài>/<session_id>.json`, ghi bằng màn 
   "session_id": "2026-10-20T19-05-12_pushup",
   "exercise": "pushup",
   "labeled_at": "2026-10-20T21:30:00+07:00",
-  "segmenter_thresholds": {"top_min": 140.0, "descent_trigger": 125.0, "...": 0},
+  "segmenter_thresholds": {"top_min": 140.0, "min_amplitude_deg": 35.0, "...": 0},
   "reps": [
     {"rep_index": 0, "start_frame": 30, "end_frame": 75, "start_s": 1.0, "end_s": 2.5,
      "valid": true, "errors": ["hip_sag", "shallow"], "note": ""}
@@ -151,7 +151,9 @@ class Exercise(ABC):
     def phase_thresholds(self) -> dict[str, float]: ...  # ngưỡng cho máy trạng thái
         # góc tính bằng độ; thời gian tính bằng giây, tên có hậu tố _s (ví dụ "min_rep_duration_s")
         # có ngưỡng "chờ sẵn sàng": chỉ bắt đầu đếm khi đã giữ tư thế đầu đủ lâu (ví dụ "ready_hold_s")
-        # ngưỡng "đã lên lại" để đếm rep phải lỏng hơn ngưỡng lỗi incomplete_lockout, để rep lỗi vẫn được đếm
+        # đếm theo biên độ ("min_amplitude_deg"), không theo ngưỡng góc cố định, để rep lỗi
+        # (nông, chưa duỗi hết tay) vẫn được đếm; ranh giới rep theo độ ổn định gần đỉnh
+        # ("top_tolerance_deg", "top_settle_s")
     def rule_thresholds(self) -> dict[str, float]: ...   # ngưỡng cho baseline luật
 
 class PushUp(Exercise): ...                 # làm trước
@@ -282,4 +284,6 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-19 — fps của file quay = 1000 / trung vị khoảng cách `t_ms`, chưa lấy mẫu lại.** — Trung vị không bị kéo tụt khi trình duyệt khựng; giữ nguyên khung đơn giản và đủ dùng cho tới khi có số đo thật. — Đã loại (tạm): lấy mẫu lại về fps cố định ngay (quyết định ở bước 10); fps trung bình (bị khựng kéo tụt).
 - **2026-10-19 — FeatureExtractor bỏ khung có khớp mờ (`min_joint_visibility` = 0,5 trong `phase_thresholds`).** Mỗi góc chỉ được tính ở khung mà mọi khớp tạo nên nó có visibility ≥ ngưỡng, còn lại = NaN (lỗ ngắn được lấp, lỗ dài làm bộ đếm về chờ); `<tên>_raw` vẫn giữ góc thô. — Hiệp quay thật trên điện thoại: lúc đi sát điện thoại bấm Xong, khớp mờ (~0,2), MediaPipe đoán bừa thân "nằm" + khuỷu gập 19° → một rep ma. — Đã loại: chặn bằng thời gian sau khi đứng dậy (không tổng quát); dựa vào độ nghiêng thân (chính nó cũng bị đoán bừa).
 - **2026-10-19 — Trang quay không cho ghi khi khung camera DỌC.** — Trình duyệt xoay luồng camera theo hướng trang; khoá xoay màn hình + điện thoại nằm ngang → hình dọc, người nằm thành đứng, độ nghiêng thân lật 90° → 0 rep. — Đã loại: tự xoay keypoint 90° phía Python (không biết chắc hướng xoay).
+- **2026-10-20 — Bộ đếm rep đếm theo biên độ, không theo ngưỡng góc cố định.** Xuống ≥ `min_amplitude_deg` (35°) so với đỉnh gần nhất → đang xuống; lên lại ≥ 35° so với đáy → đếm rep. `top_min` chỉ còn dùng cho trạng thái chờ sẵn sàng. Rep bị cắt khi đang đẩy lên (đã lên ≥ 35°) giờ **được đếm**. — Buổi quay thử: hiệp `incomplete_lockout` có đỉnh giữa các rep chỉ 110–135° (< 140°) nên 4 rep bị gộp thành 1 rep dài 10,6 s; rep nông lại đòi ngưỡng xuống thấp hơn, hai lỗi đòi hai ngưỡng cố định ngược nhau. Sau khi đổi: 6 hiệp quay thử ra 4 rep mỗi hiệp, 3 video ra 7/7/6. — Đã loại: hạ `top_min` (rep đúng bắt đầu bị cắt sớm, nhiễu lúc giữ plank dễ tạo rep); ngưỡng riêng theo `set_errors` của hiệp (bộ đếm phải biết trước lỗi, không dùng được khi tập thật).
+- **2026-10-20 — Ranh giới rep theo độ ổn định gần đỉnh (`top_tolerance_deg` 10°, `top_settle_s` 0,5 s).** Rep kết thúc ở khung đầu tiên mà 0,5 s tới khuỷu không tăng thêm quá 10°; bắt đầu ở khung cuối cùng mà 0,5 s trước đó khuỷu chưa cao hơn nó quá 10°. Thời gian nghỉ ở đỉnh không thuộc rep nào; rep không còn nối sát nhau. — Lấy đỉnh tuyệt đối thì lúc giữ plank chờ và lúc tay duỗi thêm khi đứng dậy bị tính vào rep 1 và rep cuối (rep 1 dài 10,2 s; góc thân rep cuối tụt ~133°, dễ bị luật bắt nhầm lỗi hông). — Đã loại: "khung đầu/cuối trong 10° dưới đỉnh" (đỉnh bị tay duỗi lúc đứng dậy đẩy lên 179° thì rep vẫn bị kéo thêm ~1,5 s); cắt ở lúc cắt qua ngưỡng cố định (mất đoạn đầu rep, không hợp với đếm theo biên độ).
 - **2026-10-17 — Coach dùng DeepSeek API, dự phòng bằng `TemplateCoach`.** — Nhận xét tự nhiên, chi phí thấp; chỉ gửi số liệu, không gửi hình ảnh. Cần kiểm tra docs API khi làm (chưa xác minh độ tương thích với thư viện `openai`). — Đã loại: chỉ mẫu câu; model local.
