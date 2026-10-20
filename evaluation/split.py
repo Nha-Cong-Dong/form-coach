@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from formcoach.dataset import Dataset, RepRow
@@ -32,18 +32,27 @@ PILOT_SESSIONS = frozenset(
         "2026-10-20T10-16-09_pushup",
         "2026-10-20T10-16-48_pushup",
         "2026-10-20T10-17-26_pushup",
+        "2026-10-20T11-31-16_pushup",  # hiệp thử ô ghi chú (bước 3d), không phải dữ liệu
     }
 )
 # Lưới an toàn: mọi hiệp trước ngày bắt đầu quay dataset đều là thử nghiệm (kể cả hiệp quên
 # ghi vào danh sách trên).
 DATASET_START = date(2026, 10, 21)
 BLOCK_GAP = timedelta(hours=1)
+# "Ngày tập" đổi lúc 04:00 sáng, không phải nửa đêm: buổi bắt đầu 23:50 kéo sang 00:10 vẫn là
+# một ngày (đã từng quay lúc 23:38). Cắt ở nửa đêm thì một buổi bị chia ra train và test.
+DAY_STARTS_AT = timedelta(hours=4)
 
 GroupMode = Literal["day", "block"]
 
 
+def training_day(at: datetime) -> date:
+    """Ngày tập của một thời điểm: trước 04:00 sáng vẫn tính là ngày hôm trước."""
+    return (at - DAY_STARTS_AT).date()
+
+
 def is_pilot(row: RepRow) -> bool:
-    return row.session_id in PILOT_SESSIONS or row.recorded_at.date() < DATASET_START
+    return row.session_id in PILOT_SESSIONS or training_day(row.recorded_at) < DATASET_START
 
 
 def evaluation_rows(dataset: Dataset) -> list[RepRow]:
@@ -54,7 +63,7 @@ def evaluation_rows(dataset: Dataset) -> list[RepRow]:
 def group_keys(rows: Sequence[RepRow], mode: GroupMode = "day") -> list[str]:
     """Nhóm của từng rep (cùng thứ tự với rows). Mọi rep của một hiệp luôn cùng nhóm."""
     if mode == "day":
-        return [r.recorded_at.date().isoformat() for r in rows]
+        return [training_day(r.recorded_at).isoformat() for r in rows]
     if mode != "block":
         raise ValueError(f"cách nhóm không hỗ trợ: {mode!r}")
 
@@ -63,11 +72,11 @@ def group_keys(rows: Sequence[RepRow], mode: GroupMode = "day") -> list[str]:
     prev = None
     k = 0
     for at, sid in starts:
-        if prev is None or at.date() != prev.date():
+        if prev is None or training_day(at) != training_day(prev):
             k = 1
         elif at - prev >= BLOCK_GAP:
             k += 1
-        block_of[sid] = f"{at.date().isoformat()}#{k}"
+        block_of[sid] = f"{training_day(at).isoformat()}#{k}"
         prev = at
     return [block_of[r.session_id] for r in rows]
 

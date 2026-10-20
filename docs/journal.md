@@ -73,3 +73,9 @@ Mẫu:
 - **Nguyên nhân:** Rep bắt đầu ngay sau đỉnh của rep TRƯỚC (hoặc lúc giữ plank), nên max trong rep đo đỉnh trước rep chứ không phải lúc đẩy lên của chính rep. Rep lại kết thúc ở chỗ "đã lên gần hết", đỉnh thật nằm sau đó.
 - **Cách sửa:** Thêm `top_elbow_angle` = góc lớn nhất trong 0,5 s ngay sau rep. Trên buổi quay thử: rep chưa duỗi hết tay 112–135°, mọi rep khác 157,5–181° → cách nhau ~22°, lỗi tách rõ nhất trong 5 lỗi. Ngưỡng `< 146°`.
 - **Bài học:** Trước khi dùng một đặc trưng, phải hỏi nó đo đúng khoảnh khắc nào của rep. Tên "max trong rep" nghe đúng nhưng đo nhầm thời điểm.
+
+## 2026-10-20 — /check-eval: luật có thể tự chấm chính nó
+- **Chuyện gì xảy ra:** Soát phần đánh giá vừa viết, code không rò rỉ (model mới mỗi lần chia, chỉ fit trên train, hiệp quay thử bị loại), nhưng quy trình thì có: lệnh `analyze` in lỗi theo luật và số đo, file tiêu chí ghi tiêu chí bằng chính ngưỡng của luật. Ngoài ra nhóm theo ngày lịch sẽ cắt đôi một buổi tập khuya (23:50 → 00:10) ra train và test.
+- **Nguyên nhân:** Nếu tick nhãn theo con số ("67,5° > 67 là shallow") thì nhãn chính là output của luật → chấm ra ~100% mà không nói lên gì. Rò rỉ có thể nằm ở quy trình con người, không chỉ ở code.
+- **Cách sửa:** Quy tắc: gán nhãn dataset bằng mắt, không chạy `analyze` trước khi gán xong; chốt nhãn trước lần chấm đầu tiên. Ngày tập đổi lúc 04:00. Baseline in hiệp bị bỏ qua và ghi rõ lỗi nào không tính vào macro-F1 từng lần chia.
+- **Bài học:** Kiểm tra rò rỉ phải xét cả cách người gán nhãn làm việc. Đặt quy tắc trước khi có dữ liệu, vì sau khi thấy điểm thì rất khó không bị ảnh hưởng.

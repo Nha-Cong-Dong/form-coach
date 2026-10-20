@@ -20,6 +20,7 @@ def add_session(
     set_errors: tuple[str, ...] = (),
     label: bool = True,
     edit=None,
+    pose_source: str = "mediapipe-js",
 ) -> None:
     """Ghi một hiệp tổng hợp (3 rep) vào <data_dir>/sessions/pushup/ và (tuỳ chọn) nhãn của nó.
 
@@ -28,6 +29,7 @@ def add_session(
     data = three_rep_session(set_errors)
     data["session_id"] = session_id
     data["recorded_at"] = recorded_at
+    data["source"]["pose"] = pose_source
     folder = data_dir / "sessions" / "pushup"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{session_id}.json").write_text(json.dumps(data), encoding="utf-8")
@@ -114,3 +116,12 @@ def test_csv_has_error_columns_and_blank_missing_features(tmp_path: Path) -> Non
     assert table[0]["shallow"] == "1" and table[0]["hip_high"] == "1"
     assert table[0]["hip_sag"] == "0" and table[0]["neck_drop"] == "0"
     assert float(table[0]["min_elbow_angle"]) == pytest.approx(70.0, abs=0.5)
+
+
+def test_sessions_from_other_pose_source_are_skipped(tmp_path: Path) -> None:
+    # Chỉ dùng keypoint từ trang quay (MediaPipe JS); nguồn khác có thể lệch hệ thống.
+    add_session(tmp_path, "js_pushup")
+    add_session(tmp_path, "py_pushup", pose_source="mediapipe-python")
+    ds = build_dataset(tmp_path, "pushup")
+    assert {r.session_id for r in ds.rows} == {"js_pushup"}
+    assert "không phải trang quay" in dict(ds.skipped)["py_pushup"]

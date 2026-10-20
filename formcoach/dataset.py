@@ -20,6 +20,9 @@ from formcoach.pose.session_json import SessionFormatError, load_session_json
 # Khoá trong Rep.features không phải đặc trưng tư thế: vị trí khung đáy phụ thuộc lúc bắt đầu
 # quay, đưa vào model chỉ thêm nhiễu.
 NON_FEATURES = frozenset({"bottom_frame"})
+# Dữ liệu train/test chỉ lấy từ trang quay của app: keypoint MediaPipe Python (đường offline) có
+# thể lệch hệ thống so với MediaPipe JS.
+ALLOWED_POSE_SOURCE = "mediapipe-js"
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,11 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
             labels = load_labels(Path(data_dir), exercise, sid)
         except (SessionFormatError, LabelFormatError) as e:
             skipped.append((sid, f"file hỏng: {e}"))
+            continue
+        if meta.source.get("pose") != ALLOWED_POSE_SOURCE:
+            skipped.append(
+                (sid, f"nguồn keypoint {meta.source.get('pose')!r}, không phải trang quay")
+            )
             continue
         if labels is None:
             skipped.append((sid, "chưa gán nhãn"))

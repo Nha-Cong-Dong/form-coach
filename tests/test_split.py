@@ -42,7 +42,7 @@ def test_pilot_by_list_and_by_date() -> None:
 
 
 def test_pilot_list_covers_known_trial_sessions() -> None:
-    assert len(PILOT_SESSIONS) == 7
+    assert len(PILOT_SESSIONS) == 8  # 6 hiệp quay thử + 1 hiệp tuần 1 + 1 hiệp thử ghi chú
 
 
 def test_evaluation_rows_never_contain_pilot() -> None:
@@ -138,3 +138,17 @@ def test_report_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert "test 2026-10-21: 3 rep | train 3 rep" in out
     assert "CẢNH BÁO 2026-10-22: không có rep shallow" in out
     assert (tmp_path / "out" / "dataset_pushup.csv").exists()
+
+
+def test_late_night_session_stays_in_same_training_day() -> None:
+    # Buổi bắt đầu 23:50 kéo sang 00:10: vẫn một ngày tập (mốc đổi ngày 04:00), không bị chia
+    # ra train/test. 05:00 sáng hôm sau mới là ngày mới.
+    rows = [row("a", "2026-10-21T23:50:00+07:00"), row("b", "2026-10-22T00:10:00+07:00"),
+            row("c", "2026-10-22T05:00:00+07:00")]  # fmt: skip
+    assert group_keys(rows, "day") == ["2026-10-21", "2026-10-21", "2026-10-22"]
+    assert group_keys(rows, "block") == ["2026-10-21#1", "2026-10-21#1", "2026-10-22#1"]
+
+
+def test_pilot_date_uses_training_day() -> None:
+    # 01:00 sáng 21/10 vẫn thuộc ngày tập 20/10 (quay thử).
+    assert is_pilot(row("x_pushup", "2026-10-21T01:00:00+07:00"))
