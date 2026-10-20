@@ -1,7 +1,7 @@
 # Tiêu chí gán nhãn
 
 > **Tự viết phần này trước khi quay dữ liệu.** Ngưỡng để trống (`?`), điền sau khi đo từ dữ liệu của chính mình. Ngưỡng tham khảo từ bên ngoài cần ghi nguồn.
-> Nhãn là **multi-label**: mỗi rep có một **tập lỗi**, có thể nhiều lỗi cùng lúc. Tập rỗng nghĩa là `good`. Ghi chú thêm vào cột `note` của `reps.csv`.
+> Nhãn là **multi-label**: mỗi rep có một **tập lỗi**, có thể nhiều lỗi cùng lúc. Tập rỗng nghĩa là `good`. Ghi chú thêm vào ô ghi chú (`note`) của rep trong màn hình gán nhãn.
 
 ## Quy ước quay
 - Quay bằng **trang quay của app** (camera trình duyệt), không quay bằng app camera của điện thoại

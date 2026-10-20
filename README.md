@@ -231,10 +231,11 @@ data/
  ├── videos/             # video thử offline (MediaPipe Python), không dùng để train
  ├── keypoints/          # cache keypoint của video thử
  ├── sessions/
- │    └── {exercise}/{session_id}.json   # keypoint từ trang quay + nhãn của hiệp
+ │    └── {exercise}/{session_id}.json   # keypoint từ trang quay + tập lỗi cố ý của hiệp
  └── labels/
-      └── reps.csv       # session_id, rep_idx, start_frame, end_frame, valid, errors (vd "shallow;hip_sag"), note
+      └── {exercise}/{session_id}.json   # nhãn từng rep: ranh giới, valid, tập lỗi, ghi chú
 ```
+Bảng dữ liệu để train (mỗi dòng một rep: đặc trưng + nhãn) được xuất ra từ các file trên, không sửa tay.
 `data/` không đưa lên git. Video có mặt và không gian riêng tư, không chia sẻ công khai, không lưu trên server.
 
 ---
@@ -276,7 +277,7 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 - [x] Tuần 1: trang quay chạy trên điện thoại (HTTPS), xuất được JSON keypoint
 - [ ] Tuần 2: viết tiêu chí nhãn trước khi quay
 - [ ] Tuần 2: quay nhiều buổi khác nhau (không chỉ một buổi dài)
-- [ ] Tuần 2: gán nhãn trong app + `reps.csv`
+- [ ] Tuần 2: gán nhãn trong app, file nhãn theo từng hiệp
 - [ ] Tuần 3: chia train/test theo buổi, không theo rep
 - [ ] Tuần 3: bảng precision/recall/F1 và ma trận 2×2 cho từng lỗi, so với baseline luật
 - [ ] Tuần 3: app chạy local đủ luồng: đăng nhập → quay → kết quả

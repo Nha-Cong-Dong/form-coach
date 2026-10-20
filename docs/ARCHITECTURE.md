@@ -76,7 +76,7 @@ Quy ước:
 - **Toạ độ:** x chuẩn hoá theo chiều rộng, y theo chiều cao, nên phải nhân với `frame_size` trước khi tính góc.
 - **Tín hiệu `_raw`:** bản chưa làm mượt của một tín hiệu (ví dụ `elbow_angle_raw`), giữ trong `signals` để vẽ so sánh.
 - **Nhãn multi-label:** mỗi rep có một tập lỗi (`frozenset[str]`), tập rỗng là `good`. "good" không phải một lỗi nên không nằm trong danh sách lỗi.
-- **Rep không hợp lệ:** rep do bộ đếm cắt nhầm được đánh dấu `valid = false` lúc gán nhãn (nhãn thật, nằm ở `reps.csv`/DB, không nằm trong `Rep`). Loại khỏi train, dùng để đo độ chính xác của bộ đếm.
+- **Rep không hợp lệ:** rep do bộ đếm cắt nhầm được đánh dấu `valid = false` lúc gán nhãn (nhãn thật, nằm trong file nhãn §2c / DB sau này, không nằm trong `Rep`). Loại khỏi train, dùng để đo độ chính xác của bộ đếm.
 
 ### 2b. File keypoint từ trang quay (`format_version` 1)
 
@@ -112,6 +112,28 @@ Quy tắc kiểm tra (sai thì `SessionFormatError` nói rõ trường / khung /
 - `frames` ≥ 2 khung; `t_ms` là số không âm, **tăng ngặt**; `kp` là `null` hoặc 33 × `[x, y, visibility]` số hữu hạn (không nhận `true/false`).
 
 **`t_ms` không đều (bản hiện tại):** `fps = 1000 / trung vị(khoảng cách t_ms)`, giữ nguyên các khung như đã ghi; `t_ms` gốc giữ trong `SessionMeta.timestamps_ms`. Chọn trung vị vì trình duyệt thỉnh thoảng khựng (vài trăm ms không có khung): trung bình bị kéo tụt, trung vị thì không. **Không lấy mẫu lại** (chốt 2026-10-20 bằng số đo thật trên điện thoại: trung vị 82,7 ms ≈ 12 fps, lệch chuẩn 17%, lớn nhất 108 ms, 0 lần khựng). `python -m formcoach analyze <file>.json` in dòng "Khoảng cách khung" để theo dõi; nếu lệch chuẩn > 20% trung vị hoặc có khoảng trống > 3× trung vị thì xem lại quyết định này.
+
+### 2c. File nhãn (`format_version` 1, `formcoach/labels.py`)
+
+Mỗi hiệp một file `data/labels/<bài>/<session_id>.json`, ghi bằng màn hình gán nhãn (qua backend):
+
+```json
+{
+  "format_version": 1,
+  "session_id": "2026-10-20T19-05-12_pushup",
+  "exercise": "pushup",
+  "labeled_at": "2026-10-20T21:30:00+07:00",
+  "segmenter_thresholds": {"top_min": 140.0, "descent_trigger": 125.0, "...": 0},
+  "reps": [
+    {"rep_index": 0, "start_frame": 30, "end_frame": 75, "start_s": 1.0, "end_s": 2.5,
+     "valid": true, "errors": ["hip_sag", "shallow"], "note": ""}
+  ]
+}
+```
+- Nhãn ban đầu (`default_labels`) = `set_errors` của hiệp cho mọi rep, `valid = true`.
+- Rep gắn nhãn qua **ranh giới** (frame + giây), không chỉ số thứ tự; `segmenter_thresholds` ghi ngưỡng bộ đếm lúc cắt. `check_alignment` so nhãn với rep cắt lại (lệch > 0,2 s hoặc khác số rep → báo), để đổi ngưỡng bộ đếm sau này không làm nhãn gắn nhầm rep.
+- Kiểm tra: `rep_index` liên tiếp từ 0, rep không chồng nhau, lỗi ⊂ `error_labels`, rep `valid = false` thì không gắn lỗi. Ghi ra file tạm rồi đổi tên (không hỏng file cũ nếu bị ngắt giữa chừng).
+- Tuần 3 khi có database: bảng `reps` (§4) thay cho các file này.
 
 ## 3. Interface
 
@@ -165,11 +187,14 @@ Ghi chú:
 
 ## 4. Backend và web (bản nháp, chốt API đầu tuần 3)
 
-### Đã có (tuần 1, `backend/app.py`)
+### Đã có (`backend/app.py`)
 | Method | Đường dẫn | Việc |
 |---|---|---|
 | `GET` | `/api/exercises/{name}` | Tên bài + `error_labels` (trang quay lấy danh sách lỗi từ đây). Tên lạ → 404 |
-| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → lưu nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` (mặc định `data/`) → trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person`. Sai định dạng → 422 kèm lý do; trùng `session_id` → 409, không ghi đè. **Chưa** chạy pipeline, chưa DB/đăng nhập |
+| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → lưu nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` (mặc định `data/`) → trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person`. Sai định dạng → 422 kèm lý do; trùng `session_id` → 409, không ghi đè. Chưa DB/đăng nhập |
+| `GET` | `/api/sessions/{exercise}` | Danh sách hiệp (mới nhất trước): `session_id, recorded_at, set_errors, duration_s, n_reps, labeled`. File hỏng vẫn hiện kèm `error` |
+| `GET` | `/api/sessions/{exercise}/{session_id}/review` | `formcoach.review.build_review`: thời gian từng khung, tín hiệu đã lọc, khung xương rút gọn (15 khớp, NaN → `null`), rep + đặc trưng, nhãn đã lưu hoặc nhãn mặc định, `alignment_problems` nếu nhãn đã lưu không khớp rep hiện tại |
+| `PUT` | `/api/sessions/{exercise}/{session_id}/labels` | Body = file nhãn §2c → kiểm tra (`from_dict`), đúng hiệp, **khớp rep hiện tại** (`check_alignment`, lệch → 409) → lưu `data/labels/...` |
 
 Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện thoại đi qua proxy Vite).
 
@@ -179,7 +204,6 @@ Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện tho
 | `POST` | `/api/auth/register`, `/api/auth/login` | Đăng nhập |
 | `POST` | `/api/sessions` | Nhận JSON keypoint (mục 2b) → chạy pipeline → lưu → trả rep + nhãn |
 | `GET` | `/api/sessions/{id}` | Kết quả một buổi, kèm nhận xét coach |
-| `PATCH` | `/api/sessions/{id}/reps/{idx}` | Sửa nhãn một rep (màn hình gán nhãn) |
 | `WS` | `/api/live` | Nhận keypoint từng khung, trả số rep hiện tại |
 | `GET`/`PUT` | `/api/goals` | Đọc / đặt mục tiêu |
 | `GET` | `/api/progress?from=&to=` | Tổng rep, tỉ lệ rep đúng, streak, dữ liệu đồ thị |
@@ -205,6 +229,8 @@ formcoach/             # lõi Python, không phụ thuộc web/DB
  ├── features/         # geometry (tính góc), smoothing, FeatureExtractor, RepSegmenter, OnlineRepCounter
  ├── models/           # FormClassifier, RuleBased, RandomForest
  ├── coach/            # Coach, TemplateCoach, DeepSeekCoach
+ ├── labels.py         # nhãn từng rep: lưu/đọc/kiểm tra file nhãn (§2c)
+ ├── review.py         # dữ liệu cho màn hình gán nhãn (hàm thuần, backend chỉ gọi)
  ├── progress/         # tính mục tiêu, tỉ lệ rep đúng, streak (hàm thuần)
  ├── video/            # đọc video cho đường offline
  ├── pipeline.py       # ghép các bước
@@ -250,6 +276,8 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-17 — `not_ready` không phải nhãn lỗi.** Bộ đếm có trạng thái "chờ sẵn sàng"; rep cắt nhầm đánh dấu `valid = false` lúc gán nhãn. — "Đây có phải rep không" và "rep sai ở đâu" là hai câu hỏi khác nhau, gộp vào một classifier làm nó khó học. — Đã loại: thêm lớp `not_ready` cho classifier.
 - **2026-10-19 — Thêm `Exercise.tilt_definitions()` (mặc định `{}`).** PushUp: `body_tilt = (shoulder, ankle)`. — Trạng thái "chờ sẵn sàng" phải phân biệt plank thẳng tay với đứng buông tay; cả hai có góc khuỷu ~160–170°, chỉ khác thân nằm hay đứng. Góc 3 khớp không đo được độ nghiêng so với phương ngang. — Đã loại: dùng góc vai–hông–cổ chân (thẳng ~180° cả khi đứng lẫn khi plank); thêm "khớp ảo" nằm ngang vào `angle_definitions` (khó hiểu).
 - **2026-10-19 — `load_session_json` trả `(PoseSequence, SessionMeta)`; thêm `EXERCISES` / `get_exercise`.** — File quay mang thông tin không thuộc `PoseSequence` (session_id, bài tập, tập lỗi của hiệp, t_ms gốc) mà backend và màn hình gán nhãn cần; bảng tra tên → `Exercise` để kiểm tra `set_errors` và để backend tạo bài tập từ tên. — Đã loại: nhét metadata vào `PoseSequence` (đổi kiểu dữ liệu lõi cho một nguồn); trả dict tự do (không có type).
+- **2026-10-20 — Nhãn lưu mỗi hiệp một file JSON (§2c), không dùng chung `reps.csv`.** — Mỗi lần lưu chỉ đụng một file (không sửa chung một CSV); giữ ranh giới rep + ngưỡng bộ đếm để phát hiện nhãn lệch khi rep được cắt lại. Bảng CSV để train sẽ được xuất ra từ các file này. — Đã loại: một `reps.csv` chung (ghi đè lẫn nhau, không giữ được ngưỡng lúc cắt).
+- **2026-10-20 — Đánh giá bằng kiểm định chéo bỏ ra một buổi (leave-one-session-out).** — Chỉ có 5–6 buổi: một buổi test (~25 rep, mỗi lỗi ~4–5 rep) cho F1 dao động quá mạnh; kiểm định chéo cho mỗi buổi làm test một lần, báo trung bình ± dao động, vẫn chia theo buổi nên không rò rỉ. Ngưỡng luật chốt từ buổi quay thử rồi giữ cố định khi chấm; mọi thứ fit theo dữ liệu chỉ fit trên phần train của từng lần. — Đã loại: 80/20 một lần (quá ít rep test); khoá thêm một buổi ngoài kiểm định chéo (bớt dữ liệu).
 - **2026-10-20 — Chốt: không lấy mẫu lại `t_ms`.** — Đo trên hiệp quay thật (điện thoại, camera trước): khoảng cách khung trung vị 82,7 ms, lệch chuẩn 14 ms (17%), p95 100 ms, lớn nhất 108 ms, không lần khựng nào > 3× trung vị; bộ đếm ra đúng 5/5 rep. Khung chậm nhưng đều, coi cách đều theo trung vị là đủ. — Đã loại: lấy mẫu lại về fps cố định (phức tạp hơn, không cải thiện gì ở mức dao động này).
 - **2026-10-19 — fps của file quay = 1000 / trung vị khoảng cách `t_ms`, chưa lấy mẫu lại.** — Trung vị không bị kéo tụt khi trình duyệt khựng; giữ nguyên khung đơn giản và đủ dùng cho tới khi có số đo thật. — Đã loại (tạm): lấy mẫu lại về fps cố định ngay (quyết định ở bước 10); fps trung bình (bị khựng kéo tụt).
 - **2026-10-19 — FeatureExtractor bỏ khung có khớp mờ (`min_joint_visibility` = 0,5 trong `phase_thresholds`).** Mỗi góc chỉ được tính ở khung mà mọi khớp tạo nên nó có visibility ≥ ngưỡng, còn lại = NaN (lỗ ngắn được lấp, lỗ dài làm bộ đếm về chờ); `<tên>_raw` vẫn giữ góc thô. — Hiệp quay thật trên điện thoại: lúc đi sát điện thoại bấm Xong, khớp mờ (~0,2), MediaPipe đoán bừa thân "nằm" + khuỷu gập 19° → một rep ma. — Đã loại: chặn bằng thời gian sau khi đứng dậy (không tổng quát); dựa vào độ nghiêng thân (chính nó cũng bị đoán bừa).
