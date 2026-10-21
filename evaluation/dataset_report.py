@@ -1,8 +1,8 @@
 """Dựng bảng dataset, in thống kê theo nhóm và các lần chia, xuất CSV.
 
 Chạy từ gốc repo:
-    python -m evaluation.dataset_report                 # nhóm theo ngày (mặc định)
-    python -m evaluation.dataset_report --group block   # nhóm theo buổi (cách nhau ≥ 1 giờ)
+    python -m evaluation.dataset_report                # nhóm theo buổi (mặc định, cách ≥ 1 giờ)
+    python -m evaluation.dataset_report --group day    # nhóm theo ngày (bảo thủ hơn)
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from evaluation.split import (
+    GROUP_NAMES,
     error_counts,
     evaluation_rows,
     group_keys,
@@ -26,7 +27,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="python -m evaluation.dataset_report")
     p.add_argument("--data", type=Path, default=Path("data"), help="thư mục dữ liệu")
     p.add_argument("--exercise", default="pushup")
-    p.add_argument("--group", choices=["day", "block"], default="day", help="cách nhóm buổi")
+    p.add_argument("--group", choices=["day", "block"], default="block", help="cách nhóm")
     p.add_argument("--out", type=Path, default=Path("outputs"), help="thư mục ghi CSV")
     args = p.parse_args(argv)
 
@@ -42,7 +43,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     rows = evaluation_rows(ds)
     groups = group_keys(rows, args.group)
     counts = error_counts(rows, groups, ds.error_labels)
-    print(f"\nDùng để chấm điểm: {len(rows)} rep, nhóm theo {args.group}:")
+    print(f"\nDùng để chấm điểm: {len(rows)} rep, nhóm theo {GROUP_NAMES[args.group]}:")
     print(f"  {'nhóm':<14}{'rep':>5}" + "".join(f"{e:>20}" for e in ds.error_labels))
     for g, c in counts.items():
         print(f"  {g:<14}{c['reps']:>5}" + "".join(f"{c[e]:>20}" for e in ds.error_labels))

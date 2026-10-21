@@ -11,10 +11,10 @@
 - Ghi lại: ngày, giờ, địa điểm, quần áo, ánh sáng (để phân tích domain shift sau)
 
 ## Quy tắc gán nhãn dataset (chống rò rỉ)
-Áp dụng cho các buổi dùng để chấm điểm (từ 2026-10-21), không áp cho hiệp quay thử.
+Áp dụng cho các buổi dùng để chấm điểm (từ tối 2026-10-20, 18:00), không áp cho hiệp quay thử.
 
 1. **Gán nhãn bằng mắt, không bằng số đo của luật.** Chỉ dùng màn gán nhãn (người que + đồ thị), xem từng rep ở 0,5× nếu cần. **Không chạy `python -m formcoach analyze` trên hiệp dataset trước khi gán nhãn xong**: lệnh đó in lỗi theo luật và các số đo (`min_elbow_angle`, `top_elbow_angle`…). Tick lỗi theo con số ("67,5° > 67 nên là shallow") thì nhãn chính là output của luật, chấm luật trên đó ra ~100% mà không nói lên gì. Ngưỡng trong bảng dưới là để **luật** dùng; nhãn là đánh giá bằng mắt theo phần "Mô tả bằng lời".
-2. **Chốt nhãn trước khi xem kết quả.** Gán nhãn xong cả 4 ngày (và chốt ngưỡng `hip_sag` từ hiệp quay thử) **trước** lần chạy `python -m evaluation.baseline` đầu tiên. Sau đó không sửa nhãn vì "thấy luật/model đoán khác". Nếu buộc phải sửa (vd phát hiện tick nhầm), ghi vào "Lịch sử thay đổi tiêu chí" kèm lý do không dựa vào kết quả, và báo cả kết quả trước lẫn sau khi sửa.
+2. **Chốt nhãn trước khi xem kết quả.** Gán nhãn xong mọi buổi (21–24/10) (và chốt ngưỡng `hip_sag` từ hiệp quay thử) **trước** lần chạy `python -m evaluation.baseline` đầu tiên. Sau đó không sửa nhãn vì "thấy luật/model đoán khác". Nếu buộc phải sửa (vd phát hiện tick nhầm), ghi vào "Lịch sử thay đổi tiêu chí" kèm lý do không dựa vào kết quả, và báo cả kết quả trước lẫn sau khi sửa.
 
 ## Rep không hợp lệ (`valid = false`)
 Không phải nhãn lỗi. Đánh dấu khi bộ đếm cắt ra một đoạn **không phải rep thật**: lúc vào tư thế, đứng dậy, nghỉ giữa hiệp, chỉnh máy. Rep không hợp lệ bị loại khỏi train và dùng để đo độ chính xác của bộ đếm.

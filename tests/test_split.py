@@ -135,8 +135,9 @@ def test_report_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     out = capsys.readouterr().out
     assert "9 rep hợp lệ đã gán nhãn (3 rep quay thử)" in out
     assert "Dùng để chấm điểm: 6 rep" in out
-    assert "test 2026-10-21: 3 rep | train 3 rep" in out
-    assert "CẢNH BÁO 2026-10-22: không có rep shallow" in out
+    assert "nhóm theo buổi" in out  # mặc định theo buổi
+    assert "test 2026-10-21#1: 3 rep | train 3 rep" in out
+    assert "CẢNH BÁO 2026-10-22#1: không có rep shallow" in out
     assert (tmp_path / "out" / "dataset_pushup.csv").exists()
 
 
@@ -149,6 +150,16 @@ def test_late_night_session_stays_in_same_training_day() -> None:
     assert group_keys(rows, "block") == ["2026-10-21#1", "2026-10-21#1", "2026-10-22#1"]
 
 
-def test_pilot_date_uses_training_day() -> None:
-    # 01:00 sáng 21/10 vẫn thuộc ngày tập 20/10 (quay thử).
-    assert is_pilot(row("x_pushup", "2026-10-21T01:00:00+07:00"))
+def test_dataset_starts_evening_of_october_20() -> None:
+    # Quay thử sáng 20/10 (kể cả hiệp quên ghi danh sách) bị loại; buổi tối 20/10 là dataset.
+    assert is_pilot(row("forgotten_pushup", "2026-10-20T17:59:00+07:00"))
+    assert not is_pilot(row("evening_pushup", "2026-10-20T18:00:00+07:00"))
+    # Cùng thời điểm viết theo múi giờ khác vẫn so đúng.
+    assert is_pilot(row("utc_pushup", "2026-10-20T10:30:00+00:00"))  # = 17:30 giờ VN
+
+
+def test_default_grouping_is_by_block() -> None:
+    # Hai buổi cách nhau ≥ 1 giờ trong cùng một ngày → hai nhóm khác nhau theo mặc định.
+    rows = [row("a", "2026-10-21T14:00:00+07:00"), row("b", "2026-10-21T19:00:00+07:00")]
+    assert group_keys(rows) == ["2026-10-21#1", "2026-10-21#2"]
+    assert group_keys(rows, "day") == ["2026-10-21", "2026-10-21"]

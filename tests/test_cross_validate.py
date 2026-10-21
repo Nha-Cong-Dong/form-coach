@@ -84,7 +84,7 @@ def test_baseline_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     assert line.split()[-4:] == ["6", "3", "0", "0"]
     assert "hip_sag" in out and "chưa có luật" in out
     assert "neck_drop" in out and "thử nghiệm" in out
-    assert "test 2026-10-21: 6 rep" in out
+    assert "test 2026-10-21#1: 6 rep" in out
     # Không có rep incomplete_lockout/hip_high và luật cũng không báo: macro-F1 lần chia đó chỉ
     # tính trên shallow, phải nói rõ.
     assert "(không tính incomplete_lockout, hip_high: không có rep lỗi, không báo)" in out
@@ -94,3 +94,29 @@ def test_baseline_not_enough_groups(tmp_path: Path, capsys: pytest.CaptureFixtur
     add_session(tmp_path, "a_pushup", "2026-10-21T08:00:00+07:00")
     baseline_main(["--data", str(tmp_path)])
     assert "Chưa đủ dữ liệu" in capsys.readouterr().out
+
+
+def test_baseline_compares_block_and_day(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Ngày 21 có hai buổi cách nhau 5 giờ, ngày 22 một buổi: theo buổi 3 nhóm, theo ngày 2 nhóm.
+    add_session(tmp_path, "a_pushup", "2026-10-21T14:00:00+07:00", ("shallow",))
+    add_session(tmp_path, "b_pushup", "2026-10-21T19:00:00+07:00", ("shallow",))
+    add_session(tmp_path, "c_pushup", "2026-10-22T14:00:00+07:00")
+    baseline_main(["--data", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "nhóm theo buổi" in out and "3 lần chia" in out.split("So sánh cách nhóm")[0]
+    comparison = out.split("So sánh cách nhóm")[1]
+    block_line = next(x for x in comparison.splitlines() if "theo buổi" in x)
+    day_line = next(x for x in comparison.splitlines() if "theo ngày" in x)
+    assert "3 lần chia" in block_line and "2 lần chia" in day_line
+    assert "Theo buổi là kết quả chính" in comparison
+
+
+def test_baseline_group_day_option(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    add_session(tmp_path, "a_pushup", "2026-10-21T14:00:00+07:00", ("shallow",))
+    add_session(tmp_path, "b_pushup", "2026-10-21T19:00:00+07:00", ("shallow",))
+    add_session(tmp_path, "c_pushup", "2026-10-22T14:00:00+07:00")
+    baseline_main(["--data", str(tmp_path), "--group", "day"])
+    out = capsys.readouterr().out
+    assert "nhóm theo ngày" in out and "2 lần chia bỏ ra một nhóm" in out
