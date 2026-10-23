@@ -1,3 +1,4 @@
+import csv
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from evaluation.error_analysis import (
     list_cases,
     outcomes,
     session_kind,
+    write_cases_csv,
 )
 from evaluation.error_analysis import main as analysis_main
 from formcoach.dataset import RepRow
@@ -65,9 +67,17 @@ def test_summary_groups_false_alarms_and_misses() -> None:
 
 def test_list_shows_each_case_with_missing_feature() -> None:
     text = list_cases(ROWS, "shallow", RULE)
-    assert "báo nhầm b rep 1 (tập đúng): min_elbow_angle = +75.000" in text
-    assert "bỏ sót   a rep 2 (shallow): min_elbow_angle = +60.000" in text
-    assert "bỏ sót   c rep 1 (shallow): min_elbow_angle = thiếu" in text
+    # Có thời điểm trong hiệp (để tìm lại ở màn gán nhãn) và nhãn hiện tại của rep.
+    assert "báo nhầm b rep 1 [0.0–1.0 s] (hiệp: tập đúng; nhãn: không lỗi): " in text
+    assert "min_elbow_angle = +75.000" in text
+    assert (
+        "bỏ sót   a rep 2 [0.0–1.0 s] (hiệp: shallow; nhãn: shallow): min_elbow_angle = +60.000"
+        in text
+    )
+    assert (
+        "bỏ sót   c rep 1 [0.0–1.0 s] (hiệp: shallow; nhãn: shallow): min_elbow_angle = thiếu"
+        in text
+    )
 
 
 def test_main_end_to_end_skips_pilot_and_uses_set_errors(
@@ -83,7 +93,44 @@ def test_main_end_to_end_skips_pilot_and_uses_set_errors(
     assert "Chỉ để hiểu, không chỉnh ngưỡng" in out
     assert "shallow  (min_elbow_angle > 67): TP 3  FP 3  FN 0  TN 0" in out
     assert "Báo nhầm (3) theo loại hiệp: tập đúng 3" in out
-    assert "báo nhầm b_pushup rep 1 (tập đúng)" in out
+    assert "báo nhầm b_pushup rep 1 [" in out and "(hiệp: tập đúng; nhãn: không lỗi)" in out
     assert "2026-10-20T10-14-01_pushup" not in out
     # Lỗi chưa quay trong dữ liệu vẫn được liệt kê, không báo lỗi.
     assert "hip_sag  (max_hip_offset < -0.01): TP 0" in out
+
+
+def test_csv_lists_every_wrong_case_with_all_features(tmp_path: Path) -> None:
+    groups = ["g1", "g1", "g2", "g2", "g2"]
+    path = tmp_path / "out" / "errors.csv"
+    n = write_cases_csv(
+        path, ROWS, groups, {"shallow": RULE, "hip_sag": None}, ["shallow", "hip_sag"]
+    )
+    with path.open(encoding="utf-8-sig") as f:
+        table = list(csv.DictReader(f))
+    assert n == len(table) == 3  # FP 1 + FN 2; lỗi chưa có luật bị bỏ qua
+    by_kind = {(t["loại"], t["session_id"], t["rep"]): t for t in table}
+    fp = by_kind[("báo nhầm", "b", "1")]
+    assert fp["lỗi"] == "shallow" and fp["nhóm"] == "g2"
+    assert fp["hiệp quay cho"] == "tập đúng" and fp["nhãn rep"] == "không lỗi"
+    assert fp["giá trị"] == "75.0000" and fp["ngưỡng"] == "> 67"
+    assert fp["cách ngưỡng"] == "+8.0000"  # sát hay xa ngưỡng
+    assert fp["min_elbow_angle"] == "75.0000"  # đủ cột số đo của rep
+    fn_missing = by_kind[("bỏ sót", "c", "1")]
+    assert fn_missing["giá trị"] == "" and fn_missing["cách ngưỡng"] == ""  # thiếu đặc trưng
+    fn = by_kind[("bỏ sót", "a", "2")]
+    assert fn["cách ngưỡng"] == "-7.0000" and fn["nhãn rep"] == "shallow"
+
+
+def test_main_csv_option_writes_wrong_cases_and_skips_pilot(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_session(tmp_path, "2026-10-20T10-14-01_pushup", "2026-10-20T10:14:01+07:00")  # quay thử
+    add_session(tmp_path, "a_pushup", "2026-10-21T08:00:00+07:00", ("shallow",))
+    add_session(tmp_path, "b_pushup", "2026-10-22T08:00:00+07:00")
+    path = tmp_path / "errors.csv"
+    analysis_main(["--data", str(tmp_path), "--csv", str(path)])
+    assert "Đã ghi 3 rep báo sai" in capsys.readouterr().out  # 3 rep tập đúng bị báo shallow
+    with path.open(encoding="utf-8-sig") as f:
+        table = list(csv.DictReader(f))
+    assert {t["session_id"] for t in table} == {"b_pushup"}  # không có hiệp quay thử
+    assert {t["loại"] for t in table} == {"báo nhầm"}

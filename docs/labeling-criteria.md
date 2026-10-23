@@ -16,6 +16,8 @@
 1. **Gán nhãn bằng mắt, không bằng số đo của luật.** Chỉ dùng màn gán nhãn (người que + đồ thị), xem từng rep ở 0,5× nếu cần. **Không chạy `python -m formcoach analyze` trên hiệp dataset trước khi gán nhãn xong**: lệnh đó in lỗi theo luật và các số đo (`min_elbow_angle`, `top_elbow_angle`…). Tick lỗi theo con số ("67,5° > 67 nên là shallow") thì nhãn chính là output của luật, chấm luật trên đó ra ~100% mà không nói lên gì. Ngưỡng trong bảng dưới là để **luật** dùng; nhãn là đánh giá bằng mắt theo phần "Mô tả bằng lời".
 2. **Chốt nhãn trước khi xem kết quả.** Gán nhãn xong mọi buổi (21–24/10) (và chốt ngưỡng `hip_sag` từ hiệp quay thử) **trước** lần chạy `python -m evaluation.baseline` đầu tiên. Sau đó không sửa nhãn vì "thấy luật/model đoán khác". Nếu buộc phải sửa (vd phát hiện tick nhầm), ghi vào "Lịch sử thay đổi tiêu chí" kèm lý do không dựa vào kết quả, và báo cả kết quả trước lẫn sau khi sửa.
 
+3. **Tick MỌI lỗi nhìn thấy ở rep, không chỉ lỗi của hiệp** (thêm 2026-10-23). Lỗi hay đi cùng nhau (gục đầu thì khuỷu cũng nông, hông võng thì thường đỡ sâu). Nhãn v1 chỉ ghi lỗi của hiệp nên thiếu lỗi: 61/77 lần luật "báo nhầm" nằm ở hiệp của lỗi khác, làm precision bị đánh giá thấp và dạy model nhầm "lỗi này loại trừ lỗi kia". Nhãn v2 gán lại bằng chế độ "Gán nhanh" (tab `#quick`): mỗi lần một rep, hai khung tĩnh, không hiện số đo; v1 giữ ở `data/v1/labels` để so sánh.
+
 ## Rep không hợp lệ (`valid = false`)
 Không phải nhãn lỗi. Đánh dấu khi bộ đếm cắt ra một đoạn **không phải rep thật**: lúc vào tư thế, đứng dậy, nghỉ giữa hiệp, chỉnh máy. Rep không hợp lệ bị loại khỏi train và dùng để đo độ chính xác của bộ đếm.
 
@@ -98,6 +100,7 @@ Nếu đổi ngưỡng sau khi đã gán nhãn, phải gán lại các rep bị 
 
 | Ngày | Thay đổi | Lý do |
 |---|---|---|
+| 2026-10-24 | Gán lại nhãn nhiều lỗi mỗi rep: v2 (gán nhanh, hai ảnh tĩnh) rồi v3 (sửa kỹ ở màn Gán nhãn đầy đủ). Số rep có nhãn (v1 → v2 → v3): incomplete_lockout 31 → 37 → 50, neck_drop 29 → 28 → 36, shallow 27 → 23 → 24, hip_sag 28 → 28 → 28, hip_high 27 → 27 → 27; 4 rep bỏ vì không phải rep | Nhãn v1 chỉ ghi lỗi của hiệp. v2 và v3 sửa SAU khi đã xem kết quả v1 nên báo cả ba bản; macro-F1 gộp 0,73 / 0,72 / 0,72; không sửa nhãn nữa trước khi huấn luyện |
 | 2026-10-23 | `hip_sag`: `max_hip_offset < -0,01` (đối xứng với `hip_high`); rep võng rõ cách tập đúng ~0,039 ≈ 5 cm; mỏng nhất ở các rep mập mờ 20/10 (−0,015 có nhãn, −0,004 không nhãn ≈ 1,5 cm). `hip_sag` tính vào macro-F1 | Hiệp quay thử võng rõ 2026-10-21T18-34-56 (cùng ngày với buổi dataset đầu → rò rỉ nhẹ, ghi vào hạn chế) |
 | 2026-10-20 | `incomplete_lockout`: `top_elbow_angle < 146°` (thay mức tạm 150°; nằm giữa 135,2° và 157,5°) | Đo đỉnh sau rep trên buổi quay thử |
 | 2026-10-20 | `neck_drop`: `median_neck_angle < 128°`; chỉ tính khi giữ phần lớn rep | Giá trị nhỏ nhất bị nhiễu tai, bắt nhầm 3 rep; trung vị tách được |

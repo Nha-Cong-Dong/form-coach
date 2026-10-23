@@ -3,6 +3,7 @@
 Chạy từ gốc repo (sau khi đã chốt nhãn và chạy `evaluation.baseline`):
     python -m evaluation.error_analysis             # tóm tắt theo lỗi
     python -m evaluation.error_analysis --list      # liệt kê từng rep báo nhầm / bỏ sót
+    python -m evaluation.error_analysis --csv outputs/errors.csv   # cùng danh sách, ra bảng
 
 Đừng dùng kết quả này để chỉnh ngưỡng rồi chấm lại trên chính các rep này: điểm mới sẽ cao
 nhưng không còn trung thực (rò rỉ). Dùng nó để viết phần phân tích; còn muốn cải thiện thì học
@@ -12,6 +13,7 @@ ngưỡng / random forest trên tập train của từng lần chia (tuần 3).
 from __future__ import annotations
 
 import argparse
+import csv
 import statistics
 from collections import Counter
 from collections.abc import Sequence
@@ -83,19 +85,79 @@ def analyze_error(
     return "\n".join(lines)
 
 
+WRONG = (("fp", "báo nhầm"), ("fn", "bỏ sót"))
+
+
+def _label_text(row: RepRow) -> str:
+    return ", ".join(sorted(row.errors)) or "không lỗi"
+
+
 def list_cases(rows: Sequence[RepRow], error: str, rule: ErrorRule) -> str:
+    """Từng rep luật báo sai, kèm thời điểm trong hiệp để tìm lại ở màn gán nhãn."""
     out = outcomes(rows, error, rule)
     lines = []
-    for kind, label in (("fp", "báo nhầm"), ("fn", "bỏ sót")):
+    for kind, label in WRONG:
         for i in out[kind]:
             r = rows[i]
             value = r.features.get(rule.feature)
             shown = "thiếu" if value is None else f"{value:+.3f}"
             lines.append(
                 f"    {label:<9}{r.session_id} rep {r.rep_index + 1} "
-                f"({session_kind(r)}): {rule.feature} = {shown}"
+                f"[{r.start_s:.1f}–{r.end_s:.1f} s] (hiệp: {session_kind(r)}; "
+                f"nhãn: {_label_text(r)}): {rule.feature} = {shown}"
             )
     return "\n".join(lines)
+
+
+CASE_COLUMNS = [
+    "lỗi", "loại", "session_id", "recorded_at", "nhóm", "rep", "start_s", "end_s",
+    "hiệp quay cho", "nhãn rep", "đặc trưng của luật", "giá trị", "ngưỡng", "cách ngưỡng",
+]  # fmt: skip
+
+
+def write_cases_csv(
+    path: Path,
+    rows: Sequence[RepRow],
+    groups: Sequence[str],
+    rules: dict[str, ErrorRule | None],
+    errors: Sequence[str],
+) -> int:
+    """Ghi MỌI rep luật báo nhầm / bỏ sót (mọi lỗi) ra bảng, kèm toàn bộ số đo của rep.
+
+    Để kiểm tra từng hàm đo: lọc theo lỗi, mở rep ở màn gán nhãn (session_id + start_s), so hình
+    với số đo. Cột "cách ngưỡng" = giá trị trừ ngưỡng (nhỏ → sát ngưỡng, lớn → xa ngưỡng).
+    Trả về số dòng ghi ra.
+    """
+    feature_names = sorted({k for r in rows for k in r.features})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with path.open(
+        "w", newline="", encoding="utf-8-sig"
+    ) as f:  # utf-8-sig: Excel đọc đúng tiếng Việt
+        w = csv.writer(f)
+        w.writerow([*CASE_COLUMNS, *feature_names])
+        for error in errors:
+            rule = rules.get(error)
+            if rule is None:
+                continue
+            out = outcomes(rows, error, rule)
+            for kind, label in WRONG:
+                for i in out[kind]:
+                    r = rows[i]
+                    v = r.features.get(rule.feature)
+                    w.writerow(
+                        [
+                            error, label, r.session_id, r.recorded_at.isoformat(), groups[i],
+                            r.rep_index + 1, f"{r.start_s:.2f}", f"{r.end_s:.2f}",
+                            session_kind(r), _label_text(r), rule.feature,
+                            "" if v is None else f"{v:.4f}", f"{rule.op} {rule.threshold:g}",
+                            "" if v is None else f"{v - rule.threshold:+.4f}",
+                            *("" if r.features.get(n) is None else f"{r.features[n]:.4f}"
+                              for n in feature_names),
+                        ]
+                    )  # fmt: skip
+                    count += 1
+    return count
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -104,6 +166,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     p.add_argument("--exercise", default="pushup")
     p.add_argument("--group", choices=["day", "block"], default="block", help="cách nhóm")
     p.add_argument("--list", action="store_true", help="liệt kê từng rep báo nhầm / bỏ sót")
+    p.add_argument("--csv", type=Path, help="ghi mọi rep báo sai, kèm số đo, ra file CSV này")
     args = p.parse_args(argv)
 
     exercise = get_exercise(args.exercise)
@@ -124,6 +187,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.list:
             print(list_cases(rows, error, rule))
         print()
+    if args.csv:
+        n = write_cases_csv(args.csv, rows, groups, rules, errors)
+        print(f"Đã ghi {n} rep báo sai (báo nhầm + bỏ sót, mọi lỗi) → {args.csv}")
 
 
 if __name__ == "__main__":

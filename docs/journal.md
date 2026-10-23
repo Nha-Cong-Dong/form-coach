@@ -97,3 +97,16 @@ Mẫu:
 - **Nguyên nhân:** Chưa phân tích. Ngưỡng được chọn trên chính buổi quay thử nên luôn đẹp hơn thực tế; ở dữ liệu mới rep không lỗi cũng hay chạm ngưỡng.
 - **Cách sửa:** Chưa sửa: không chỉnh ngưỡng trên chính dữ liệu chấm điểm (rò rỉ). Tuần 3 học ngưỡng/random forest trên tập train của từng lần chia.
 - **Bài học:** Điểm trên dữ liệu dùng để chọn ngưỡng không nói lên gì; quy tắc "tách buổi quay thử, chốt nhãn trước khi chạy" làm con số 0,73 đáng tin hơn con số 100% ban đầu.
+
+## 2026-10-23 — Nhãn mỗi rep chỉ một lỗi làm precision bị đánh giá thấp
+- **Chuyện gì xảy ra:** Baseline đạt macro-F1 gộp 0,73 với recall cao (0,78–0,96) nhưng precision thấp (0,41–0,67). 61/77 lần báo nhầm của 4 lỗi chính nằm ở hiệp của lỗi khác; trong hiệp tập đúng chỉ 16 lần (13 là hip_sag). Rep shallow báo nhầm có góc khuỷu 69–75° (chỉ vượt ngưỡng 2–8°), gần giống rep shallow có nhãn.
+- **Nguyên nhân:** Lúc gán nhãn chỉ tick một lỗi cho mỗi rep (lỗi của hiệp), dù màn gán nhãn cho tick nhiều lỗi và thực tế lỗi hay đi cùng nhau (gục đầu thì khuỷu cũng nông). Luật báo lỗi thật mà nhãn thiếu → bị tính là báo nhầm. Riêng 13 lần hip_sag báo nhầm ở hiệp tập đúng thì chưa giải thích được (mức nền hông lệch theo buổi).
+- **Cách sửa:** Giữ kết quả hiện tại làm v1 (nhãn một lỗi), lưu bản sao nhãn; gán nhãn lại v2 cho mọi rep, tick mọi lỗi nhìn thấy, không xem số đo; so v1 với v2.
+- **Bài học:** Nhãn phải phản ánh thực tế, không phải ý định của hiệp. Nhãn một lỗi/rep vừa làm giảm precision, vừa dạy model một quy luật sai của cách quay (lỗi này loại trừ lỗi kia). Giữ cả hai bản kết quả để thấy tác động của nhãn.
+- **Cập nhật (sau khi gán lại v2, v3):** giả thuyết này chưa được xác nhận (nhãn gán lại gần như không làm đổi macro-F1); xem mục "Gán nhãn lại hai lần (v2, v3)" bên dưới.
+
+## 2026-10-24 — Gán nhãn lại hai lần (v2, v3): macro-F1 vẫn 0,72–0,73, chỉ đổi chỗ giữa precision và recall
+- **Chuyện gì xảy ra:** Gán lại nhãn nhiều lỗi mỗi rep hai lần (v2 nhanh bằng hai ảnh tĩnh, v3 kỹ hơn). Macro-F1 gộp 0,73 → 0,72 → 0,72, exact match 0,55 cả ba. incomplete_lockout: nhãn 31 → 37 → 50, precision 0,67 → 0,83, recall 0,94 → 0,70; neck_drop: nhãn 29 → 28 → 36, precision 0,76 → 0,85, recall 0,90 → 0,81. shallow và hip_sag gần như không đổi.
+- **Nguyên nhân:** Nhãn mới nằm sát ngoài ngưỡng của luật (top_elbow_angle 147–159° so với ngưỡng 146°; median_neck_angle 130–140° so với 128°): ngưỡng chọn từ buổi quay thử nghiêm hơn mắt người gán. Nghi vấn về công cụ: ảnh "Đỉnh" là end_frame trong khi số đo lấy max 0,5 s sau đó.
+- **Cách sửa:** Chưa sửa. Ghi cả ba bản kết quả; v3 làm nhãn dùng tiếp; tuần 3 thử ngưỡng học trên tập train của từng lần chia.
+- **Bài học:** Con số tổng (macro-F1) bền theo cách gán nhãn, còn precision/recall từng lỗi phụ thuộc mạnh vào ranh giới mà mắt người đặt; muốn so sánh công bằng thì ngưỡng nên được học từ chính nhãn.
