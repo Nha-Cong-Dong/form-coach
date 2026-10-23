@@ -79,3 +79,21 @@ Mẫu:
 - **Nguyên nhân:** Nếu tick nhãn theo con số ("67,5° > 67 là shallow") thì nhãn chính là output của luật → chấm ra ~100% mà không nói lên gì. Rò rỉ có thể nằm ở quy trình con người, không chỉ ở code.
 - **Cách sửa:** Quy tắc: gán nhãn dataset bằng mắt, không chạy `analyze` trước khi gán xong; chốt nhãn trước lần chấm đầu tiên. Ngày tập đổi lúc 04:00. Baseline in hiệp bị bỏ qua và ghi rõ lỗi nào không tính vào macro-F1 từng lần chia.
 - **Bài học:** Kiểm tra rò rỉ phải xét cả cách người gán nhãn làm việc. Đặt quy tắc trước khi có dữ liệu, vì sau khi thấy điểm thì rất khó không bị ảnh hưởng.
+
+## 2026-10-21 — Chia theo ngày hay theo buổi: lý do ban đầu chưa đủ chặt
+- **Chuyện gì xảy ra:** Tối 20/10 bị lỡ, còn 4 ngày quay. Claude đề xuất chia kiểm định chéo theo ngày (4 lần chia, dao động mạnh), cho rằng các buổi cùng ngày giống nhau vì ánh sáng và chỗ đặt máy. Mình phản biện: ánh sáng hôm nào cũng như nhau, và mỗi buổi đều đặt lại điện thoại nên chỗ đặt máy cũng khác.
+- **Nguyên nhân:** Lý do ban đầu dựa vào giả định chứ chưa có số đo: bằng chứng thật chỉ là góc cổ của hai ngày lệch 10–20°, còn chênh lệch giữa hai buổi cùng ngày thì chưa đo.
+- **Cách sửa:** Đổi đơn vị chấm điểm sang buổi (5 lần chia), với điều kiện đặt lại máy và ghi chú. Vẫn in kết quả theo ngày bên cạnh để đo độ chênh. Chốt trước khi có dữ liệu để không bị chọn theo kết quả.
+- **Bài học:** Khi chọn cách chia dữ liệu, tách rõ điều đã đo với điều chỉ suy đoán; nếu không đo được ngay thì báo cả hai cách, rồi chốt quy tắc trước khi thấy điểm.
+
+## 2026-10-21 — Quay lại hip_sag võng rõ: lần này tách được
+- **Chuyện gì xảy ra:** Hiệp hip_sag quay thử lần 2 (2026-10-21T18-34-56) có hông dưới đường vai–cổ chân suốt cả 5 rep: max_hip_offset −0,024…−0,047, trung vị −0,056…−0,070 (≈ 7–9 cm). Hiệp lần 1 có rep gần chạm đường thẳng (−0,003).
+- **Nguyên nhân:** Lần 1 võng quá nhẹ, nằm trong mức hông tự dao động khi tập đúng (±4–5 cm).
+- **Cách sửa:** Luật hip_sag: max_hip_offset < −0,01 (hông chưa lần nào lên tới đường thẳng, đối xứng với hip_high). Rep võng rõ cách tập đúng ~5 cm; chỗ mỏng nhất là các rep mập mờ hôm 20/10 (~1,5 cm). Đưa hip_sag vào macro-F1, chốt trước lần chấm đầu tiên.
+- **Bài học:** Cách đo đã đúng từ đầu; vấn đề nằm ở dữ liệu quay thử. Khi một lỗi "không tách được", kiểm tra lại cách làm lỗi trước khi đổi cách đo hay bỏ lỗi.
+
+## 2026-10-23 — Baseline luật lần đầu: bắt được lỗi nhưng báo nhầm nhiều
+- **Chuyện gì xảy ra:** 171 rep, 5 buổi (commit f02bd7f). Macro-F1 gộp 0,73 (theo buổi 0,74 ± 0,03), exact match 0,55. hip_high F1 0,98; incomplete_lockout 0,78; shallow và hip_sag 0,57; neck_drop (thử nghiệm) 0,83. Recall 0,78–0,96 nhưng precision chỉ 0,41–0,67: tổng 77 lần báo nhầm, 11 lần bỏ sót. Trên buổi quay thử, luật khớp 29/29 rep. Chia theo buổi và theo ngày cùng cho macro-F1 gộp 0,73 (chỉ có 2 ngày nên bằng chứng yếu).
+- **Nguyên nhân:** Chưa phân tích. Ngưỡng được chọn trên chính buổi quay thử nên luôn đẹp hơn thực tế; ở dữ liệu mới rep không lỗi cũng hay chạm ngưỡng.
+- **Cách sửa:** Chưa sửa: không chỉnh ngưỡng trên chính dữ liệu chấm điểm (rò rỉ). Tuần 3 học ngưỡng/random forest trên tập train của từng lần chia.
+- **Bài học:** Điểm trên dữ liệu dùng để chọn ngưỡng không nói lên gì; quy tắc "tách buổi quay thử, chốt nhãn trước khi chạy" làm con số 0,73 đáng tin hơn con số 100% ban đầu.

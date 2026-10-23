@@ -125,3 +125,28 @@ def test_sessions_from_other_pose_source_are_skipped(tmp_path: Path) -> None:
     ds = build_dataset(tmp_path, "pushup")
     assert {r.session_id for r in ds.rows} == {"js_pushup"}
     assert "không phải trang quay" in dict(ds.skipped)["py_pushup"]
+
+
+def test_rows_remember_the_sessions_intended_errors(tmp_path: Path) -> None:
+    # set_errors = lỗi cố ý chọn lúc quay; nhãn từng rep có thể khác (sửa lúc gán nhãn).
+    def drop_labels(reps):
+        return [dataclasses.replace(r, errors=frozenset()) for r in reps]
+
+    add_session(tmp_path, "a_pushup", set_errors=("shallow",), edit=drop_labels)
+    ds = build_dataset(tmp_path, "pushup")
+    assert all(r.set_errors == frozenset({"shallow"}) for r in ds.rows)
+    assert all(r.errors == frozenset() for r in ds.rows)
+
+
+def test_session_counts_include_invalid_reps_and_skip_unlabeled(tmp_path: Path) -> None:
+    def mark_last_invalid(reps):
+        reps[-1] = dataclasses.replace(reps[-1], valid=False, errors=frozenset())
+        return reps
+
+    add_session(tmp_path, "a_pushup", edit=mark_last_invalid)
+    add_session(tmp_path, "b_pushup")
+    add_session(tmp_path, "c_pushup", label=False)  # chưa gán nhãn: không có thống kê
+    ds = build_dataset(tmp_path, "pushup")
+    counts = {s.session_id: (s.counted, s.valid, s.extra) for s in ds.sessions}
+    assert counts == {"a_pushup": (3, 2, 1), "b_pushup": (3, 3, 0)}
+    assert len(ds.rows) == 5  # rep không hợp lệ không vào bảng
