@@ -31,7 +31,7 @@ Không phải nhãn lỗi. Đánh dấu khi bộ đếm cắt ra một đoạn *
 |---|---|---|---|
 | `shallow` | Chưa xuống đủ sâu ở đáy rep | Góc khuỷu nhỏ nhất (vai–khuỷu–cổ tay) | `> 67°` |
 | `incomplete_lockout` | Chưa đẩy lên hết ở đỉnh rep | Góc khuỷu lớn nhất trong 0,5 s ngay sau rep (`top_elbow_angle`) | `< 146°` |
-| `hip_sag` | Hông võng xuống | Độ lệch có dấu của hông so với đường vai–cổ chân (`hip_offset`) | `< ?` *(chờ quay lại hiệp võng rõ)* |
+| `hip_sag` | Hông võng xuống | Độ lệch có dấu của hông so với đường vai–cổ chân (`hip_offset`), lớn nhất trong rep | `max_hip_offset < -0,01` (hông dưới đường suốt rep) |
 | `hip_high` | Hông nhô cao | Độ lệch có dấu của hông so với đường vai–cổ chân (`hip_offset`), nhỏ nhất trong rep | `min_hip_offset > 0,01` (hông ở trên đường suốt rep) |
 | `neck_drop` *(thử nghiệm)* | Cổ rướn ra trước hoặc gục xuống, đầu lệch khỏi đường thân, **giữ phần lớn rep** (gục thoáng qua không tính) | Góc tai–vai–hông, **trung vị** trong rep (`median_neck_angle`) | `< 128°` |
 
@@ -51,7 +51,8 @@ Số đo từ buổi quay thử 2026-10-20 (6 hiệp × 4 rep) + hiệp 2026-10-
 | Hiệp | Nhỏ nhất trong rep | Lớn nhất trong rep |
 |---|---|---|
 | Tập đúng | −0,042 … −0,023 | +0,015 … +0,075 |
-| `hip_sag` | −0,092 … −0,042 | −0,024 … −0,003 |
+| `hip_sag` (20/10, võng nhẹ) | −0,092 … −0,042 | −0,024 … −0,003 |
+| `hip_sag` (21/10, quay thử võng rõ) | −0,099 … −0,069 | −0,047 … −0,024 |
 | `hip_high` | +0,032 … +0,115 | +0,105 … +0,240 |
 
 `neck_angle` từng rep (cổ "thẳng" khi nhìn ngang vẫn chỉ ~140–170°, vì đầu nằm cao hơn đường vai–hông). Giá trị nhỏ nhất bị nhiễu tai (±10° giữa các khung) nên dùng trung vị:
@@ -97,6 +98,7 @@ Nếu đổi ngưỡng sau khi đã gán nhãn, phải gán lại các rep bị 
 
 | Ngày | Thay đổi | Lý do |
 |---|---|---|
+| 2026-10-23 | `hip_sag`: `max_hip_offset < -0,01` (đối xứng với `hip_high`); rep võng rõ cách tập đúng ~0,039 ≈ 5 cm; mỏng nhất ở các rep mập mờ 20/10 (−0,015 có nhãn, −0,004 không nhãn ≈ 1,5 cm). `hip_sag` tính vào macro-F1 | Hiệp quay thử võng rõ 2026-10-21T18-34-56 (cùng ngày với buổi dataset đầu → rò rỉ nhẹ, ghi vào hạn chế) |
 | 2026-10-20 | `incomplete_lockout`: `top_elbow_angle < 146°` (thay mức tạm 150°; nằm giữa 135,2° và 157,5°) | Đo đỉnh sau rep trên buổi quay thử |
 | 2026-10-20 | `neck_drop`: `median_neck_angle < 128°`; chỉ tính khi giữ phần lớn rep | Giá trị nhỏ nhất bị nhiễu tai, bắt nhầm 3 rep; trung vị tách được |
 | 2026-10-20 | `hip_high`: `min_hip_offset > 0,01` (cách tập đúng ~0,055 ≈ 7 cm) | Đo `hip_offset` trên buổi quay thử |

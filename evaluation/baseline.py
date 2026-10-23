@@ -24,7 +24,8 @@ from formcoach.models import RuleBased
 
 # Lỗi tính vào macro-F1 và exact match: có luật và không thử nghiệm (đã duyệt 2026-10-20).
 # Giữ cố định để luật (tuần 2) và random forest (tuần 3) được so trên cùng một con số.
-MAIN_ERRORS = {"pushup": ("shallow", "incomplete_lockout", "hip_high")}
+# 2026-10-23: thêm hip_sag (đã có hiệp quay thử võng rõ; chốt trước lần chấm đầu tiên).
+MAIN_ERRORS = {"pushup": ("shallow", "incomplete_lockout", "hip_high", "hip_sag")}
 EXPERIMENTAL = {"pushup": ("neck_drop",)}
 
 
@@ -154,6 +155,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     notes = {e: "chưa có luật" for e in missing}
     notes |= {e: "thử nghiệm" for e in EXPERIMENTAL.get(args.exercise, ())}
     main_errors = MAIN_ERRORS[args.exercise]
+    # Lỗi chính mà chưa có luật thì luật không bao giờ báo nó → F1 = 0, kéo macro-F1 xuống
+    # mà không phải vì luật kém: phải thấy ngay, không lặng lẽ chấm.
+    for e in main_errors:
+        if e in missing:
+            print(f"CẢNH BÁO: {e} nằm trong lỗi chính nhưng chưa có luật → macro-F1 bị kéo xuống.")
 
     results = cross_validate(lambda: RuleBased(exercise), rows, groups)
     print(
