@@ -42,7 +42,9 @@ def test_pilot_by_list_and_by_date() -> None:
 
 
 def test_pilot_list_covers_known_trial_sessions() -> None:
-    assert len(PILOT_SESSIONS) == 8  # 6 hiệp quay thử + 1 hiệp tuần 1 + 1 hiệp thử ghi chú
+    # 6 hiệp quay thử + 1 hiệp tuần 1 + 1 hiệp thử ghi chú + 1 hiệp hip_sag quay thử (21/10)
+    assert len(PILOT_SESSIONS) == 9
+    assert "2026-10-21T18-34-56_pushup" in PILOT_SESSIONS
 
 
 def test_evaluation_rows_never_contain_pilot() -> None:

@@ -35,6 +35,7 @@ PILOT_SESSIONS = frozenset(
         "2026-10-20T10-16-48_pushup",
         "2026-10-20T10-17-26_pushup",
         "2026-10-20T11-31-16_pushup",  # hiệp thử ô ghi chú (bước 3d), không phải dữ liệu
+        "2026-10-21T18-34-56_pushup",  # hip_sag quay thử võng rõ, để chọn ngưỡng hip_sag
     }
 )
 # Lưới an toàn: mọi hiệp quay trước mốc này đều là thử nghiệm (kể cả hiệp quên ghi vào danh sách
