@@ -56,8 +56,12 @@ def training_day(at: datetime) -> date:
     return (at - DAY_STARTS_AT).date()
 
 
+def is_pilot_session(session_id: str, recorded_at: datetime) -> bool:
+    return session_id in PILOT_SESSIONS or recorded_at < DATASET_START
+
+
 def is_pilot(row: RepRow) -> bool:
-    return row.session_id in PILOT_SESSIONS or row.recorded_at < DATASET_START
+    return is_pilot_session(row.session_id, row.recorded_at)
 
 
 def evaluation_rows(dataset: Dataset) -> list[RepRow]:

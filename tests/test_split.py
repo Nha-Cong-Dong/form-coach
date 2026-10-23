@@ -165,3 +165,26 @@ def test_default_grouping_is_by_block() -> None:
     rows = [row("a", "2026-10-21T14:00:00+07:00"), row("b", "2026-10-21T19:00:00+07:00")]
     assert group_keys(rows) == ["2026-10-21#1", "2026-10-21#2"]
     assert group_keys(rows, "day") == ["2026-10-21", "2026-10-21"]
+
+
+def test_report_counts_extra_reps_only_in_scored_sessions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import dataclasses
+
+    def mark_last_invalid(reps):
+        reps[-1] = dataclasses.replace(reps[-1], valid=False, errors=frozenset())
+        return reps
+
+    # Hiệp quay thử có rep thừa nhưng không tính: bộ đếm được chỉnh theo hiệp quay thử.
+    add_session(tmp_path, "2026-10-20T10-14-01_pushup", "2026-10-20T10:14:01+07:00",
+                edit=mark_last_invalid)  # fmt: skip
+    add_session(tmp_path, "a_pushup", "2026-10-21T08:00:00+07:00", edit=mark_last_invalid)
+    add_session(tmp_path, "b_pushup", "2026-10-22T08:00:00+07:00")
+    report_main(["--data", str(tmp_path), "--out", str(tmp_path / "out")])
+    out = capsys.readouterr().out
+    assert "Bộ đếm (2 hiệp chấm điểm): cắt 6 rep, 5 là rep thật." in out
+    assert "Cắt thừa 1 rep (16.7%) trong 1 hiệp." in out
+    assert "a_pushup: cắt 3, thật 2" in out
+    assert "2026-10-20T10-14-01_pushup: cắt" not in out
+    assert "Chưa đo được rep thật bị bỏ sót" in out

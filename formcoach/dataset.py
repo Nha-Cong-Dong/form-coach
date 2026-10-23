@@ -36,6 +36,24 @@ class RepRow:
     end_s: float
     features: dict[str, float]
     errors: frozenset[str]
+    # Lỗi cố ý đã chọn trước khi quay hiệp này (không phải nhãn của rep): để phân tích xem luật
+    # báo nhầm/bỏ sót ở loại hiệp nào. Không đưa vào đặc trưng.
+    set_errors: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class SessionCount:
+    """Bộ đếm cắt bao nhiêu rep ở một hiệp đã gán nhãn, bao nhiêu rep là thật (valid)."""
+
+    session_id: str
+    recorded_at: datetime
+    counted: int
+    valid: int
+
+    @property
+    def extra(self) -> int:
+        """Rep bộ đếm cắt thừa (người gán nhãn bỏ tick "Là rep")."""
+        return self.counted - self.valid
 
 
 @dataclass(frozen=True)
@@ -44,6 +62,7 @@ class Dataset:
     error_labels: tuple[str, ...]
     rows: tuple[RepRow, ...]
     skipped: tuple[tuple[str, str], ...]  # (session_id, lý do) của hiệp không đưa vào
+    sessions: tuple[SessionCount, ...] = ()  # mọi hiệp đã đưa vào (kể cả rep không hợp lệ)
 
     def feature_names(self) -> list[str]:
         """Mọi tên đặc trưng xuất hiện ở ít nhất một rep, sắp xếp cố định."""
@@ -55,6 +74,7 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
     ex = get_exercise(exercise)
     rows: list[RepRow] = []
     skipped: list[tuple[str, str]] = []
+    sessions: list[SessionCount] = []
     for path in sorted((Path(data_dir) / "sessions" / exercise).glob("*.json")):
         sid = path.stem
         try:
@@ -80,6 +100,11 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
             continue
 
         recorded_at = datetime.fromisoformat(meta.recorded_at)
+        sessions.append(
+            SessionCount(
+                sid, recorded_at, counted=len(reps), valid=sum(lab.valid for lab in labels.reps)
+            )
+        )
         for rep, lab in zip(reps, labels.reps, strict=True):
             if not lab.valid:
                 continue
@@ -92,9 +117,10 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
                     end_s=float(times[rep.end_frame]),
                     features={k: v for k, v in rep.features.items() if k not in NON_FEATURES},
                     errors=lab.errors,
+                    set_errors=meta.set_errors,
                 )
             )
-    return Dataset(exercise, tuple(ex.error_labels), tuple(rows), tuple(skipped))
+    return Dataset(exercise, tuple(ex.error_labels), tuple(rows), tuple(skipped), tuple(sessions))
 
 
 def write_csv(dataset: Dataset, path: Path, extra: dict[str, list[str]] | None = None) -> Path:
