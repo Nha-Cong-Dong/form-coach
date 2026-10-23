@@ -1,6 +1,6 @@
 # 🏋️ Form Coach: AI phân tích kỹ thuật tập luyện qua camera
 
-> **Trạng thái:** xong tuần 1 (đếm rep push-up + trang quay trên điện thoại); sắp sang tuần 2.
+> **Trạng thái:** xong tuần 1 (đếm rep push-up + trang quay trên điện thoại) và tuần 2 (dataset 5 buổi có nhãn + baseline luật chấm bằng kiểm định chéo theo buổi, macro-F1 0,72); sắp sang tuần 3 (random forest, luồng app).
 
 > **Mục tiêu chính:** học qua vibe code. Hiểu được thứ AI viết ra quan trọng hơn tốc độ.
 
@@ -162,6 +162,41 @@ Mạng chuỗi (1D-CNN/LSTM) chuyển sang mở rộng.
 - Tập test nhỏ nên số liệu dao động. Báo kèm sai số, không kết luận khi chênh lệch nhỏ.
 - So sánh: luật vs random forest.
 
+### 4.4b Kết quả baseline luật và hạn chế (tuần 2)
+
+**Dữ liệu và cách chấm.** 167 rep hợp lệ từ 30 hiệp, 5 buổi (một người, cởi trần, quay ngang hông bằng trang quay của app). Mỗi buổi 6 hiệp: tập đúng và mỗi lỗi một hiệp cố ý. Hiệp quay thử (nơi chọn ngưỡng) bị loại khỏi phần chấm điểm. Chia theo buổi: 5 lần chia, mỗi lần bỏ ra một buổi làm test. Mỗi lỗi một luật, ngưỡng chọn từ buổi quay thử rồi giữ cố định: `shallow` khuỷu nhỏ nhất > 67°; `incomplete_lockout` đỉnh khuỷu sau rep < 146°; `hip_high` độ lệch hông nhỏ nhất trong rep > 0,01 (hông trên đường vai–cổ chân suốt rep); `hip_sag` độ lệch hông lớn nhất < −0,01; `neck_drop` (thử nghiệm) trung vị góc tai–vai–hông < 128°.
+
+**Kết quả** (số gộp qua 5 lần chia, nhãn v3):
+
+| Lỗi | Precision | Recall | F1 | Báo đúng / báo nhầm / bỏ sót |
+|---|---|---|---|---|
+| `shallow` | 0,41 | 0,79 | 0,54 | 19 / 27 / 5 |
+| `incomplete_lockout` | 0,83 | 0,70 | 0,76 | 35 / 7 / 15 |
+| `hip_high` | 1,00 | 0,96 | 0,98 | 26 / 0 / 1 |
+| `hip_sag` | 0,42 | 0,93 | 0,58 | 26 / 36 / 2 |
+| *`neck_drop` (thử nghiệm, không tính macro-F1)* | 0,85 | 0,81 | 0,83 | 29 / 5 / 7 |
+
+Macro-F1 (4 lỗi chính) **0,72**; tỉ lệ rep đoán đúng toàn bộ tập lỗi **0,55**. Nhãn được gán lại hai lần (v1 một lỗi mỗi rep, v2 gán nhanh, v3 sửa kỹ) cho macro-F1 gộp 0,73 / 0,72 / 0,72: con số tổng bền theo cách gán nhãn, còn precision và recall từng lỗi dịch chuyển. Chia theo ngày cho cùng macro-F1 (0,72) nhưng chỉ có 2 ngày nên bằng chứng yếu. Bộ đếm cắt 172 rep ở các hiệp chấm điểm, trong đó 5 rep (2,9%) bị đánh dấu "không phải rep" theo nhãn v3 (1 rep theo nhãn v1); rep thật bị bỏ sót chưa đo được.
+
+**Phân tích.**
+- Trên buổi quay thử luật khớp 29/29 rep, nhưng con số đó không có ý nghĩa vì ngưỡng được chọn từ chính nó; điểm trên dữ liệu chấm điểm mới là điểm thật.
+- Lỗi rõ thì luật gần như hoàn hảo (`hip_high`: F1 0,98, không báo nhầm). Lỗi nhẹ thì luật bắt được phần lớn lỗi thật ở `shallow` và `hip_sag` (recall 0,79 và 0,93) nhưng báo nhầm nhiều (precision ~0,4).
+- Ngưỡng chọn từ buổi quay thử nghiêm hơn ranh giới của mắt người gán nhãn. Ở `incomplete_lockout` và `neck_drop`, nhãn gán lại nằm sát ngoài ngưỡng (đỉnh khuỷu 147–159° so với ngưỡng 146°; góc cổ 130–140° so với 128°), nên nhãn kỹ hơn làm precision tăng (0,67 → 0,83) và recall giảm (0,94 → 0,70) trong khi F1 gần như không đổi. Ngưỡng học từ chính nhãn có thể sửa lệch này.
+- `shallow`: rep bị báo nhầm có góc khuỷu nhỏ nhất 68–94°, gần như trùng rep có nhãn `shallow` (trung vị 73° và 75°): góc khuỷu nhỏ nhất không đủ để tách "nông" theo nhãn. 23/27 lần báo nhầm nằm ở hiệp của lỗi khác (`neck_drop`, `hip_high`, `hip_sag`), nhưng gán lại nhãn nhiều lỗi không làm số báo nhầm giảm (26 → 27 từ v1 sang v3), nên nguyên nhân chưa rõ.
+- `hip_sag`: 13/36 lần báo nhầm nằm trong hiệp tập đúng, nơi hông của rep đúng có lúc thấp nhẹ (1–4 cm) trong cả rep; báo nhầm dồn ở buổi 21/10 lần 1 (15/36), gợi ý mức nền của độ lệch hông khác nhau giữa các buổi (đặt máy, độ mỏi).
+- `neck_drop` (thử nghiệm) đo được khá (F1 0,83) nhưng khoảng cách giữa rep có và không có lỗi chỉ vài độ.
+
+**Hạn chế.**
+- **Một người, một điều kiện:** một người tập, cởi trần, quay ngang hông, một chỗ trong nhà. Kết quả không nói gì về người khác, góc máy khác hay quần áo khác.
+- **Dữ liệu nhỏ:** 167 rep; mỗi lỗi chỉ có 24–50 rep có nhãn. Khoảng tin cậy 95% của một tỉ lệ như recall 0,79 (19/24) rộng khoảng ±0,16, nên chênh lệch dưới ~0,15 giữa hai lỗi hoặc hai mô hình chưa có ý nghĩa. Chỉ có 5 lần chia.
+- **5 buổi nhưng chỉ 2 ngày** (21/10 hai buổi, 23/10 ba buổi). Các buổi cùng ngày có thể không độc lập hoàn toàn dù mỗi buổi đặt lại máy; so sánh theo ngày chỉ có 2 lần chia.
+- **Nhãn nhiễu ở lỗi nhẹ:** một người gán bằng mắt; khuỷu 65° so với 75°, hông thấp 2 cm so với 4 cm vượt khả năng phân biệt của mắt. Độ nhất quán của người gán chưa được đo. Nhãn v2 gán bằng hai ảnh tĩnh (đáy, đỉnh) nên không đánh giá được lỗi "suốt rep"; ảnh "đỉnh" là khung cuối rep còn số đo lấy giá trị lớn nhất trong 0,5 s sau đó. Nhãn v2 và v3 được sửa sau khi đã xem kết quả v1 (vì vậy báo cả ba bản). Điểm của mọi mô hình không thể vượt độ nhất quán của chính nhãn.
+- **Ngưỡng và rò rỉ nhẹ:** ngưỡng chọn từ buổi quay thử (loại khỏi chấm điểm) rồi giữ cố định. Riêng `hip_sag`, hiệp quay thử được quay cùng ngày với buổi dataset đầu tiên.
+- **Rep bị bỏ sót chưa đo được:** chỉ đo được rep bộ đếm cắt thừa.
+- **`neck_drop` còn là thử nghiệm:** vị trí tai khi quay ngang kém ổn định; không tính vào macro-F1.
+- **Nhịp khung không đều:** các hiệp đã kiểm tra có 12–19 khung/giây, lệch chuẩn khoảng cách khung 9–27%; chưa lấy mẫu lại.
+- **Chưa so với random forest:** đây mới là baseline; phần so sánh luật với random forest là việc của tuần 3.
+
 ### 4.5 Coach (lớp mỏng)
 Đầu vào là **dữ liệu định lượng thật** (số rep, góc đáy từng rep, lỗi theo rep, tiến độ so với mục tiêu), không phải ảnh hay video:
 
@@ -275,9 +310,9 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 - [x] Tuần 1: đồ thị góc khuỷu theo thời gian, thấy được các "sóng" của rep
 - [x] Tuần 1: đếm rep đúng trên 4 clip thử (3 video + 1 hiệp quay bằng app: 6/7/6/5 rep)
 - [x] Tuần 1: trang quay chạy trên điện thoại (HTTPS), xuất được JSON keypoint
-- [ ] Tuần 2: viết tiêu chí nhãn trước khi quay
-- [ ] Tuần 2: quay nhiều buổi khác nhau (không chỉ một buổi dài)
-- [ ] Tuần 2: gán nhãn trong app, file nhãn theo từng hiệp
+- [x] Tuần 2: viết tiêu chí nhãn trước khi quay
+- [x] Tuần 2: quay nhiều buổi khác nhau (không chỉ một buổi dài): 5 buổi, trong 2 ngày
+- [x] Tuần 2: gán nhãn trong app, file nhãn theo từng hiệp
 - [ ] Tuần 3: chia train/test theo buổi, không theo rep
 - [ ] Tuần 3: bảng precision/recall/F1 và ma trận 2×2 cho từng lỗi, so với baseline luật
 - [ ] Tuần 3: app chạy local đủ luồng: đăng nhập → quay → kết quả
@@ -362,7 +397,9 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 - [x] Khung dự án (bước 0)
 - [x] Chọn chỗ đặt điện thoại để quay push-up từ bên hông, sát sàn
 - [x] Quay thử 1 clip push-up, chạy MediaPipe để xem pose có ổn không
-- [ ] Điền tiêu chí nhãn cho push-up trong `docs/labeling-criteria.md`
+- [x] Điền tiêu chí nhãn cho push-up trong `docs/labeling-criteria.md`
 - [x] Lập lại plan tuần 1 cho push-up + trang quay (plan mode)
 - [x] Tuần 1: pose offline, đếm rep, trang quay, backend nhận file, lệnh `python -m formcoach analyze`
-- [ ] Lập plan tuần 2 (plan mode): gán nhãn, đặc trưng lỗi, baseline luật, quay dataset
+- [x] Lập plan tuần 2 (plan mode): gán nhãn, đặc trưng lỗi, baseline luật, quay dataset
+- [x] Tuần 2: gán nhãn, đặc trưng lỗi, baseline luật, dataset 5 buổi, kiểm định chéo theo buổi (macro-F1 0,72)
+- [ ] Lập plan tuần 3 (plan mode): ngưỡng học trên tập train + random forest, luồng app
