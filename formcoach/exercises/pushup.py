@@ -77,8 +77,9 @@ class PushUp(Exercise):
         return {
             "shallow": ErrorRule("min_elbow_angle", ">", 67.0),
             "incomplete_lockout": ErrorRule("top_elbow_angle", "<", 146.0),
-            # Chờ quay lại hiệp võng rõ: hiệp quay thử võng quá nhẹ, không tách được tập đúng.
-            "hip_sag": None,
+            # Hông dưới đường suốt rep (đối xứng với hip_high). Chọn từ hiệp quay thử võng rõ
+            # 2026-10-21: max của rep võng −0,024…−0,047, rep đúng +0,015…+0,075 (~5 cm).
+            "hip_sag": ErrorRule("max_hip_offset", "<", -0.01),
             "hip_high": ErrorRule("min_hip_offset", ">", 0.01),  # hông trên đường suốt rep
             # Trung vị: lỗi cổ phải giữ phần lớn rep; giá trị nhỏ nhất bị nhiễu vị trí tai.
             "neck_drop": ErrorRule("median_neck_angle", "<", 128.0),

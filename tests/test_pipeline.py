@@ -100,15 +100,13 @@ def test_cli_prints_rule_predictions_against_saved_labels(
 
     main(["analyze", str(path)])
     out = capsys.readouterr().out
-    assert "chưa có luật cho: hip_sag" in out
+    assert "chưa có luật" not in out  # mọi lỗi push-up đều đã có luật
     # Khuỷu xuống tới 70° > 67° → luật bắt shallow, khớp với nhãn.
     assert "rep 1: luật shallow | nhãn shallow  khớp" in out
     assert "rep 2: luật shallow | nhãn: không phải rep" in out
-    # hip_sag chưa có luật: không so, và phải nói rõ thay vì chỉ ghi "khớp".
-    assert (
-        "rep 3: luật shallow | nhãn hip_sag, shallow  khớp (không so hip_sag: chưa có luật)" in out
-    )
-    assert "khớp hoàn toàn 4/4 rep" in out
+    # Thân thẳng (hip_offset = 0, không dưới -0,01) → luật không báo hip_sag: KHÁC với nhãn.
+    assert "rep 3: luật shallow | nhãn hip_sag, shallow  KHÁC" in out
+    assert "khớp hoàn toàn 3/4 rep" in out
 
 
 def test_cli_without_labels_still_prints_rules(

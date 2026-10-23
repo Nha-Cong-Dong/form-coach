@@ -1,8 +1,9 @@
-"""Chấm baseline luật bằng kiểm định chéo bỏ ra một ngày (hoặc một buổi).
+"""Chấm baseline luật bằng kiểm định chéo bỏ ra một buổi (hoặc một ngày).
 
 Chạy từ gốc repo:
-    python -m evaluation.baseline                 # nhóm theo ngày: kết quả chính
-    python -m evaluation.baseline --group block   # nhóm theo buổi: chỉ để so (rò rỉ cùng ngày?)
+    python -m evaluation.baseline                 # nhóm theo buổi: kết quả chính (chốt 2026-10-21)
+    python -m evaluation.baseline --group day     # nhóm theo ngày: cách bảo thủ hơn
+Cuối báo cáo luôn có bảng so sánh hai cách nhóm: chênh nhiều → buổi cùng ngày rò rỉ sang nhau.
 
 Báo hai cách: trung bình ± độ lệch qua các lần chia (kết quả dao động giữa các ngày bao nhiêu) và
 gộp TP/FP/FN của mọi lần chia rồi mới tính (ổn định hơn khi mỗi ngày chỉ vài rep mỗi lỗi).
@@ -15,15 +16,16 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from evaluation.cross_validate import FoldResult, cross_validate
-from evaluation.metrics import Confusion, exact_match, macro_f1, spread
-from evaluation.split import evaluation_rows, group_keys
+from evaluation.metrics import Confusion, Spread, exact_match, macro_f1, spread
+from evaluation.split import GROUP_NAMES, evaluation_rows, group_keys
 from formcoach.dataset import build_dataset
 from formcoach.exercises import get_exercise
 from formcoach.models import RuleBased
 
 # Lỗi tính vào macro-F1 và exact match: có luật và không thử nghiệm (đã duyệt 2026-10-20).
 # Giữ cố định để luật (tuần 2) và random forest (tuần 3) được so trên cùng một con số.
-MAIN_ERRORS = {"pushup": ("shallow", "incomplete_lockout", "hip_high")}
+# 2026-10-23: thêm hip_sag (đã có hiệp quay thử võng rõ; chốt trước lần chấm đầu tiên).
+MAIN_ERRORS = {"pushup": ("shallow", "incomplete_lockout", "hip_high", "hip_sag")}
 EXPERIMENTAL = {"pushup": ("neck_drop",)}
 
 
@@ -36,6 +38,39 @@ def pooled(results: Sequence[FoldResult], error: str) -> Confusion:
     for r in results:
         total += r.confusion(error)
     return total
+
+
+def summarize(
+    results: Sequence[FoldResult], main: Sequence[str]
+) -> tuple[Spread, float | None, float | None]:
+    """(macro-F1 từng lần chia, macro-F1 gộp, exact match gộp) của các lỗi chính."""
+    per_fold = [macro_f1({e: r.confusion(e) for e in main}, main) for r in results]
+    pooled_macro = macro_f1({e: pooled(results, e) for e in main}, main)
+    all_true = [t for r in results for t in r.y_true]
+    all_pred = [p for r in results for p in r.y_pred]
+    return spread(per_fold), pooled_macro, exact_match(all_true, all_pred, main)
+
+
+def compare_groupings(rows, make_model, main: Sequence[str]) -> str:
+    """So kết quả nhóm theo buổi và theo ngày, đặt cạnh nhau."""
+    lines = ["\nSo sánh cách nhóm (lỗi chính; macro-F1 gộp | exact match gộp):"]
+    for mode in ("block", "day"):
+        groups = group_keys(rows, mode)
+        n = len(set(groups))
+        label = f"theo {GROUP_NAMES[mode]}"
+        if n < 2:
+            lines.append(f"  {label:<10} chỉ {n} nhóm: chưa chấm được")
+            continue
+        per_fold, pooled_macro, exact = summarize(cross_validate(make_model, rows, groups), main)
+        lines.append(
+            f"  {label:<10} {n} lần chia | macro-F1 {per_fold} | gộp {_f(pooled_macro)} "
+            f"| exact {_f(exact)}"
+        )
+    lines.append(
+        "  Theo buổi là kết quả chính (chốt trước khi có dữ liệu); theo ngày bảo thủ hơn.\n"
+        "  Chênh nhiều → các buổi cùng ngày đang rò rỉ sang nhau: ghi vào phần hạn chế."
+    )
+    return "\n".join(lines)
 
 
 def report(results: Sequence[FoldResult], error_labels: Sequence[str], main: Sequence[str],
@@ -101,7 +136,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="python -m evaluation.baseline")
     p.add_argument("--data", type=Path, default=Path("data"), help="thư mục dữ liệu")
     p.add_argument("--exercise", default="pushup")
-    p.add_argument("--group", choices=["day", "block"], default="day", help="cách nhóm buổi")
+    p.add_argument("--group", choices=["day", "block"], default="block", help="cách nhóm")
     args = p.parse_args(argv)
 
     exercise = get_exercise(args.exercise)
@@ -120,13 +155,19 @@ def main(argv: Sequence[str] | None = None) -> None:
     notes = {e: "chưa có luật" for e in missing}
     notes |= {e: "thử nghiệm" for e in EXPERIMENTAL.get(args.exercise, ())}
     main_errors = MAIN_ERRORS[args.exercise]
+    # Lỗi chính mà chưa có luật thì luật không bao giờ báo nó → F1 = 0, kéo macro-F1 xuống
+    # mà không phải vì luật kém: phải thấy ngay, không lặng lẽ chấm.
+    for e in main_errors:
+        if e in missing:
+            print(f"CẢNH BÁO: {e} nằm trong lỗi chính nhưng chưa có luật → macro-F1 bị kéo xuống.")
 
     results = cross_validate(lambda: RuleBased(exercise), rows, groups)
     print(
         f"Baseline luật — {len(rows)} rep, {len(results)} lần chia bỏ ra một nhóm "
-        f"(nhóm theo {args.group}); hiệp quay thử đã loại.\n"
+        f"(nhóm theo {GROUP_NAMES[args.group]}); hiệp quay thử đã loại.\n"
     )
     print(report(results, ds.error_labels, main_errors, notes))
+    print(compare_groupings(rows, lambda: RuleBased(exercise), main_errors))
 
 
 if __name__ == "__main__":
