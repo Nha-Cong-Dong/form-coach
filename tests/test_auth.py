@@ -17,7 +17,8 @@ def anon_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Client chưa đăng nhập, không override `current_user`; DB và data trong thư mục tạm."""
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
-    monkeypatch.delenv("FORMCOACH_COOKIE_SECURE", raising=False)
+    # TestClient chạy qua http://testserver: cookie Secure sẽ không được gửi lại, nên tắt.
+    monkeypatch.setenv("FORMCOACH_COOKIE_SECURE", "0")
     return TestClient(app)
 
 
@@ -38,6 +39,13 @@ def test_register_logs_in_immediately(anon_client: TestClient) -> None:
     assert r.json()["email"] == "an@example.com"
     me = anon_client.get("/api/auth/me")
     assert me.status_code == 200 and me.json()["email"] == "an@example.com"
+
+
+def test_options_report_register_switch(anon_client: TestClient, monkeypatch) -> None:
+    # Mở không cần đăng nhập, theo đúng biến môi trường.
+    assert anon_client.get("/api/auth/options").json() == {"allow_register": True}
+    monkeypatch.delenv("FORMCOACH_ALLOW_REGISTER")
+    assert anon_client.get("/api/auth/options").json() == {"allow_register": False}
 
 
 def test_register_disabled_by_default(anon_client: TestClient, monkeypatch) -> None:
@@ -63,7 +71,18 @@ def test_short_password_is_422(anon_client: TestClient) -> None:
 
 
 @pytest.mark.parametrize(
-    "email", ["", "khong-co-a-cong", "@example.com", "an@", "a@b@c", "an @x.com"]
+    "email",
+    [
+        "",
+        "khong-co-a-cong",
+        "@example.com",
+        "an@",
+        "a@b@c",
+        "an @x.com",
+        "an@x",
+        "an@x.",
+        "an@.com",
+    ],
 )
 def test_bad_email_is_422(anon_client: TestClient, email: str) -> None:
     assert _register(anon_client, email).status_code == 422
@@ -144,9 +163,33 @@ def test_db_stores_token_hash_not_token(anon_client: TestClient) -> None:
 def test_cookie_flags(anon_client: TestClient, monkeypatch) -> None:
     header = _register(anon_client).headers["set-cookie"].lower()
     assert "httponly" in header and "samesite=lax" in header and "secure" not in header
-    monkeypatch.setenv("FORMCOACH_COOKIE_SECURE", "1")
+    # Mặc định (không đặt biến) là Secure.
+    monkeypatch.delenv("FORMCOACH_COOKIE_SECURE")
     header = _register(anon_client, "binh@example.com").headers["set-cookie"].lower()
     assert "secure" in header
+
+
+@pytest.mark.parametrize("route", ["login", "register"])
+def test_huge_password_is_422_without_hashing(anon_client: TestClient, route: str) -> None:
+    body = {"email": "an@example.com", "password": "x" * 1025}
+    assert anon_client.post(f"/api/auth/{route}", json=body).status_code == 422
+    body["email"] = "a" * 250 + "@x.com"
+    body["password"] = PW
+    assert anon_client.post(f"/api/auth/{route}", json=body).status_code == 422
+
+
+def test_login_removes_expired_tokens(anon_client: TestClient) -> None:
+    _register(anon_client)
+    conn = connect(db_path())
+    with conn:
+        conn.execute("UPDATE auth_tokens SET expires_at = '2000-01-01T00:00:00+00:00'")
+    conn.close()
+    anon_client.cookies.clear()
+    assert _login(anon_client).status_code == 200
+    conn = connect(db_path())
+    rows = conn.execute("SELECT expires_at FROM auth_tokens").fetchall()
+    conn.close()
+    assert len(rows) == 1 and not rows[0]["expires_at"].startswith("2000")
 
 
 # --- endpoint được bảo vệ ---
