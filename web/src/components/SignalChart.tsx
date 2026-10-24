@@ -74,42 +74,42 @@ export default function SignalChart({ times, series, reps, thresholds, cursorS, 
             y={PAD.top}
             width={x(r.end_s) - x(r.start_s)}
             height={H - PAD.top - PAD.bottom}
-            fill="#16a34a"
+            style={{ fill: 'var(--color-accent)' }}
             opacity={0.12}
           />
-          <text x={(x(r.start_s) + x(r.end_s)) / 2} y={PAD.top + 14} textAnchor="middle" fontSize={13} fill="#15803d">
+          <text x={(x(r.start_s) + x(r.end_s)) / 2} y={PAD.top + 14} textAnchor="middle" fontSize={13} style={{ fill: 'var(--color-accent)' }}>
             {r.index + 1}
           </text>
         </g>
       ))}
       {[0, 45, 90, 135, 180].map((v) => (
         <g key={v}>
-          <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="#e5e7eb" />
-          <text x={PAD.left - 4} y={y(v) + 4} textAnchor="end" fontSize={11} fill="#6b7280">
+          <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} style={{ stroke: 'var(--color-line)' }} />
+          <text x={PAD.left - 4} y={y(v) + 4} textAnchor="end" fontSize={11} style={{ fill: 'var(--color-ink2)' }}>
             {v}°
           </text>
         </g>
       ))}
       {ticks.map((t) => (
-        <text key={t} x={x(t)} y={H - 4} textAnchor="middle" fontSize={11} fill="#6b7280">
+        <text key={t} x={x(t)} y={H - 4} textAnchor="middle" fontSize={11} style={{ fill: 'var(--color-ink2)' }}>
           {t}s
         </text>
       ))}
       {thresholds.map((th) => (
         <g key={th.label}>
-          <line x1={PAD.left} x2={W - PAD.right} y1={y(th.value)} y2={y(th.value)} stroke="#16a34a" strokeDasharray="5 4" />
-          <text x={W - PAD.right - 4} y={y(th.value) - 4} textAnchor="end" fontSize={11} fill="#15803d">
+          <line x1={PAD.left} x2={W - PAD.right} y1={y(th.value)} y2={y(th.value)} strokeDasharray="5 4" style={{ stroke: 'var(--color-accent)' }} />
+          <text x={W - PAD.right - 4} y={y(th.value) - 4} textAnchor="end" fontSize={11} style={{ fill: 'var(--color-accent)' }}>
             {th.label}
           </text>
         </g>
       ))}
       {paths.map((p) => (
-        <path key={p.name} d={p.d} fill="none" stroke={p.color} strokeWidth={1.8} />
+        <path key={p.name} d={p.d} fill="none" strokeWidth={1.8} style={{ stroke: p.color }} />
       ))}
-      <line x1={x(cursorS)} x2={x(cursorS)} y1={PAD.top} y2={H - PAD.bottom} stroke="#dc2626" strokeWidth={1.5} />
+      <line x1={x(cursorS)} x2={x(cursorS)} y1={PAD.top} y2={H - PAD.bottom} strokeWidth={1.5} style={{ stroke: 'var(--color-ink)' }} />
       <g>
         {series.map((s, k) => (
-          <text key={s.name} x={PAD.left + 8 + k * 130} y={H - PAD.bottom - 6} fontSize={12} fill={s.color}>
+          <text key={s.name} x={PAD.left + 8 + k * 130} y={H - PAD.bottom - 6} fontSize={12} style={{ fill: s.color }}>
             ━ {s.name}
           </text>
         ))}

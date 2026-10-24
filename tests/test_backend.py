@@ -1,18 +1,34 @@
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.auth import User, current_user
+from backend.db import connect, db_path
 from tests.synthetic import make_session, three_rep_session
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # Mọi file ghi vào thư mục tạm của test, không đụng data/ thật.
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
-    return TestClient(app)
+    # Luật: không cần dữ liệu đã gán nhãn hay scikit-learn (mô hình học test ở test_train.py).
+    monkeypatch.setenv("FORMCOACH_MODEL", "rules")
+    # Giả vờ đã đăng nhập: test ở đây kiểm tra endpoint, phần đăng nhập test ở test_auth.py.
+    # User 1 phải có trong DB vì kết quả tải lên được lưu kèm user_id (khoá ngoại).
+    conn = connect(db_path())
+    with conn:
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, created_at) VALUES (1, ?, 'x', ?)",
+            ("test@example.com", "2026-10-24T00:00:00+00:00"),
+        )
+    conn.close()
+    app.dependency_overrides[current_user] = lambda: User(id=1, email="test@example.com")
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 def test_exercise_info(client: TestClient) -> None:
@@ -63,8 +79,11 @@ def test_path_traversal_blocked(client: TestClient, tmp_path: Path, bad_id: str)
     payload["session_id"] = bad_id
     r = client.post("/api/sessions", json=payload)
     assert r.status_code == 422
-    written = [p for p in tmp_path.rglob("*") if p.is_file()]
-    assert written == []  # không file nào được ghi, kể cả ngoài thư mục
+    # Không file nào được ghi, kể cả ngoài thư mục (file DB do fixture tạo thì bỏ qua).
+    written = [
+        p for p in tmp_path.rglob("*") if p.is_file() and not p.name.startswith("formcoach.db")
+    ]
+    assert written == []
 
 
 def test_duplicate_session_is_409_and_not_overwritten(client: TestClient, tmp_path: Path) -> None:

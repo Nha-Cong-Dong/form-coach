@@ -54,8 +54,8 @@ export default function ReviewView({ sessionId, onBack }: Props) {
     () =>
       data
         ? [
-            { name: 'góc khuỷu', values: data.signals[data.primary_signal] ?? [], color: '#2563eb' },
-            { name: 'góc thân', values: data.signals.body_angle ?? [], color: '#9333ea' },
+            { name: 'góc khuỷu', values: data.signals[data.primary_signal] ?? [], color: 'var(--color-chart-elbow)' },
+            { name: 'góc thân', values: data.signals.body_angle ?? [], color: 'var(--color-chart-body)' },
           ]
         : [],
     [data],

@@ -29,10 +29,14 @@ class Exercise(ABC):
         name: tên bài, ví dụ "pushup".
         error_labels: các lỗi hợp lệ, ví dụ ["shallow", "hip_sag", ...]. Không gồm "good":
             nhãn là multi-label, rep không có lỗi nào (tập rỗng) là good.
+    Tuỳ chọn:
+        error_display: mã lỗi -> tên hiển thị cho người dùng (vd "hip_sag" -> "Hông võng").
+            Lỗi không có trong đây thì giao diện hiện mã lỗi.
     """
 
     name: str
     error_labels: list[str]
+    error_display: dict[str, str] = {}
 
     @abstractmethod
     def angle_definitions(self) -> dict[str, tuple[str, str, str]]:

@@ -1,10 +1,19 @@
 :root {
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   line-height: 1.45;
-  color: #1f2937;
-  background: #fff;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  accent-color: var(--color-accent); /* ô tích, thanh trượt */
+  font-variant-numeric: tabular-nums;
 }
 
 body {
   margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }

@@ -40,6 +40,10 @@ REQUIRED_KEYS = (
     "frames",
 )
 MAX_NOTES_LEN = 1000  # ghi chú tuỳ chọn (D4): vài câu về điều kiện quay, không phải văn bản dài
+# Hiệp quay từ đâu: "dataset" = Quay dữ liệu (có lỗi cố ý `set_errors`, công cụ thu dataset);
+# "train" = chế độ Tập của app (không có kịch bản lỗi, `set_errors` rỗng KHÔNG có nghĩa "cố ý
+# tập đúng"). File cũ không có trường này đều quay bằng màn Quay dữ liệu → mặc định "dataset".
+CAPTURE_MODES = ("dataset", "train")
 
 
 class SessionFormatError(ValueError):
@@ -57,6 +61,7 @@ class SessionMeta:
     source: dict[str, str]  # {"pose": "mediapipe-js", "version": ..., "model": ...}
     timestamps_ms: np.ndarray = field(repr=False)  # (T,) t_ms gốc, để đo độ đều của khung
     notes: str = ""  # ghi chú tuỳ chọn về điều kiện quay; file cũ không có trường này → ""
+    capture_mode: str = "dataset"  # "dataset" | "train" (CAPTURE_MODES); file cũ → "dataset"
 
 
 def _is_number(x: Any) -> bool:
@@ -137,6 +142,12 @@ def parse_session(data: Any) -> tuple[PoseSequence, SessionMeta]:
     notes = data.get("notes", "")
     if not isinstance(notes, str) or len(notes) > MAX_NOTES_LEN:
         raise SessionFormatError(f"'notes' phải là chuỗi, tối đa {MAX_NOTES_LEN} ký tự")
+    # Trường tuỳ chọn (thêm 2026-10-24, format_version vẫn 1).
+    capture_mode = data.get("capture_mode", "dataset")
+    if capture_mode not in CAPTURE_MODES:
+        raise SessionFormatError(f"'capture_mode' phải là một trong {list(CAPTURE_MODES)}")
+    if capture_mode == "train" and set_errors:
+        raise SessionFormatError("hiệp chế độ Tập không có lỗi cố ý ('set_errors' phải rỗng)")
 
     size = data["frame_size"]
     if (
@@ -166,6 +177,7 @@ def parse_session(data: Any) -> tuple[PoseSequence, SessionMeta]:
         source=dict(source),
         timestamps_ms=t_ms,
         notes=notes,
+        capture_mode=capture_mode,
     )
     return pose, meta
 

@@ -5,6 +5,7 @@ import type { NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { useEffect, useRef, useState } from 'react'
 import { createPoseLandmarker } from '../pose/landmarker'
 import type { Delegate } from '../pose/landmarker'
+import { cssVar } from '../theme'
 
 const LEFT_ELBOW = 13 // theo thứ tự 33 khớp MediaPipe (formcoach/pose/joints.py)
 const RIGHT_ELBOW = 14
@@ -40,9 +41,11 @@ export interface PoseFrame {
 interface Props {
   onFrame?: (frame: PoseFrame) => void
   onRunningChange?: (running: boolean) => void
+  autoStart?: boolean // bật camera ngay khi hiện (màn Tập), không chờ bấm nút
+  compact?: boolean // chỉ khung camera + lỗi (màn Tập); ẩn nút và bảng số liệu kỹ thuật
 }
 
-export default function CameraPose({ onFrame, onRunningChange }: Props) {
+export default function CameraPose({ onFrame, onRunningChange, autoStart = false, compact = false }: Props) {
   // Giữ callback mới nhất trong ref: effect camera không phải chạy lại (tắt/bật camera)
   // mỗi khi component cha vẽ lại và truyền vào một hàm mới.
   const onFrameRef = useRef(onFrame)
@@ -54,10 +57,10 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [active, setActive] = useState(false) // người dùng muốn bật camera
+  const [active, setActive] = useState(autoStart) // người dùng muốn bật camera
   const [facing, setFacing] = useState<Facing>('user')
   const [actualFacing, setActualFacing] = useState<string>('') // camera trình duyệt thật sự đưa
-  const [status, setStatus] = useState<Status>('idle')
+  const [status, setStatus] = useState<Status>(autoStart ? 'loading' : 'idle')
   const [error, setError] = useState('')
   const [delegate, setDelegate] = useState<Delegate | null>(null)
   const [loopKind, setLoopKind] = useState<LoopKind | null>(null)
@@ -107,6 +110,9 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
         let lastTs = -1
         let lastVideoTime = -1
         let lastStatsUpdate = 0
+        // Màu khung xương đọc một lần (không đổi theo sáng/tối), không đọc lại mỗi khung hình.
+        const bone = cssVar('color-skeleton-bone')
+        const joint = cssVar('color-skeleton-joint')
 
         const onFrame = () => {
           if (cancelled || !landmarker) return
@@ -123,8 +129,8 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height)
             if (pose) {
-              drawer.drawConnectors(pose, PoseLandmarker.POSE_CONNECTIONS, { color: '#ffffff', lineWidth: 3 })
-              drawer.drawLandmarks(pose, { color: '#22c55e', radius: 4 })
+              drawer.drawConnectors(pose, PoseLandmarker.POSE_CONNECTIONS, { color: bone, lineWidth: 3 })
+              drawer.drawLandmarks(pose, { color: joint, radius: 4 })
             }
 
             window1s.push({
@@ -184,8 +190,13 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
       <div className={mirrored ? 'stage mirrored' : 'stage'}>
         <video ref={videoRef} playsInline muted />
         <canvas ref={canvasRef} />
+        {compact && status === 'loading' && <span className="stage-note">Đang bật camera…</span>}
       </div>
 
+      {compact ? (
+        error && <p className="error">{error}</p>
+      ) : (
+      <>
       <div className="controls">
         {!active ? (
           <button
@@ -225,6 +236,8 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
             <tr><th>Chạy trên / nhận khung bằng</th><td>{delegate} / {loopKind}</td></tr>
           </tbody>
         </table>
+      )}
+      </>
       )}
     </div>
   )

@@ -14,6 +14,9 @@ venv/
 # Dữ liệu cá nhân và kết quả
 data/
 outputs/
+*.db
+*.db-wal
+*.db-shm
 *.mp4
 *.mov
 *.avi

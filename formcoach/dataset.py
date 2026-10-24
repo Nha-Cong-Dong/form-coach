@@ -39,6 +39,9 @@ class RepRow:
     # Lỗi cố ý đã chọn trước khi quay hiệp này (không phải nhãn của rep): để phân tích xem luật
     # báo nhầm/bỏ sót ở loại hiệp nào. Không đưa vào đặc trưng.
     set_errors: frozenset[str] = frozenset()
+    # "dataset" (Quay dữ liệu, có kịch bản lỗi) hoặc "train" (chế độ Tập, không kịch bản). Đánh giá
+    # mặc định chỉ dùng "dataset" (evaluation/split.py); app học trên cả hai nếu đã gán nhãn.
+    capture_mode: str = "dataset"
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,7 @@ class SessionCount:
     recorded_at: datetime
     counted: int
     valid: int
+    capture_mode: str = "dataset"
 
     @property
     def extra(self) -> int:
@@ -102,7 +106,11 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
         recorded_at = datetime.fromisoformat(meta.recorded_at)
         sessions.append(
             SessionCount(
-                sid, recorded_at, counted=len(reps), valid=sum(lab.valid for lab in labels.reps)
+                sid,
+                recorded_at,
+                counted=len(reps),
+                valid=sum(lab.valid for lab in labels.reps),
+                capture_mode=meta.capture_mode,
             )
         )
         for rep, lab in zip(reps, labels.reps, strict=True):
@@ -118,6 +126,7 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
                     features={k: v for k, v in rep.features.items() if k not in NON_FEATURES},
                     errors=lab.errors,
                     set_errors=meta.set_errors,
+                    capture_mode=meta.capture_mode,
                 )
             )
     return Dataset(exercise, tuple(ex.error_labels), tuple(rows), tuple(skipped), tuple(sessions))

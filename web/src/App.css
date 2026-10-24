@@ -11,7 +11,7 @@ h1 {
 
 .hint {
   margin: 0 0 12px;
-  color: #555;
+  color: var(--color-ink2);
   font-size: 0.9rem;
 }
 
@@ -19,7 +19,7 @@ h1 {
 .stage {
   position: relative;
   width: 100%;
-  background: #111;
+  background: var(--color-stage);
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
@@ -49,27 +49,28 @@ h1 {
   padding: 10px 18px;
   border-radius: 8px;
   border: none;
-  background: #16a34a;
-  color: white;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .controls button:disabled {
-  background: #888;
+  background: var(--color-track);
+  color: var(--color-ink2);
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 
 .warn {
-  color: #b45309;
+  color: var(--color-warn);
   font-weight: 600;
 }
 
 .panel {
   margin-top: 16px;
   padding-top: 8px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-line);
 }
 
 .panel h2 {
@@ -78,7 +79,7 @@ h1 {
 }
 
 fieldset {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-line);
   border-radius: 8px;
 }
 
@@ -89,30 +90,35 @@ fieldset {
   margin: 4px 14px 4px 0;
 }
 
+/* Nút viền (DESIGN.md "Nút viền"). */
 .controls button.secondary {
-  background: #4b5563;
+  background: transparent;
+  color: var(--color-ink);
+  border: 1.5px solid var(--color-line);
 }
 
+/* Xong khi đang quay: nút phụ đặc, không dùng màu đỏ (đỏ dành cho lỗi của app). */
 .controls button.stop {
-  background: #dc2626;
+  background: var(--color-ink);
+  color: var(--color-bg);
 }
 
 .ok {
-  color: #15803d;
+  color: var(--color-accent);
 }
 
 .unsent {
   margin-top: 12px;
   padding: 8px 12px;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--color-line);
   border-radius: 8px;
-  background: #fef2f2;
+  background: var(--color-card);
 }
 
 .unsent h3 {
   font-size: 1rem;
   margin: 4px 0;
-  color: #b91c1c;
+  color: var(--color-ink);
 }
 
 .unsent li {
@@ -127,7 +133,7 @@ fieldset {
 .stats th {
   text-align: left;
   font-weight: normal;
-  color: #555;
+  color: var(--color-ink2);
   padding: 2px 16px 2px 0;
 }
 
@@ -138,22 +144,60 @@ fieldset {
 /* Thanh tab Quay / Gán nhãn (link #capture / #label). */
 .tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-line);
   margin-bottom: 8px;
 }
 
 .tabs a {
   padding: 8px 16px;
-  color: #4b5563;
+  color: var(--color-ink2);
   text-decoration: none;
+  white-space: nowrap;
   border-bottom: 3px solid transparent;
 }
 
+.tabs .text-button {
+  white-space: nowrap;
+}
+
+/* Điện thoại dọc: 3 tab + 2 nút phải vừa một hàng (không xuống dòng giữa chữ). */
+@media (max-width: 480px) {
+  .tabs {
+    gap: 0;
+  }
+
+  .tabs a {
+    padding: 8px 8px;
+    font-size: var(--text-body-sm);
+  }
+
+  .tabs .text-button {
+    padding: 0 4px;
+    font-size: var(--text-label);
+  }
+}
+
+/* Nút chỉ có icon (đổi sáng/tối): vùng bấm 44×44, đẩy sang phải thanh tab. */
+.icon-button {
+  width: var(--size-touch);
+  height: var(--size-touch);
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-icon);
+  background: transparent;
+  color: var(--color-ink2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .tabs a.active {
-  color: #1f2937;
+  color: var(--color-ink);
   font-weight: 600;
-  border-bottom-color: #16a34a;
+  border-bottom-color: var(--color-accent);
 }
 
 /* Danh sách hiệp ở màn gán nhãn: bấm một hàng để mở hiệp đó. */
@@ -167,12 +211,12 @@ fieldset {
 .sessions td {
   text-align: left;
   padding: 6px 10px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-line);
 }
 
 .sessions th {
   font-weight: normal;
-  color: #555;
+  color: var(--color-ink2);
 }
 
 .sessions tr.pick {
@@ -180,14 +224,14 @@ fieldset {
 }
 
 .sessions tr.pick:hover {
-  background: #f0fdf4;
+  background: var(--color-chip);
 }
 
 /* Màn xem lại một hiệp: người que, thanh thời gian, đồ thị góc. */
 .review-stage {
   display: flex;
   justify-content: center;
-  background: #111;
+  background: var(--color-stage);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -208,7 +252,7 @@ fieldset {
 .readout {
   font-variant-numeric: tabular-nums;
   font-size: 0.9rem;
-  color: #374151;
+  color: var(--color-ink2);
 }
 
 .scrub {
@@ -236,17 +280,17 @@ fieldset {
 .reps th,
 .reps td {
   padding: 4px 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-line);
   text-align: center;
 }
 
 .reps th {
   font-weight: normal;
-  color: #555;
+  color: var(--color-ink2);
 }
 
 .reps th.set-error {
-  color: #1f2937;
+  color: var(--color-ink);
   font-weight: 700;
 }
 
@@ -255,11 +299,11 @@ fieldset {
 }
 
 .reps tr.current {
-  background: #f0fdf4;
+  background: var(--color-chip);
 }
 
 .reps tr.invalid {
-  color: #9ca3af;
+  color: var(--color-ink2);
   text-decoration: line-through;
 }
 
@@ -279,7 +323,7 @@ fieldset {
   gap: 4px;
   margin-top: 8px;
   font-size: 0.9rem;
-  color: #374151;
+  color: var(--color-ink2);
 }
 
 .notes-field input {
@@ -290,13 +334,13 @@ fieldset {
 .session-notes {
   margin: 0 0 8px;
   padding: 6px 10px;
-  background: #fefce8;
-  border-left: 3px solid #eab308;
+  background: var(--color-track);
+  border-left: 3px solid var(--color-ink2);
   font-size: 0.9rem;
 }
 
 .notes-cell {
-  color: #4b5563;
+  color: var(--color-ink2);
   font-size: 0.85rem;
 }
 
@@ -315,7 +359,7 @@ fieldset {
 .quick figcaption {
   text-align: center;
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--color-ink2);
 }
 
 .quick .stick {
@@ -327,7 +371,7 @@ fieldset {
   margin: 4px 0 8px;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
-  color: #374151;
+  color: var(--color-ink2);
 }
 
 .quick-buttons {
@@ -340,24 +384,24 @@ fieldset {
 .quick-buttons .toggle {
   padding: 12px 16px;
   font-size: 1.05rem;
-  color: #1f2937;
-  background: #fff;
-  border: 2px solid #d1d5db;
+  color: var(--color-ink);
+  background: var(--color-card);
+  border: 2px solid var(--color-line);
   border-radius: 8px;
   cursor: pointer;
 }
 
 .quick-buttons .toggle.on {
-  color: #b91c1c;
+  color: var(--color-bg);
   font-weight: 700;
-  background: #fef2f2;
-  border-color: #dc2626;
+  background: var(--color-ink);
+  border-color: var(--color-ink);
 }
 
 .quick-buttons .toggle.invalid.on {
-  color: #374151;
-  background: #f3f4f6;
-  border-color: #6b7280;
+  color: var(--color-ink2);
+  background: var(--color-track);
+  border-color: var(--color-ink2);
 }
 
 .quick-buttons .toggle:disabled {
@@ -367,7 +411,7 @@ fieldset {
 
 .quick .help {
   font-weight: normal;
-  color: #6b7280;
+  color: var(--color-ink2);
 }
 
 .quick kbd {
@@ -376,8 +420,8 @@ fieldset {
   margin-right: 6px;
   padding: 0 4px;
   font-size: 0.85em;
-  background: #f9fafb;
-  border: 1px solid #9ca3af;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
   border-radius: 4px;
 }
 
@@ -392,7 +436,7 @@ fieldset {
   padding: 8px;
   overflow-x: auto;
   font-size: 0.85rem;
-  background: #f3f4f6;
+  background: var(--color-track);
   border-radius: 6px;
 }
 
@@ -439,7 +483,7 @@ fieldset {
     margin-top: 0;
     padding: 0 0 0 8px;
     border-top: none;
-    border-left: 1px solid #e5e7eb;
+    border-left: 1px solid var(--color-line);
   }
 
   .panel .controls {
@@ -459,5 +503,947 @@ fieldset {
   fieldset {
     padding: 4px 8px;
     font-size: 0.9rem;
+  }
+}
+
+/* Nút chữ (DESIGN.md "Nút chữ"): Đăng xuất trên thanh tab. */
+.text-button {
+  min-height: var(--size-touch);
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink2);
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+/* Khung lỗi ngay dưới thanh tab (vd không đăng xuất được). */
+main > .form-alert {
+  margin: 0 0 12px;
+}
+
+/* ---------- Màn đăng nhập (canvas "Đăng nhập", DESIGN.md) ---------- */
+.login {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: 16px var(--space-page) 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.login-top .icon-button {
+  margin-right: -10px;
+}
+
+.login-brand {
+  visibility: hidden; /* điện thoại: tên app nằm ở phần giới thiệu bên dưới */
+  font-size: var(--text-button);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.login-body {
+  flex: 1;
+  display: flex;
+  gap: 24px;
+}
+
+.login-hero {
+  display: none; /* chỉ hiện trên máy tính */
+}
+
+.login-column {
+  flex: 1;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px 4px 0;
+}
+
+.login-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-logo);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-intro h1 {
+  margin: 0;
+  font-size: var(--text-title-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.login-intro p {
+  margin: -10px 0 0;
+  font-size: var(--text-body);
+  color: var(--color-ink2);
+}
+
+.login-card {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  padding: var(--space-page);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-card-title {
+  margin: 0;
+  font-size: var(--text-headline);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-input);
+  background: var(--color-track);
+}
+
+.segmented button {
+  flex: 1;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-segment);
+  background: transparent;
+  color: var(--color-ink2);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  height: var(--size-input);
+  box-sizing: border-box;
+  padding: 0 14px;
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-input);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-size: var(--text-heading); /* ≥ 16px: iOS không tự phóng to khi chạm vào ô */
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.field-hint {
+  font-size: var(--text-caption);
+  color: var(--color-ink2);
+}
+
+.password {
+  position: relative;
+}
+
+.password input {
+  padding-right: 52px;
+}
+
+.password .icon-button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+
+/* Lỗi trong form (DESIGN.md "Lỗi trong form"): dưới ô bị sai, hoặc khung chung đầu form. */
+.field-error {
+  font-size: var(--text-label);
+  color: var(--color-danger);
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.form-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-danger);
+  border-radius: var(--radius-input);
+  color: var(--color-ink);
+  font-size: var(--text-body-sm);
+}
+
+.form-alert svg {
+  flex-shrink: 0;
+  color: var(--color-danger);
+}
+
+/* Thông tin (không phải lỗi), vd phiên đăng nhập đã hết hạn. */
+.form-notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-input);
+  background: var(--color-track);
+  color: var(--color-ink);
+  font-size: var(--text-body-sm);
+}
+
+/* Màn đăng nhập vẽ đè lên app khi phiên hết hạn; app bên dưới giữ nguyên (inert). */
+.login.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  max-width: none;
+  margin: 0;
+  overflow-y: auto;
+  background: var(--color-bg);
+}
+
+@media (min-width: 900px) {
+  .login.overlay {
+    padding: 0 max(32px, calc((100vw - 1120px) / 2 + 32px)) 40px;
+  }
+}
+
+/* Nút chính (DESIGN.md "Nút chính"). */
+.primary {
+  height: var(--size-button);
+  margin-top: 4px;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-button);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.login-privacy {
+  margin: auto 0 0;
+  padding: 0 4px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: var(--text-caption);
+  color: var(--color-ink2);
+}
+
+.login-privacy svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Máy tính: tên app lên thanh trên, tấm giới thiệu nền tối bên trái, form ở giữa cột phải. */
+@media (min-width: 900px) {
+  .login {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 32px 40px;
+  }
+
+  .login-top {
+    height: 64px;
+  }
+
+  .login-top .icon-button {
+    margin-right: 0;
+  }
+
+  .login-brand {
+    visibility: visible;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .login-logo.small {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-segment);
+  }
+
+  /* Hai cột cùng một trục giữa theo chiều dọc; tấm trái cao theo nội dung, không kéo dài. */
+  .login-body {
+    align-items: center;
+  }
+
+  .login-hero {
+    flex: 1 1 440px;
+    box-sizing: border-box;
+    padding: 40px;
+    border-radius: var(--radius-hero);
+    background: var(--color-hero-bg);
+    color: var(--color-skeleton-joint);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .login-hero-caption {
+    margin: 0;
+    font-size: var(--text-body);
+    opacity: 0.72;
+  }
+
+  .login-hero h2 {
+    max-width: 380px;
+    margin: 0;
+    font-size: var(--text-hero);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  .login-figure {
+    display: block;
+    width: 100%;
+    margin: 8px 0;
+  }
+
+  .login-column {
+    flex: 1 1 400px;
+    justify-content: center;
+  }
+
+  .login-intro {
+    display: none;
+  }
+
+  .login-privacy {
+    margin-top: 0;
+  }
+}
+
+/* ---------- Chuyển động (DESIGN.md "Chuyển động") ---------- */
+button,
+.field input {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-base) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+/* Phản hồi khi bấm: nút lún nhẹ. */
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.primary:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+
+.segmented button:not([aria-pressed='true']):hover,
+.icon-button:hover,
+.text-button:hover {
+  color: var(--color-ink);
+}
+
+/* Viền focus khi dùng bàn phím; chuột/chạm thì không hiện. */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.field input:focus-visible {
+  border-color: var(--color-accent);
+}
+
+/* Nội dung màn đăng nhập hiện dần lúc mở, mỗi khối trễ một chút. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.login-hero,
+.login-intro,
+.login-card,
+.login-privacy {
+  animation: enter var(--motion-slow) var(--motion-ease) both;
+}
+
+.login-intro,
+.login-hero {
+  animation-delay: 0ms;
+}
+
+.login-card {
+  animation-delay: 60ms;
+}
+
+.login-privacy {
+  animation-delay: 120ms;
+}
+
+.field-error,
+.form-alert {
+  animation: enter var(--motion-base) var(--motion-ease) both;
+}
+
+/* ---------- Trang kết quả (canvas "Kết quả", DESIGN.md) ---------- */
+.result {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+}
+
+.result-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px 2px;
+}
+
+.result-head h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.result-head span,
+.result .label,
+.result .caption {
+  color: var(--color-ink2);
+}
+
+.result-head span {
+  font-size: var(--text-body-sm);
+}
+
+.result .label {
+  font-size: var(--text-label);
+}
+
+.result .caption {
+  font-size: var(--text-caption);
+  text-align: center;
+}
+
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  padding: var(--space-card);
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: var(--text-heading);
+  font-weight: 600;
+}
+
+.result-ring-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: var(--space-page);
+}
+
+.ring {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  flex-shrink: 0;
+}
+
+.ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-label);
+  color: var(--color-ink2);
+}
+
+.ring-number {
+  font-size: var(--text-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+/* Vòng chạy từ 0 tới giá trị khi mở trang. */
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: 364.42;
+  }
+}
+
+.ring-value {
+  animation: ring-fill calc(var(--motion-slow) * 2) var(--motion-ease) both;
+}
+
+.result-ring-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.result-ring-copy .headline {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-gap);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-number {
+  font-size: var(--text-stat);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* Rep đúng = tròn đặc accent; cần sửa = tròn viền ink (DESIGN.md: lỗi không dùng màu đỏ). */
+.rep-grid {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  /* 6 cột như canvas điện thoại; màn rộng thì vòng tròn không to quá 56px. */
+  grid-template-columns: repeat(6, minmax(0, 56px));
+  gap: 8px;
+}
+
+.rep-dot {
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.rep-dot.ok {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rep-dot.fix {
+  border: 2px solid var(--color-ink);
+  color: var(--color-ink);
+}
+
+.rep-dot.mini {
+  display: inline-block;
+  width: 12px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  font-size: var(--text-caption);
+  color: var(--color-ink2);
+}
+
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fix-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fix-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.fix-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.fix-name {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+/* Link trông như nút chính (điều hướng bằng hash, không cần JavaScript). */
+.link-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* ---------- Màn Tập (canvas "3 · Tập", DESIGN.md) ---------- */
+.capture-mode {
+  max-width: 640px;
+  margin: 8px auto 12px;
+}
+
+.train-prep {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+  padding-bottom: 24px;
+}
+
+.train-prep .result-head span,
+.prep-caption,
+.steps span,
+.train-prep .caption {
+  color: var(--color-ink2);
+}
+
+.prep-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: var(--text-caption);
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.steps li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  column-gap: 14px;
+  row-gap: 2px;
+}
+
+.steps li::before {
+  content: counter(step);
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-body-sm);
+  font-weight: 700;
+}
+
+.steps b {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.steps span {
+  font-size: var(--text-label);
+}
+
+.prep-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  text-align: center;
+}
+
+.chip {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--size-touch);
+  padding: 0 18px;
+  border-radius: 22px;
+  background: var(--color-chip);
+  color: var(--color-accent);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+}
+
+.train-prep .caption {
+  font-size: var(--text-caption);
+}
+
+/* Sẵn sàng / đếm ngược / đang ghi: phủ toàn màn hình, nền tối cố định ở cả chế độ sáng. */
+.train-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  background: var(--color-stage);
+  color: var(--color-skeleton-joint);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 20px;
+}
+
+.train-camera {
+  position: relative;
+  min-height: 0;
+  display: flex;
+}
+
+.train-camera .camera-pose {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.train-camera .stage {
+  flex: 1;
+  aspect-ratio: auto;
+  border-radius: var(--radius-card);
+}
+
+.stage-note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-label);
+  opacity: 0.72;
+}
+
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-counter);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  pointer-events: none;
+}
+
+.train-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.train-panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.train-panel .icon-button {
+  margin: 0 -10px 0 0;
+  color: var(--color-skeleton-joint);
+}
+
+/* `main` để thắng luật cũ "điện thoại ngang ẩn mọi h1 trong main" (dành cho màn Quay dữ liệu). */
+main .train-panel h1 {
+  display: block;
+  margin: 0;
+  font-size: var(--text-headline);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.train-panel p {
+  margin: 0;
+}
+
+.train-panel .muted {
+  font-size: var(--text-label);
+  opacity: 0.72;
+}
+
+.train-panel .caption {
+  text-align: center;
+  font-size: var(--text-caption);
+}
+
+.pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-skeleton-joint) 14%, transparent);
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+
+.pill.live {
+  background: color-mix(in srgb, var(--color-skeleton-bone) 18%, transparent);
+  color: var(--color-skeleton-bone);
+}
+
+.pill.live i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.body-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-label);
+  opacity: 0.72;
+}
+
+.body-check.ok {
+  opacity: 1;
+  color: var(--color-skeleton-bone);
+}
+
+.counter {
+  margin-top: 12px;
+  text-align: center;
+  font-size: var(--text-counter);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.train-panel .counter + .muted {
+  text-align: center;
+}
+
+.train-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Xong khi đang ghi: nút sáng trên nền tối (canvas), không dùng màu đỏ. */
+.finish {
+  height: 52px;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-skeleton-joint);
+  color: var(--color-stage);
+  font-size: var(--text-button);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* Màn hẹp mà dọc (hiếm, vd laptop chia đôi màn hình): camera trên, bảng dưới. */
+@media (orientation: portrait) {
+  .train-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+}
+
+.result > * {
+  animation: enter var(--motion-slow) var(--motion-ease) both;
+}
+
+.result > :nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.result > :nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.result > :nth-child(n + 4) {
+  animation-delay: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }

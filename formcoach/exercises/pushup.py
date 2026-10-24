@@ -8,6 +8,14 @@ from formcoach.exercises.base import ErrorRule, Exercise
 class PushUp(Exercise):
     name = "pushup"
     error_labels = ["shallow", "incomplete_lockout", "hip_sag", "hip_high", "neck_drop"]
+    # Chữ theo canvas thiết kế (màn Quay dữ liệu, Kết quả).
+    error_display = {
+        "shallow": "Chưa xuống đủ sâu",
+        "incomplete_lockout": "Chưa duỗi hết tay",
+        "hip_sag": "Hông võng",
+        "hip_high": "Hông nhô cao",
+        "neck_drop": "Cổ gục hoặc rướn",
+    }
 
     def angle_definitions(self) -> dict[str, tuple[str, str, str]]:
         return {

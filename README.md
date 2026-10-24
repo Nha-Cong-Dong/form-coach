@@ -82,7 +82,7 @@ Model nhìn vài trăm dòng như vậy và tự tìm ngưỡng/quy luật (kể
 - Baseline phát hiện lỗi bằng **luật ngưỡng góc**
 - Classifier tự train (random forest), so với baseline
 - Đánh giá chia theo **buổi quay**, báo precision/recall/F1 và ma trận 2×2 cho từng lỗi
-- **Backend FastAPI:** nhận keypoint, trả kết quả, lưu lịch sử vào database, đăng nhập
+- **Backend FastAPI:** nhận keypoint, trả kết quả, lưu lịch sử vào database, đăng nhập (email + mật khẩu ở tuần 3, thêm Google ở tuần 4)
 - **Đếm rep realtime** qua WebSocket
 - **Mục tiêu:** số rep mỗi ngày, tỉ lệ rep đúng kỹ thuật, streak, đồ thị tiến bộ
 - **Coach LLM** (DeepSeek), dự phòng bằng mẫu câu khi API lỗi
@@ -229,7 +229,7 @@ Tất cả nằm sau interface `Coach`, nên đổi qua lại không sửa phầ
 |---|---|---|
 | Quay | Camera + khung xương, chọn bài và nhãn của hiệp, Bắt đầu/Xong | 1 |
 | Gán nhãn | Xem lại hình người que + đồ thị góc, sửa nhãn từng rep | 2 |
-| Đăng nhập | Tài khoản, bảo vệ dữ liệu cá nhân | 3 |
+| Đăng nhập | Tài khoản, bảo vệ dữ liệu cá nhân; email + mật khẩu (3), Google (4) | 3–4 |
 | Đếm realtime | Số rep hiện trên màn hình quay khi đang tập | 3 |
 | Kết quả buổi tập | Số rep, nhãn từng rep, nhận xét của coach | 3–4 |
 | Dashboard | Mục tiêu hôm nay, tỉ lệ rep đúng, streak, đồ thị tiến bộ | 4 |
@@ -303,7 +303,7 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 | **1** | Pose offline, tính góc, đồ thị, đếm rep push-up | Trang quay (camera + MediaPipe JS → JSON) | Đếm rep đúng; quay được dữ liệu bằng app |
 | **2** | Đọc JSON từ trang quay, baseline luật | Gán nhãn trong app; **quay dataset nhiều buổi** | Baseline + dataset có nhãn |
 | **3** | Random forest, đánh giá theo buổi, đếm rep online | FastAPI + DB + đăng nhập, WebSocket realtime, trang kết quả | Bảng so sánh luật vs RF; app chạy local đủ luồng |
-| **4** | Coach DeepSeek + mẫu câu | Dashboard mục tiêu/streak/đồ thị, PWA, **deploy** | Sản phẩm demo được |
+| **4** | Coach DeepSeek + mẫu câu | Dashboard mục tiêu/streak/đồ thị, PWA, đăng nhập Google, **deploy** | Sản phẩm demo được |
 
 ### Đăng ký trước: so sánh luật với random forest (tuần 3)
 

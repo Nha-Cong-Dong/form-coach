@@ -15,8 +15,9 @@ from formcoach.exercises import get_exercise
 from formcoach.exercises.base import Exercise
 from formcoach.features.extractor import FeatureExtractor
 from formcoach.features.segmenter import RepSegmenter
+from formcoach.models.base import FormClassifier
 from formcoach.pose.session_json import SessionMeta, load_session_json
-from formcoach.types import FeatureSeries, PoseSequence, Rep
+from formcoach.types import FeatureSeries, PoseSequence, Rep, Session
 
 DEFAULT_MODEL = Path("assets/pose_landmarker_full.task")
 
@@ -25,6 +26,14 @@ def analyze(pose: PoseSequence, exercise: Exercise) -> tuple[FeatureSeries, list
     """Khung xương của một hiệp → tín hiệu đã làm sạch + danh sách rep."""
     features = FeatureExtractor().extract(pose, exercise)
     return features, RepSegmenter().segment(features, exercise)
+
+
+def classify_session(
+    pose: PoseSequence, exercise: Exercise, classifier: FormClassifier, session_id: str
+) -> Session:
+    """Một hiệp → các rep kèm tập lỗi dự đoán (bộ phân loại đã fit, hoặc luật)."""
+    _, reps = analyze(pose, exercise)
+    return Session(session_id, exercise.name, classifier.predict(reps))
 
 
 @dataclass(frozen=True)
