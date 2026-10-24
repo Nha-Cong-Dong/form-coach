@@ -116,3 +116,15 @@ Mẫu:
 - **Nguyên nhân:** Chưa chắc. Có thể buổi cùng ngày chia sẻ chỗ đặt máy (shallow dùng min_body_tilt, phụ thuộc góc máy), hoặc chỉ vì theo ngày train còn 68–99 rep thay vì ~135. Chưa tách được hai khả năng.
 - **Cách sửa:** Chưa. README báo cả hai cách chia, nói chỗ vững (hip_sag) và chỗ mong manh (shallow).
 - **Bài học:** Một cách chia dữ liệu cho một con số chưa đủ; chạy thêm cách chia bảo thủ hơn mới thấy phần nào của mức hơn là thật. Giả thuyết "rf học kịch bản" (đã kiểm) chỉ giải thích được phần nhỏ: trên 45 rep có nhãn khác lỗi cố ý, rf đoán đúng nhãn thật 26, theo kịch bản 16 (luật: 17 và 4).
+
+## 2026-10-24 — Bộ đếm trực tiếp khoá bên sau 1 s: 9/44 hiệp thật đếm ra 0
+- **Chuyện gì xảy ra:** Bản đầu của OnlineRepCounter xanh hết test tổng hợp. Phát lại 44 hiệp thật qua nó thì 9 hiệp đếm ra 0 rep, và cả 9 đều hiển thị bên sai.
+- **Nguyên nhân:** Bộ đếm chọn bên (trái/phải) theo visibility trong 1 s đầu rồi khoá lại. Giây đầu người còn đứng gần máy để bấm bắt đầu, nên bên gần máy rõ hơn; khi nằm xuống tập thì bên đó lại bị che. Dữ liệu tổng hợp không có giai đoạn này.
+- **Cách sửa:** Chạy hai máy trạng thái song song (trái và phải), hiển thị bên có visibility trung bình cao hơn tính tới khung hiện tại. Thêm test "bên thấy trước không bị khoá". Kết quả (evaluation/online_agreement): 48 hiệp, khớp với analyze 96%, lệch ≤ 1 là 100%.
+- **Bài học:** Quyết định đưa ra sớm trên dữ liệu đầu hiệp dễ sai vì đầu hiệp khác phần còn lại; test tổng hợp chỉ thử được những gì người viết đã nghĩ tới.
+
+## 2026-10-24 — Gán nhãn lại mù: người gán khớp chính mình 0,73, ngang random forest
+- **Chuyện gì xảy ra:** Gán lại mù 30 rep (không xem nhãn cũ, không xem số đo). Khớp toàn bộ tập lỗi (4 lỗi chính) giữa hai lần gán: 0,73, ngang exact match 0,74 của rf. Kappa từng lỗi: shallow 0,53, incomplete_lockout 0,76, hip_sag 0,67, hip_high 0,79, neck_drop 0,52. Lần gán mù báo ít lỗi hơn lần đầu.
+- **Nguyên nhân:** Ranh giới lỗi (nhất là shallow, neck_drop) không rõ ngay với mắt người gán, nên rf gần như đã chạm trần độ nhất quán của nhãn. Nghi ngờ: lần đầu nhãn bị neo vào kịch bản của hiệp nên báo nhiều lỗi hơn (chưa kiểm).
+- **Cách sửa:** Không gán thêm nhãn, không thử mô hình phức tạp hơn; thu hẹp lời hứa sản phẩm. Ghi chú: chỉ 30 rep, gán lại sau 1 ngày (còn nhớ) nên con số 0,73 có thể lạc quan.
+- **Bài học:** Đo độ nhất quán của nhãn trước khi cố đẩy điểm mô hình; điểm mô hình không thể vượt mức người gán khớp với chính mình.
