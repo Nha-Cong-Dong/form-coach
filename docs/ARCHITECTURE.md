@@ -94,6 +94,7 @@ Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScri
   "set_errors": [],
   "recorded_at": "2026-10-20T19:05:12+07:00",
   "notes": "tối, đèn trần, áo đen",
+  "capture_mode": "dataset",
   "source": {"pose": "mediapipe-js", "version": "?", "model": "pose_landmarker_full"},
   "frame_size": [1280, 720],
   "joint_names": ["nose", "...", "right_foot_index"],
@@ -105,6 +106,7 @@ Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScri
 ```
 - `kp: null` = khung không phát hiện người (đọc vào thành hàng NaN).
 - `notes` (**tuỳ chọn**, thêm 2026-10-20, `format_version` vẫn 1) = ghi chú điều kiện quay (ánh sáng, quần áo, chỗ quay, đau mỏi), nhập ở trang quay. Dùng khi kiểm định chéo để giải thích một buổi lệch hẳn các buổi khác. File cũ không có trường này → `SessionMeta.notes = ""`.
+- `capture_mode` (**tuỳ chọn**, thêm 2026-10-24, `format_version` vẫn 1) = `"dataset"` (màn Quay dữ liệu, có lỗi cố ý) hoặc `"train"` (chế độ Tập của app, không có kịch bản lỗi: `set_errors` phải rỗng, và rỗng ở đây KHÔNG có nghĩa "cố ý tập đúng"). File cũ không có trường này → `"dataset"`. Đánh giá (`evaluation_rows`) mặc định bỏ hiệp `"train"`; app vẫn học từ hiệp Tập nếu đã gán nhãn.
 - `set_errors` = tập lỗi cố ý của cả hiệp, chọn trước khi quay (`[]` = hiệp tập đúng). Mọi rep của hiệp nhận tập này làm nhãn ban đầu, sửa từng rep sau trong màn hình gán nhãn.
 
 Quy tắc kiểm tra (sai thì `SessionFormatError` nói rõ trường / khung / khớp nào sai):
@@ -145,6 +147,7 @@ Mỗi hiệp một file `data/labels/<bài>/<session_id>.json`, ghi bằng màn 
 class Exercise(ABC):
     name: str
     error_labels: list[str]                 # các lỗi hợp lệ, không gồm "good"
+    error_display: dict[str, str] = {}      # mã lỗi -> tên cho người dùng ("hip_sag" -> "Hông võng")
     def angle_definitions(self) -> dict[str, tuple[str, str, str]]: ...
         # tên góc -> (khớp A, khớp đỉnh B, khớp C), ví dụ "elbow_angle": ("shoulder", "elbow", "wrist")
         # tên khớp không có bên; FeatureExtractor chọn left_/right_ cho cả hiệp
@@ -190,6 +193,14 @@ class FormClassifier(ABC):                  # multi-label: mỗi lỗi một quy
     def fit(self, reps: list[Rep], errors: list[frozenset[str]]) -> None: ...   # RuleBased: không làm gì
     def predict(self, reps: list[Rep]) -> list[RepResult]: ...
 
+def make_classifier(name: str, exercise: Exercise, seed: int = 0) -> FormClassifier: ...  # registry
+def train_classifier(name, exercise, dataset: Dataset | None) -> tuple[FormClassifier, str]: ...
+    # models/train.py: bộ phân loại cho app, học trên mọi rep đã gán nhãn; không có dữ liệu
+    # hoặc fit lỗi → lùi về "rules"; trả (bộ đã fit, tên mô hình thật sự dùng)
+def classify_session(pose, exercise, classifier, session_id) -> Session: ...  # pipeline.py
+def summarize(session: Session, error_labels) -> dict: ...  # progress/summary.py
+    # {n_reps, n_good, good_ratio (None khi 0 rep), error_counts: đủ mọi lỗi, theo thứ tự}
+
 class Coach(ABC):                           # TemplateCoach, DeepSeekCoach
     def summarize(self, session: Session) -> str: ...
 ```
@@ -203,25 +214,32 @@ Ghi chú:
 ### Đã có (`backend/app.py`)
 | Method | Đường dẫn | Việc |
 |---|---|---|
-| `GET` | `/api/exercises/{name}` | Tên bài + `error_labels` (trang quay lấy danh sách lỗi từ đây). Tên lạ → 404 |
-| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → lưu nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` (mặc định `data/`) → trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person`. Sai định dạng → 422 kèm lý do; trùng `session_id` → 409, không ghi đè. Chưa DB/đăng nhập |
+| `GET` | `/api/exercises/{name}` | Tên bài + `error_labels` + `error_display` (tên lỗi cho người dùng). Tên lạ → 404 |
+| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → `classify_session` bằng bộ phân loại `FORMCOACH_MODEL` (mặc định `rf`; huấn luyện lần đầu cần từ `data/`, không được thì `rules`) → ghi `sessions`/`reps` gắn `user_id` → lưu file nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` → commit. Trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person` và (cộng thêm) `model_name, reps[{index, start_frame, end_frame, errors, scores}], summary{n_reps, n_good, good_ratio, error_counts}`. Sai định dạng → 422; trùng `session_id` → 409, không ghi đè |
+| `GET` | `/api/sessions/{exercise}/{session_id}/result` | Kết quả đã lưu của chính user: như trên + `recorded_at, set_errors`. Hiệp người khác / quay trước khi có DB → 404 |
+| `GET` | `/api/results` | Lịch sử của user, mới nhất trước: `exercise, session_id, recorded_at, duration_s, model_name, n_reps, n_good` |
 | `GET` | `/api/sessions/{exercise}` | Danh sách hiệp (mới nhất trước): `session_id, recorded_at, set_errors, duration_s, n_reps, labeled`. File hỏng vẫn hiện kèm `error` |
 | `GET` | `/api/sessions/{exercise}/{session_id}/review` | `formcoach.review.build_review`: thời gian từng khung, tín hiệu đã lọc, khung xương rút gọn (15 khớp, NaN → `null`), rep + đặc trưng, nhãn đã lưu hoặc nhãn mặc định, `alignment_problems` nếu nhãn đã lưu không khớp rep hiện tại |
 | `PUT` | `/api/sessions/{exercise}/{session_id}/labels` | Body = file nhãn §2c → kiểm tra (`from_dict`), đúng hiệp, **khớp rep hiện tại** (`check_alignment`, lệch → 409) → lưu `data/labels/...` |
 | `POST` | `/api/auth/register` | `{email, password}` → tạo tài khoản và đăng nhập luôn (đặt cookie). 403 nếu chưa bật `FORMCOACH_ALLOW_REGISTER=1`; 422 email sai hình dạng hoặc mật khẩu < 8 ký tự; 409 email đã có (so không phân biệt hoa thường) |
 | `POST` | `/api/auth/login` | `{email, password}` → đặt cookie. Sai email hay sai mật khẩu đều 401 cùng thông báo |
 | `POST` | `/api/auth/logout` | Xoá token khỏi DB và xoá cookie; chưa đăng nhập cũng 200 |
+| `GET` | `/api/auth/options` | `{allow_register}` theo `FORMCOACH_ALLOW_REGISTER`; mở, không cần đăng nhập. Web ẩn "Tạo tài khoản" khi `false` |
 | `GET` | `/api/auth/me` | `{id, email}` của người đang đăng nhập; 401 nếu không |
 
-**Đăng nhập (`backend/auth.py`):** cookie `formcoach_session` (HttpOnly, SameSite=Lax, `Secure` khi `FORMCOACH_COOKIE_SECURE=1`, 30 ngày) chứa token ngẫu nhiên; DB lưu sha256 của token. Mọi endpoint trừ `/api/auth/*` và `/api/exercises/*` cần đăng nhập (router `protected` trong `app.py`, dependency `current_user`), thiếu/sai/hết hạn → 401. Email lưu đúng như gõ, so sánh không phân biệt hoa thường. Mật khẩu: `backend/security.py` (scrypt).
+**Đăng nhập (`backend/auth.py`):** cookie `formcoach_session` (HttpOnly, SameSite=Lax, `Secure` mặc định, tắt bằng `FORMCOACH_COOKIE_SECURE=0` khi chạy qua http thuần như test, 30 ngày) chứa token ngẫu nhiên; DB lưu sha256 của token. Đăng nhập dọn token hết hạn của user đó. Các route ghi token `commit()` trước khi trả về (không có cookie trỏ tới token chưa lưu). Mật khẩu ≤ 1024 ký tự, email ≤ 254 (422 trước khi chạy scrypt). Mọi endpoint trừ `/api/auth/*` và `/api/exercises/*` cần đăng nhập (router `protected` trong `app.py`, dependency `current_user`), thiếu/sai/hết hạn → 401. Email lưu đúng như gõ, so sánh không phân biệt hoa thường. Mật khẩu: `backend/security.py` (scrypt).
 
-Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện thoại đi qua proxy Vite).
+Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện thoại đi qua proxy Vite). Lần đầu tạo tài khoản: thêm `FORMCOACH_ALLOW_REGISTER=1`.
+
+### Web (`web/src`)
+- `App.tsx`: cổng đăng nhập (`GET /api/auth/options` + `/me` lúc mở; chưa đăng nhập thì chỉ có `LoginView`; API trả 401 giữa chừng → `LoginView` đè lên, màn dưới giữ nguyên), rồi các tab theo hash URL: `#capture` (Quay), `#label` (Gán nhãn), `#quick` (Gán nhanh), `#result/<bài>/<id>` (trang kết quả, `ResultView`). Thanh tab có nút sáng/tối và Đăng xuất.
+- Tab Quay có hai chế độ: **Tập** (`TrainView`, app): Chuẩn bị (máy dọc, tự chuyển khi xoay ngang) → Sẵn sàng (camera tự bật, "đã thấy toàn thân" từ `train/body.ts`) → đếm ngược 5 s → Đang ghi (đồng hồ; số rep trực tiếp chờ Track C) → Xong: gửi, sang trang kết quả. **Quay dữ liệu** (`CaptureView`, công cụ dataset: chọn lỗi cố ý, ghi chú). Gửi hiệp và danh sách "chưa gửi" dùng chung `session/upload.ts`.
+- Gọi API: `auth/api.ts` (đăng nhập), `label/api.ts` (hiệp, review, nhãn), `CaptureView.tsx` (tải hiệp lên); lỗi HTTP đọc chung ở `http.ts`. Cookie phiên do trình duyệt tự gửi (cùng nguồn qua proxy `/api`), JavaScript không đọc/lưu token.
+- Giao diện theo `DESIGN.md`; token ở `theme.css`, chế độ sáng/tối ở `theme.ts`.
 
 ### Endpoint dự kiến (tuần 3–4)
 | Method | Đường dẫn | Việc |
 |---|---|---|
-| `POST` | `/api/sessions` | Nhận JSON keypoint (mục 2b) → chạy pipeline → lưu → trả rep + nhãn |
-| `GET` | `/api/sessions/{id}` | Kết quả một buổi, kèm nhận xét coach |
 | `WS` | `/api/live` | Nhận keypoint từng khung, trả số rep hiện tại |
 | `GET`/`PUT` | `/api/goals` | Đọc / đặt mục tiêu |
 | `GET` | `/api/progress?from=&to=` | Tổng rep, tỉ lệ rep đúng, streak, dữ liệu đồ thị |
@@ -308,6 +326,8 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-24 — scikit-learn và `RandomForest` (một rừng nhị phân mỗi lỗi).** Thêm `scikit-learn==1.9.1` (random forest đã kiểm chứng; kiểm tra thật rằng rừng nhận NaN trực tiếp). Cột đặc trưng lấy theo tập train của từng lần chia (hợp các khoá, bỏ cột không có giá trị hữu hạn); khoá lạ lúc dự đoán (vd `bottom_frame` trong app) bị bỏ; thiếu số đo = NaN. Siêu tham số cố định trước (README §8): 300 cây, `max_depth=4`, `min_samples_leaf=5`, `class_weight="balanced_subsample"`, `random_state=seed`, báo lỗi khi xác suất ≥ 0,5; ít hơn 2 rep dương (hoặc toàn dương) trong train thì không fit, lỗi không bao giờ báo, điểm 0. Import scikit-learn trễ trong registry (backend chạy luật không phải trả giá). — Các lỗi có nguyên nhân độc lập và mất cân bằng lớp riêng; khớp cách luật và `exact_match` xử lý từng lỗi. — Đã loại: `MultiOutputClassifier` (không có lợi ích, `class_weight` chung); tinh chỉnh siêu tham số theo điểm test (rò rỉ); logistic regression (tuỳ chọn, để sau nếu còn giờ).
 - **2026-10-24 — Registry bộ phân loại (`formcoach/models/registry.py`) và `evaluation.compare`.** `make_classifier(name, exercise, seed)` tạo bộ phân loại MỚI theo tên (`rules`, sau này `stump`, `rf`, `lr`); `python -m evaluation.compare --models rules,stump,rf` chạy nhiều mô hình qua cùng dữ liệu và các lần chia, in báo cáo từng mô hình (dùng chung `baseline.report`) và một bảng so sánh. Siêu tham số mô hình (không phải ngưỡng lỗi, ngưỡng lỗi ở `Exercise.error_rules`) đặt ở registry một chỗ để mô hình được chấm chính là mô hình dùng trong app. `FormClassifier` giữ nguyên. — Tuần 3 so luật với random forest cần một bảng và một cách tạo mô hình thống nhất; registry tránh việc đánh giá và app tạo mô hình mỗi nơi một kiểu. — Đã loại: sửa `baseline.py` để nhận nhiều mô hình (giữ nguyên làm bản tham chiếu tái hiện 0,72).
 - **2026-10-24 — SQLite bằng `sqlite3` của thư viện chuẩn; DB chỉ giữ tài khoản và kết quả.** Lược đồ ở `backend/schema.sql`, chạy mỗi lần mở kết nối (idempotent, không có migration); mọi truy vấn nằm trong `backend/`. So với bản nháp: thêm `auth_tokens`; bỏ `keypoints_json` (đã có file quay), bỏ `true_errors`/`valid` (nhãn ở file §2c, tránh hai nguồn sự thật); thêm `model_name`, `scores_json`; `goals` để tuần 4. Các file quay có sẵn không chuyển vào DB (dữ liệu huấn luyện, không có chủ). — Một người dùng, tải ghi rất nhỏ; không thêm thư viện, không cần chạy server DB, test dùng file tạm. — Đã loại: MySQL (đã cài trên máy, nhưng thêm driver, mật khẩu kết nối, server cho test và một dịch vụ khi deploy mà không được lợi gì ở tải này); Postgres (cùng lý do; là đường lui nếu nơi deploy tuần 4 không có ổ đĩa lưu lâu dài hoặc phải chạy nhiều server app); ORM/migration (che SQL, không cần ở quy mô này).
+- **2026-10-24 — File hiệp ghi `capture_mode` ("dataset" | "train").** Chế độ Tập lưu hiệp như Quay dữ liệu (keypoint, không video) nhưng không có kịch bản lỗi. Ghi chế độ lúc quay vì sau này không phân biệt được: hiệp dataset "cố ý tập đúng" cũng có `set_errors` rỗng. Đánh giá mặc định bỏ hiệp Tập (bảng tuần 3 đăng ký trước giữ nguyên, `protocol_check` không bị sai nghĩa); `include_train=True` để thử sau. — Đã loại: để nguyên (mất thông tin vĩnh viễn, phân tích lỗi cố ý sai nếu gán nhãn hiệp Tập); không lưu file hiệp Tập (bỏ nguồn dữ liệu nhiều buổi, không kịch bản, đúng thứ phần hạn chế đang thiếu).
+- **2026-10-24 — Kết quả trong app: `classify_session` + `summarize`, lưu theo user (B4–B5).** Bộ phân loại theo `FORMCOACH_MODEL` (mặc định `rf`), dựng qua registry nên cùng siêu tham số với lúc chấm; app học trên **mọi** rep hợp lệ đã gán nhãn, kể cả hiệp quay thử (loại quay thử là để chấm điểm không rò rỉ, mô hình dùng thật nên học từ toàn bộ dữ liệu). Huấn luyện lần đầu cần rồi giữ trong bộ nhớ (nhãn mới cần khởi động lại); không có dữ liệu → lùi `rules`, `model_name` ghi mô hình thật đã chấm. Tải lên: phân loại + ghi DB → ghi file → commit. Tên lỗi tiếng Việt ở `Exercise.error_display` (một nguồn, web lấy qua `/api/exercises`). — Đã loại: huấn luyện lúc khởi động (server chậm lên dù chỉ gán nhãn); lưu mô hình ra file (tuần 4, khi deploy không có `data/`); tên lỗi viết trong web (hai nguồn).
 - **2026-10-24 — Đăng nhập: mật khẩu scrypt + token mờ trong cookie HttpOnly.** `hashlib.scrypt` (n=2^14, r=8, p=1, salt 16 byte, tham số lưu trong chuỗi `scrypt$n$r$p$salt$hash`); token `secrets.token_urlsafe(32)`, DB lưu sha256; mỗi request tra `auth_tokens` một lần. Email lưu đúng như gõ, trùng và đăng nhập so không phân biệt hoa thường (chỉ mục `lower(email)`), để bàn phím điện thoại tự viết hoa không làm hỏng đăng nhập và để tuần 4 liên kết được tài khoản Google cùng email (chỉ khi Google báo `email_verified`). Đăng ký mặc định tắt. Endpoint mới mặc định cần đăng nhập (router `protected`). — Không thêm thư viện; đăng xuất có hiệu lực ngay; WebSocket tự mang cookie. — Đã loại: bcrypt (thêm thư viện, chỉ dùng 72 byte đầu); JWT (khó thu hồi trước hạn, thêm thư viện); chuyển email về chữ thường khi lưu (sửa dữ liệu người dùng gõ); phân biệt hoa thường hoàn toàn (đúng chuẩn RFC 5321 cho phần trước @ nhưng hỏng khi điện thoại tự viết hoa); chỉ chữ thường tên miền.
 - **2026-10-23 — Nhãn v2 và chế độ "Gán nhanh" (tab `#quick`).** Nhãn v1 chỉ có lỗi của hiệp (quen tay một rep một lỗi) nên thiếu lỗi: 61/77 lần luật báo nhầm nằm ở hiệp của lỗi khác. Gán lại bằng màn mới: mỗi lần một rep, hai khung tĩnh (đáy, vừa lên xong), phím 1–5 bật/tắt lỗi, Enter lưu cả file nhãn của hiệp rồi sang rep kế, không hiện số đo; tiến độ nhớ trong trình duyệt. Logic thuần (`web/src/label/quick.ts`) có test bằng Node (`tests/test_web_quick_label.py`). Nhãn v1 sao lưu ra `data/v1` trước khi gán; `--data data/v1` chấm lại bản v1. — Gán tay từng rep qua màn Gán nhãn đầy đủ (phát lại, đồ thị, bảng) quá chậm với 171 rep; nhãn do Claude gán bị loại vì không xem được video, gán từ số đo là luật tự chấm chính nó, và Claude đã thấy kết quả. — Đã loại: để Claude gán nhãn; điền sẵn nhãn theo luật (neo vào luật, rò rỉ); lưu tiến độ trong file nhãn (đổi định dạng).
 - **2026-10-23 — Sau lần chấm đầu tiên: `evaluation.error_analysis` và thống kê bộ đếm trong `dataset_report`.** `RepRow.set_errors` (lỗi cố ý chọn lúc quay, không phải nhãn rep) để xem luật báo nhầm / bỏ sót ở loại hiệp nào; `Dataset.sessions` đếm rep bộ đếm cắt và rep thật, chỉ tính hiệp chấm điểm. — Cần để viết phần phân tích có số liệu. Chỉ để hiểu: không chỉnh ngưỡng rồi chấm lại trên chính dữ liệu này (rò rỉ); chỉ đo được rep cắt thừa, chưa đo được rep thật bị bỏ sót (không có nhãn). — Đã loại: chỉnh ngưỡng theo kết quả; thêm cột `set_errors` vào CSV (chưa cần).
