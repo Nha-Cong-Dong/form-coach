@@ -1,0 +1,100 @@
+/* Token thiết kế. Giá trị chép từ DESIGN.md (gốc repo), là nguồn sự thật; sửa ở đó trước rồi sửa
+   ở đây, tests/test_design_tokens.py báo lỗi nếu hai file lệch nhau.
+   Chế độ tối: theo cài đặt của máy, trừ khi người dùng đã bấm chọn (data-theme trên <html>). */
+
+:root {
+  color-scheme: light;
+
+  --color-bg: #F5F5F3;
+  --color-card: #FFFFFF;
+  --color-ink: #14161A;
+  --color-ink2: #5B6068;
+  --color-accent: #0E7A4B;
+  --color-on-accent: #FFFFFF;
+  --color-tint: #7FC4A0;
+  --color-chip: #DCEFE5;
+  --color-track: #E4E6E3;
+  --color-line: #D6D9D5;
+  --color-danger: #B42318;
+  --color-warn: #9A5B00;
+  --color-chart-elbow: #2563EB;
+  --color-chart-body: #9333EA;
+
+  /* Không đổi theo chế độ: khung camera và người que luôn nền tối. */
+  --color-stage: #0B0D0E;
+  --color-skeleton-bone: #4CD08A;
+  --color-skeleton-joint: #F2F3F1;
+  --color-chart-left: #F97316;
+  --color-chart-right: #3B82F6;
+  --color-chart-neutral: #9CA3AF;
+
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  --text-display: 40px;
+  --text-stat: 34px;
+  --text-title-lg: 32px;
+  --text-title: 28px;
+  --text-headline: 24px;
+  --text-button: 17px;
+  --text-heading: 16px;
+  --text-body: 15px;
+  --text-body-sm: 14px;
+  --text-label: 13px;
+  --text-caption: 12px;
+
+  --radius-card: 22px;
+  --radius-button: 18px;
+  --radius-logo: 16px;
+  --radius-input: 14px;
+  --radius-icon: 12px;
+  --radius-segment: 10px;
+
+  --space-page: 20px;
+  --space-gap: 14px;
+  --space-card: 18px;
+
+  --size-touch: 44px;
+  --size-input: 48px;
+  --size-button: 56px;
+}
+
+/* Hai khối dưới phải giống hệt nhau: một cho "máy đang tối, chưa chọn tay", một cho "đã chọn tối". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --color-bg: #0E1012;
+    --color-card: #181B1E;
+    --color-ink: #F2F3F1;
+    --color-ink2: #A0A5AB;
+    --color-accent: #4CD08A;
+    --color-on-accent: #06180F;
+    --color-tint: #2F6B4E;
+    --color-chip: #193328;
+    --color-track: #2A2E32;
+    --color-line: #33383D;
+    --color-danger: #FF8A7A;
+    --color-warn: #F2B45A;
+    --color-chart-elbow: #60A5FA;
+    --color-chart-body: #C084FC;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #0E1012;
+  --color-card: #181B1E;
+  --color-ink: #F2F3F1;
+  --color-ink2: #A0A5AB;
+  --color-accent: #4CD08A;
+  --color-on-accent: #06180F;
+  --color-tint: #2F6B4E;
+  --color-chip: #193328;
+  --color-track: #2A2E32;
+  --color-line: #33383D;
+  --color-danger: #FF8A7A;
+  --color-warn: #F2B45A;
+  --color-chart-elbow: #60A5FA;
+  --color-chart-body: #C084FC;
+}

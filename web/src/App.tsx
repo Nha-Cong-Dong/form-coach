@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import CaptureView from './components/CaptureView'
 import LabelView from './components/LabelView'
 import QuickLabel from './components/QuickLabel'
+import ThemeToggle from './components/ThemeToggle'
 import './App.css'
 
 type Tab = 'capture' | 'label' | 'quick'
@@ -42,6 +43,7 @@ export default function App() {
         <a href="#quick" className={tab === 'quick' ? 'active' : ''}>
           Gán nhanh
         </a>
+        <ThemeToggle />
       </nav>
       {/* Màn Quay chỉ bị ẩn, không bị gỡ: gỡ ra sẽ mất danh sách hiệp chưa gửi (nằm trong
           state của CaptureView) và tắt camera giữa chừng. */}

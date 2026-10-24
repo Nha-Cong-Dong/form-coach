@@ -1,6 +1,7 @@
 // Vẽ người que của MỘT khung lên canvas, từ keypoint server gửi (không chạy MediaPipe ở đây).
 // Đây đúng là thứ model nhìn thấy: nếu người que trông sai thì đặc trưng cũng sai.
 import { useEffect, useRef } from 'react'
+import { cssVar } from '../theme'
 
 interface Props {
   joints: string[]
@@ -17,10 +18,10 @@ const BONES: [string, string][] = [
   ['hip', 'knee'],
   ['knee', 'ankle'],
 ]
-// Cùng màu với đồ thị của `analyze --plot`: trái cam, phải xanh.
+// Cùng màu với đồ thị của `analyze --plot`: trái cam, phải xanh (token chart-left/right).
 const SIDES = [
-  ['left', '#f97316'],
-  ['right', '#3b82f6'],
+  ['left', 'color-chart-left'],
+  ['right', 'color-chart-right'],
 ] as const
 
 const WIDTH = 640
@@ -32,7 +33,8 @@ export default function StickFigure({ joints, points, frameSize }: Props) {
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
-    ctx.fillStyle = '#111'
+    // Canvas không hiểu var(--...): đọc giá trị token. Các token này không đổi theo sáng/tối.
+    ctx.fillStyle = cssVar('color-stage')
     ctx.fillRect(0, 0, WIDTH, height)
 
     const at = (name: string): [number, number] | null => {
@@ -49,15 +51,15 @@ export default function StickFigure({ joints, points, frameSize }: Props) {
 
     ctx.lineWidth = 4
     ctx.lineCap = 'round'
-    for (const [side, color] of SIDES) {
-      ctx.strokeStyle = color
+    for (const [side, token] of SIDES) {
+      ctx.strokeStyle = cssVar(token)
       for (const [a, b] of BONES) line(at(`${side}_${a}`), at(`${side}_${b}`))
     }
-    ctx.strokeStyle = '#9ca3af'
+    ctx.strokeStyle = cssVar('color-chart-neutral')
     line(at('left_shoulder'), at('right_shoulder'))
     line(at('left_hip'), at('right_hip'))
 
-    ctx.fillStyle = '#e5e7eb'
+    ctx.fillStyle = cssVar('color-skeleton-joint')
     for (const name of joints) {
       const p = at(name)
       if (!p) continue
@@ -66,8 +68,8 @@ export default function StickFigure({ joints, points, frameSize }: Props) {
       ctx.fill()
     }
     if (points.every((p) => p === null)) {
-      ctx.fillStyle = '#9ca3af'
-      ctx.font = '16px system-ui'
+      ctx.fillStyle = cssVar('color-chart-neutral')
+      ctx.font = `16px ${cssVar('font-body')}`
       ctx.fillText('Không thấy người ở khung này', 16, 28)
     }
   }, [joints, points, height])

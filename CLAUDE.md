@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Form Coach: web app phân tích kỹ thuật push-up (squat sau) qua camera trình duyệt (pose → góc khớp → rep → lỗi → coach, mục tiêu, streak).
-Spec: `README.md`. Kiến trúc và interface: `docs/ARCHITECTURE.md`. Tiêu chí nhãn: `docs/labeling-criteria.md`.
+Spec: `README.md`. Kiến trúc và interface: `docs/ARCHITECTURE.md`. Tiêu chí nhãn: `docs/labeling-criteria.md`. Thiết kế UI: `DESIGN.md` (đọc trước khi viết hay sửa giao diện).
 
 ## Mục tiêu của dự án: HỌC, không chỉ chạy được
 
@@ -32,6 +32,7 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 - Không thêm thư viện mới mà không nói lý do.
 - `formcoach/` là lõi Python thuần, không import FastAPI/database. `backend/` (FastAPI) chỉ gọi `formcoach`.
 - `web/` (React + Vite, npm) không chứa logic ML: chỉ chạy MediaPipe JS, gửi keypoint, hiển thị kết quả.
+- Màu, font, cỡ chữ, bo góc trong `web/` chỉ dùng token (`var(--color-...)`, canvas dùng `cssVar()`), không viết mã hex. Token mới: thêm vào `DESIGN.md` rồi `web/src/theme.css` (test kiểm tra hai file khớp).
 - Dữ liệu train chỉ lấy từ trang quay của app (MediaPipe JS). MediaPipe Python chỉ để thử nghiệm offline.
 
 ## Dữ liệu và bí mật

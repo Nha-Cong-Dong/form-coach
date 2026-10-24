@@ -5,6 +5,7 @@ import type { NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { useEffect, useRef, useState } from 'react'
 import { createPoseLandmarker } from '../pose/landmarker'
 import type { Delegate } from '../pose/landmarker'
+import { cssVar } from '../theme'
 
 const LEFT_ELBOW = 13 // theo thứ tự 33 khớp MediaPipe (formcoach/pose/joints.py)
 const RIGHT_ELBOW = 14
@@ -107,6 +108,9 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
         let lastTs = -1
         let lastVideoTime = -1
         let lastStatsUpdate = 0
+        // Màu khung xương đọc một lần (không đổi theo sáng/tối), không đọc lại mỗi khung hình.
+        const bone = cssVar('color-skeleton-bone')
+        const joint = cssVar('color-skeleton-joint')
 
         const onFrame = () => {
           if (cancelled || !landmarker) return
@@ -123,8 +127,8 @@ export default function CameraPose({ onFrame, onRunningChange }: Props) {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height)
             if (pose) {
-              drawer.drawConnectors(pose, PoseLandmarker.POSE_CONNECTIONS, { color: '#ffffff', lineWidth: 3 })
-              drawer.drawLandmarks(pose, { color: '#22c55e', radius: 4 })
+              drawer.drawConnectors(pose, PoseLandmarker.POSE_CONNECTIONS, { color: bone, lineWidth: 3 })
+              drawer.drawLandmarks(pose, { color: joint, radius: 4 })
             }
 
             window1s.push({

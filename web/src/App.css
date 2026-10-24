@@ -11,7 +11,7 @@ h1 {
 
 .hint {
   margin: 0 0 12px;
-  color: #555;
+  color: var(--color-ink2);
   font-size: 0.9rem;
 }
 
@@ -19,7 +19,7 @@ h1 {
 .stage {
   position: relative;
   width: 100%;
-  background: #111;
+  background: var(--color-stage);
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
@@ -49,27 +49,28 @@ h1 {
   padding: 10px 18px;
   border-radius: 8px;
   border: none;
-  background: #16a34a;
-  color: white;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .controls button:disabled {
-  background: #888;
+  background: var(--color-track);
+  color: var(--color-ink2);
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 
 .warn {
-  color: #b45309;
+  color: var(--color-warn);
   font-weight: 600;
 }
 
 .panel {
   margin-top: 16px;
   padding-top: 8px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-line);
 }
 
 .panel h2 {
@@ -78,7 +79,7 @@ h1 {
 }
 
 fieldset {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-line);
   border-radius: 8px;
 }
 
@@ -89,30 +90,35 @@ fieldset {
   margin: 4px 14px 4px 0;
 }
 
+/* Nút viền (DESIGN.md "Nút viền"). */
 .controls button.secondary {
-  background: #4b5563;
+  background: transparent;
+  color: var(--color-ink);
+  border: 1.5px solid var(--color-line);
 }
 
+/* Xong khi đang quay: nút phụ đặc, không dùng màu đỏ (đỏ dành cho lỗi của app). */
 .controls button.stop {
-  background: #dc2626;
+  background: var(--color-ink);
+  color: var(--color-bg);
 }
 
 .ok {
-  color: #15803d;
+  color: var(--color-accent);
 }
 
 .unsent {
   margin-top: 12px;
   padding: 8px 12px;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--color-line);
   border-radius: 8px;
-  background: #fef2f2;
+  background: var(--color-card);
 }
 
 .unsent h3 {
   font-size: 1rem;
   margin: 4px 0;
-  color: #b91c1c;
+  color: var(--color-ink);
 }
 
 .unsent li {
@@ -127,7 +133,7 @@ fieldset {
 .stats th {
   text-align: left;
   font-weight: normal;
-  color: #555;
+  color: var(--color-ink2);
   padding: 2px 16px 2px 0;
 }
 
@@ -138,22 +144,38 @@ fieldset {
 /* Thanh tab Quay / Gán nhãn (link #capture / #label). */
 .tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-line);
   margin-bottom: 8px;
 }
 
 .tabs a {
   padding: 8px 16px;
-  color: #4b5563;
+  color: var(--color-ink2);
   text-decoration: none;
   border-bottom: 3px solid transparent;
 }
 
+/* Nút chỉ có icon (đổi sáng/tối): vùng bấm 44×44, đẩy sang phải thanh tab. */
+.icon-button {
+  width: var(--size-touch);
+  height: var(--size-touch);
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-icon);
+  background: transparent;
+  color: var(--color-ink2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .tabs a.active {
-  color: #1f2937;
+  color: var(--color-ink);
   font-weight: 600;
-  border-bottom-color: #16a34a;
+  border-bottom-color: var(--color-accent);
 }
 
 /* Danh sách hiệp ở màn gán nhãn: bấm một hàng để mở hiệp đó. */
@@ -167,12 +189,12 @@ fieldset {
 .sessions td {
   text-align: left;
   padding: 6px 10px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-line);
 }
 
 .sessions th {
   font-weight: normal;
-  color: #555;
+  color: var(--color-ink2);
 }
 
 .sessions tr.pick {
@@ -180,14 +202,14 @@ fieldset {
 }
 
 .sessions tr.pick:hover {
-  background: #f0fdf4;
+  background: var(--color-chip);
 }
 
 /* Màn xem lại một hiệp: người que, thanh thời gian, đồ thị góc. */
 .review-stage {
   display: flex;
   justify-content: center;
-  background: #111;
+  background: var(--color-stage);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -208,7 +230,7 @@ fieldset {
 .readout {
   font-variant-numeric: tabular-nums;
   font-size: 0.9rem;
-  color: #374151;
+  color: var(--color-ink2);
 }
 
 .scrub {
@@ -236,17 +258,17 @@ fieldset {
 .reps th,
 .reps td {
   padding: 4px 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-line);
   text-align: center;
 }
 
 .reps th {
   font-weight: normal;
-  color: #555;
+  color: var(--color-ink2);
 }
 
 .reps th.set-error {
-  color: #1f2937;
+  color: var(--color-ink);
   font-weight: 700;
 }
 
@@ -255,11 +277,11 @@ fieldset {
 }
 
 .reps tr.current {
-  background: #f0fdf4;
+  background: var(--color-chip);
 }
 
 .reps tr.invalid {
-  color: #9ca3af;
+  color: var(--color-ink2);
   text-decoration: line-through;
 }
 
@@ -279,7 +301,7 @@ fieldset {
   gap: 4px;
   margin-top: 8px;
   font-size: 0.9rem;
-  color: #374151;
+  color: var(--color-ink2);
 }
 
 .notes-field input {
@@ -290,13 +312,13 @@ fieldset {
 .session-notes {
   margin: 0 0 8px;
   padding: 6px 10px;
-  background: #fefce8;
-  border-left: 3px solid #eab308;
+  background: var(--color-track);
+  border-left: 3px solid var(--color-ink2);
   font-size: 0.9rem;
 }
 
 .notes-cell {
-  color: #4b5563;
+  color: var(--color-ink2);
   font-size: 0.85rem;
 }
 
@@ -315,7 +337,7 @@ fieldset {
 .quick figcaption {
   text-align: center;
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--color-ink2);
 }
 
 .quick .stick {
@@ -327,7 +349,7 @@ fieldset {
   margin: 4px 0 8px;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
-  color: #374151;
+  color: var(--color-ink2);
 }
 
 .quick-buttons {
@@ -340,24 +362,24 @@ fieldset {
 .quick-buttons .toggle {
   padding: 12px 16px;
   font-size: 1.05rem;
-  color: #1f2937;
-  background: #fff;
-  border: 2px solid #d1d5db;
+  color: var(--color-ink);
+  background: var(--color-card);
+  border: 2px solid var(--color-line);
   border-radius: 8px;
   cursor: pointer;
 }
 
 .quick-buttons .toggle.on {
-  color: #b91c1c;
+  color: var(--color-bg);
   font-weight: 700;
-  background: #fef2f2;
-  border-color: #dc2626;
+  background: var(--color-ink);
+  border-color: var(--color-ink);
 }
 
 .quick-buttons .toggle.invalid.on {
-  color: #374151;
-  background: #f3f4f6;
-  border-color: #6b7280;
+  color: var(--color-ink2);
+  background: var(--color-track);
+  border-color: var(--color-ink2);
 }
 
 .quick-buttons .toggle:disabled {
@@ -367,7 +389,7 @@ fieldset {
 
 .quick .help {
   font-weight: normal;
-  color: #6b7280;
+  color: var(--color-ink2);
 }
 
 .quick kbd {
@@ -376,8 +398,8 @@ fieldset {
   margin-right: 6px;
   padding: 0 4px;
   font-size: 0.85em;
-  background: #f9fafb;
-  border: 1px solid #9ca3af;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
   border-radius: 4px;
 }
 
@@ -392,7 +414,7 @@ fieldset {
   padding: 8px;
   overflow-x: auto;
   font-size: 0.85rem;
-  background: #f3f4f6;
+  background: var(--color-track);
   border-radius: 6px;
 }
 
@@ -439,7 +461,7 @@ fieldset {
     margin-top: 0;
     padding: 0 0 0 8px;
     border-top: none;
-    border-left: 1px solid #e5e7eb;
+    border-left: 1px solid var(--color-line);
   }
 
   .panel .controls {
