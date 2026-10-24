@@ -1,11 +1,13 @@
 """Backend tối giản: nhận file quay từ điện thoại (data/sessions/), phục vụ màn hình gán nhãn
 (xem lại một hiệp, lưu nhãn vào data/labels/).
 
-Chưa có database hay đăng nhập (tuần 3). Mọi logic nằm trong formcoach/. Chỉ lắng nghe 127.0.0.1;
-điện thoại đi qua proxy của Vite dev server (bước 9) nên backend không lộ ra mạng LAN.
+Đăng nhập ở backend/auth.py: mọi endpoint trong router `protected` cần cookie phiên hợp lệ
+(401 nếu không); chỉ /api/auth/* và /api/exercises/* mở. Mọi logic nằm trong formcoach/.
+Chỉ lắng nghe 127.0.0.1; điện thoại đi qua proxy của Vite dev server (bước 9) nên backend
+không lộ ra mạng LAN.
 
-Chạy từ gốc repo:
-    uvicorn backend.app:app --port 8000
+Chạy từ gốc repo (lần đầu cần bật đăng ký để tạo tài khoản):
+    FORMCOACH_ALLOW_REGISTER=1 uvicorn backend.app:app --port 8000
 Rồi mở http://127.0.0.1:8000/docs để xem và thử các endpoint.
 """
 
@@ -17,8 +19,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
 
+from backend import auth
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
 from formcoach.pipeline import analyze
@@ -31,6 +34,9 @@ from formcoach.pose.session_json import (
 from formcoach.review import build_review
 
 app = FastAPI(title="Form Coach", version="0.1.0")
+app.include_router(auth.router)
+# Endpoint thêm vào router này tự động cần đăng nhập (không phải nhớ gắn từng route).
+protected = APIRouter(dependencies=[Depends(auth.current_user)])
 
 
 def data_dir() -> Path:
@@ -48,7 +54,7 @@ def exercise_info(name: str) -> dict[str, Any]:
     return {"name": exercise.name, "error_labels": list(exercise.error_labels)}
 
 
-@app.post("/api/sessions", status_code=201)
+@protected.post("/api/sessions", status_code=201)
 def upload_session(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:  # noqa: B008
     """Kiểm tra file quay theo ARCHITECTURE §2b rồi lưu nguyên văn.
 
@@ -98,7 +104,7 @@ def _load(exercise: str, session_id: str):
         raise HTTPException(status_code=422, detail=f"file hiệp hỏng: {e}") from None
 
 
-@app.get("/api/sessions/{exercise}")
+@protected.get("/api/sessions/{exercise}")
 def list_sessions(exercise: str) -> list[dict[str, Any]]:
     """Các hiệp đã quay của một bài, mới nhất trước. File hỏng vẫn hiện, kèm lỗi."""
     if exercise not in EXERCISES:
@@ -128,7 +134,7 @@ def list_sessions(exercise: str) -> list[dict[str, Any]]:
     return items
 
 
-@app.get("/api/sessions/{exercise}/{session_id}/review")
+@protected.get("/api/sessions/{exercise}/{session_id}/review")
 def review_session(exercise: str, session_id: str) -> dict[str, Any]:
     """Dữ liệu cho màn hình gán nhãn: thời gian, góc, khung xương rút gọn, rep, nhãn."""
     pose, meta = _load(exercise, session_id)
@@ -139,7 +145,7 @@ def review_session(exercise: str, session_id: str) -> dict[str, Any]:
     return build_review(pose, meta, get_exercise(exercise), saved)
 
 
-@app.put("/api/sessions/{exercise}/{session_id}/labels")
+@protected.put("/api/sessions/{exercise}/{session_id}/labels")
 def put_labels(
     exercise: str,
     session_id: str,
@@ -162,3 +168,7 @@ def put_labels(
 
     save_labels(labels, data_dir())
     return {"session_id": session_id, "n_reps": len(labels.reps), "saved": True}
+
+
+# Phải gọi SAU khi khai báo route: include_router chép các route đang có tại thời điểm gọi.
+app.include_router(protected)

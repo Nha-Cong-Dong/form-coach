@@ -4,9 +4,11 @@
 -- DB chỉ giữ tài khoản và kết quả app đã phân tích. File quay và file nhãn trong data/ vẫn là
 -- dữ liệu huấn luyện, không chép vào đây.
 
+-- email lưu đúng như người dùng gõ; trùng nhau được so KHÔNG phân biệt hoa thường
+-- (chỉ mục lower(email) bên dưới, truy vấn dùng `lower(email) = lower(?)`).
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY,
-    email         TEXT NOT NULL UNIQUE,
+    email         TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     created_at    TEXT NOT NULL
 );
@@ -50,5 +52,6 @@ CREATE TABLE IF NOT EXISTS reps (
     UNIQUE (session_pk, idx)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);

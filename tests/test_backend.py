@@ -1,18 +1,23 @@
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from backend.auth import User, current_user
 from tests.synthetic import make_session, three_rep_session
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # Mọi file ghi vào thư mục tạm của test, không đụng data/ thật.
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
-    return TestClient(app)
+    # Giả vờ đã đăng nhập: test ở đây kiểm tra endpoint, phần đăng nhập test ở test_auth.py.
+    app.dependency_overrides[current_user] = lambda: User(id=1, email="test@example.com")
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 def test_exercise_info(client: TestClient) -> None:
