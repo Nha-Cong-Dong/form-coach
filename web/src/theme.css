@@ -19,6 +19,7 @@
   --color-warn: #9A5B00;
   --color-chart-elbow: #2563EB;
   --color-chart-body: #9333EA;
+  --color-hero-bg: #0B0D0E;
 
   /* Không đổi theo chế độ: khung camera và người que luôn nền tối. */
   --color-stage: #0B0D0E;
@@ -30,6 +31,8 @@
 
   --font-body: 'Inter', system-ui, sans-serif;
 
+  --text-counter: 96px;
+  --text-hero: 36px;
   --text-display: 40px;
   --text-stat: 34px;
   --text-title-lg: 32px;
@@ -42,6 +45,7 @@
   --text-label: 13px;
   --text-caption: 12px;
 
+  --radius-hero: 28px;
   --radius-card: 22px;
   --radius-button: 18px;
   --radius-logo: 16px;
@@ -56,6 +60,11 @@
   --size-touch: 44px;
   --size-input: 48px;
   --size-button: 56px;
+
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* Hai khối dưới phải giống hệt nhau: một cho "máy đang tối, chưa chọn tay", một cho "đã chọn tối". */
@@ -77,6 +86,7 @@
     --color-warn: #F2B45A;
     --color-chart-elbow: #60A5FA;
     --color-chart-body: #C084FC;
+    --color-hero-bg: #1B1F22;
   }
 }
 
@@ -97,4 +107,5 @@
   --color-warn: #F2B45A;
   --color-chart-elbow: #60A5FA;
   --color-chart-body: #C084FC;
+  --color-hero-bg: #1B1F22;
 }

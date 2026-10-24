@@ -1,5 +1,6 @@
 // Gọi API gán nhãn của backend (ARCHITECTURE §4). Chỉ lấy/gửi dữ liệu, không có logic ML:
 // rep được cắt và kiểm tra ở server (formcoach).
+import { failure } from '../http'
 
 export const EXERCISE = 'pushup'
 
@@ -9,22 +10,11 @@ export interface SessionSummary {
   recorded_at?: string
   set_errors?: string[]
   notes?: string
+  capture_mode?: 'dataset' | 'train' // hiệp chế độ Tập (không có lỗi cố ý) hay Quay dữ liệu
   duration_s?: number
   n_reps?: number
   labeled?: boolean
   error?: string
-}
-
-/** Lỗi HTTP kèm thông báo `detail` của FastAPI, để hiện cho người dùng biết sai ở đâu. */
-async function failure(r: Response): Promise<Error> {
-  let detail = ''
-  try {
-    const body: { detail?: unknown } = await r.json()
-    detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
-  } catch {
-    // body không phải JSON (vd backend chưa chạy, Vite trả 502): chỉ báo mã HTTP
-  }
-  return new Error(detail ? `HTTP ${r.status}: ${detail}` : `HTTP ${r.status}`)
 }
 
 export async function listSessions(exercise: string = EXERCISE): Promise<SessionSummary[]> {

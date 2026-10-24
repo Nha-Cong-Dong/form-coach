@@ -57,6 +57,8 @@ export interface SessionFile {
   set_errors: string[]
   recorded_at: string
   notes: string // ghi chú tuỳ chọn về điều kiện quay (ánh sáng, quần áo, chỗ quay…); "" nếu không ghi
+  // "train" = chế độ Tập (không có lỗi cố ý), "dataset" = Quay dữ liệu (ARCHITECTURE §2b)
+  capture_mode: CaptureMode
   source: { pose: string; version: string; model: string }
   frame_size: [number, number]
   joint_names: string[]
@@ -128,10 +130,13 @@ export class FrameRecorder {
   }
 }
 
+export type CaptureMode = 'dataset' | 'train'
+
 export function buildSession(args: {
   exercise: string
   setErrors: string[]
   notes: string
+  captureMode: CaptureMode
   startedAt: Date
   frameSize: [number, number]
   frames: FrameRecord[]
@@ -144,6 +149,7 @@ export function buildSession(args: {
     set_errors: [...args.setErrors],
     recorded_at: localIsoString(args.startedAt),
     notes: args.notes.trim(),
+    capture_mode: args.captureMode,
     source: { pose: 'mediapipe-js', version: args.source.version, model: args.source.model },
     frame_size: args.frameSize,
     joint_names: [...JOINT_NAMES],

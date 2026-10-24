@@ -22,6 +22,7 @@ PREFIX = {
     "radius": "radius",
     "space": "space",
     "size": "size",
+    "motion": "motion",
 }
 
 

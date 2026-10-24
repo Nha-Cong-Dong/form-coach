@@ -1,7 +1,7 @@
 ---
 # Token máy đọc được. web/src/theme.css phải khớp từng giá trị ở đây (tests/test_design_tokens.py).
 # Quy ước tên: colors.light.X / colors.dark.X → --color-X; font.X → --font-X; text.X → --text-X;
-# radius.X → --radius-X; space.X → --space-X; size.X → --size-X.
+# radius.X → --radius-X; space.X → --space-X; size.X → --size-X; motion.X → --motion-X.
 name: Form Coach
 source: https://claude.ai/artifact/MSPvQD7RRNjryvhRHPzTBw
 colors:
@@ -20,6 +20,7 @@ colors:
     warn: "#9A5B00"
     chart-elbow: "#2563EB"
     chart-body: "#9333EA"
+    hero-bg: "#0B0D0E"
   dark:
     bg: "#0E1012"
     card: "#181B1E"
@@ -35,6 +36,7 @@ colors:
     warn: "#F2B45A"
     chart-elbow: "#60A5FA"
     chart-body: "#C084FC"
+    hero-bg: "#1B1F22"
   fixed:
     stage: "#0B0D0E"
     skeleton-bone: "#4CD08A"
@@ -45,6 +47,8 @@ colors:
 font:
   body: "'Inter', system-ui, sans-serif"
 text:
+  counter: 96px
+  hero: 36px
   display: 40px
   stat: 34px
   title-lg: 32px
@@ -57,6 +61,7 @@ text:
   label: 13px
   caption: 12px
 radius:
+  hero: 28px
   card: 22px
   button: 18px
   logo: 16px
@@ -71,6 +76,11 @@ size:
   touch: 44px
   input: 48px
   button: 56px
+motion:
+  fast: 120ms
+  base: 200ms
+  slow: 320ms
+  ease: "cubic-bezier(0.2, 0.8, 0.2, 1)"
 ---
 
 # Form Coach: design system
@@ -100,6 +110,7 @@ Một màu nhấn duy nhất (`accent`, xanh lá), còn lại là thang xám ấ
 | `danger` | Chỉ cho **lỗi hệ thống** (mất mạng, file hỏng). *Claude đề xuất, không có trong canvas* |
 | `warn` | Cảnh báo thao tác (đang quay dọc). *Claude đề xuất, không có trong canvas* |
 | `chart-elbow`, `chart-body` | Đường góc khuỷu / góc thân ở màn Gán nhãn. *Giữ từ app cũ, chỉnh cho nền tối* |
+| `hero-bg` | Nền tấm giới thiệu (đăng nhập, máy tính): sáng = `stage`; tối sáng hơn `bg` một bậc để không chìm vào nền |
 | `stage` | Nền khung camera và người que: **luôn tối**, cả ở chế độ sáng |
 | `skeleton-bone`, `skeleton-joint` | Khung xương vẽ đè lên camera (theo canvas: xương xanh, khớp trắng) |
 | `chart-left`, `chart-right`, `chart-neutral` | Người que: bên trái cam, bên phải xanh dương, xương ngang xám. *Giữ từ app cũ (khớp `analyze --plot`)* |
@@ -122,6 +133,8 @@ Font **Inter** (gói `@fontsource/inter`, nằm trong app, không tải từ Goo
 
 | Token | Cỡ / đậm | Dùng cho |
 |---|---|---|
+| `counter` | 96 / 700 | Số lớn trên màn Tập khi đang ghi (đồng hồ, sau này số rep), nhìn từ xa |
+| `hero` | 36 / 700 | Khẩu hiệu trên tấm giới thiệu (đăng nhập, máy tính) |
 | `display` | 40 / 700 | Số lớn trong vòng tiến độ |
 | `stat` | 34 / 700 | Số trong thẻ thống kê |
 | `title-lg` | 32 / 700 | Tên app ở màn đăng nhập |
@@ -137,7 +150,7 @@ Chữ từ 24px trở lên: `letter-spacing` −0,02em (số lớn −0,03em).
 
 ## Hình khối và khoảng cách
 
-- Bo góc: thẻ 22, nút chính 18, logo 16, ô nhập và nút phụ 14, nút icon 12, nút trong segmented 10. Rep là hình tròn.
+- Bo góc: tấm giới thiệu nền tối 28, thẻ 22, nút chính 18, logo 16, ô nhập và nút phụ 14, nút icon 12, nút trong segmented 10. Rep là hình tròn.
 - Lề trang 20, khoảng giữa các thẻ 14, đệm trong thẻ 18–20.
 - Vùng bấm tối thiểu 44×44; ô nhập cao 48; nút chính cao 56.
 
@@ -148,11 +161,28 @@ Chữ từ 24px trở lên: `letter-spacing` −0,02em (số lớn −0,03em).
 - **Nút viền:** nền trong suốt, viền 1,5px `line`, chữ `ink`, cao 44, bo 14.
 - **Nút chữ:** không nền, chữ `ink2`, cao 44 ("Về Dashboard").
 - **Ô nhập:** cao 48, viền 1,5px `line`, bo 14, nền `bg`, chữ 16; luôn có `<label>`.
+- **Lỗi trong form:** kiểm tra khi bấm gửi (không dùng bong bóng của trình duyệt: `noValidate`), sau đó cập nhật theo từng phím gõ. Lỗi của một ô hiện **ngay dưới ô đó** (chữ 13 màu `danger`, viền ô `danger`, `aria-invalid` + `aria-describedby`); lỗi không thuộc ô nào (sai email hoặc mật khẩu, mất kết nối) hiện trong khung viền `danger` có icon ở đầu form. Câu báo là câu thường ngày, viết hoa đầu câu, có dấu chấm, nói cách sửa nếu được ("Mật khẩu phải có ít nhất 8 ký tự."); không hiện nguyên câu kỹ thuật từ server.
 - **Segmented** (Đăng nhập / Tạo tài khoản; Tập / Quay dữ liệu): nền `track`, nút đang chọn nền `card`.
 - **Thẻ:** nền `card`, bo 22, đệm 18–20, không viền, không bóng.
 - **Thanh điều hướng dưới** (điện thoại): Dashboard · Quay (nút tròn 60px nền `accent` nổi giữa) · Gán nhãn.
 - **Icon:** nét (stroke) 2px, đầu tròn, cùng màu chữ; nút chỉ có icon phải có `aria-label`.
+- **Tấm giới thiệu** (đăng nhập, máy tính): nền `stage`, bo 28; khẩu hiệu, người que ở đáy push-up với cung đo góc khuỷu 90° (xương `skeleton-bone`, khớp và số đo `skeleton-joint`), một dòng giải thích. Cao theo nội dung, căn giữa theo chiều dọc với form. Không glow, không gradient.
 - **Coach:** chữ "Coach" màu `accent`, đoạn nhận xét, dòng "Công cụ hỗ trợ, không thay huấn luyện viên." luôn đi kèm.
+
+## Chuyển động
+
+Chuyển động để báo trạng thái, không để trang trí. Ngắn, đi ra nhanh hơn đi vào, không nảy.
+
+| Token | Giá trị | Dùng cho |
+|---|---|---|
+| `fast` | 120ms | Phản hồi khi bấm (nút thu nhỏ 0,97), đổi màu khi rê chuột |
+| `base` | 200ms | Focus ô nhập, nút segmented đổi chỗ, thông báo lỗi hiện ra |
+| `slow` | 320ms | Nội dung một màn hiện dần khi mở (mờ → rõ, trượt lên 8px, mỗi khối trễ 60ms) |
+| `ease` | `cubic-bezier(0.2, 0.8, 0.2, 1)` | Đường cong chung: nhanh lúc đầu, chậm dần |
+
+- Chỉ animate `opacity` và `transform` (không animate kích thước, không gây giật bố cục).
+- `prefers-reduced-motion: reduce`: tắt hết animation và transition, hiện ngay trạng thái cuối.
+- Mọi thứ bấm được có `:focus-visible` rõ (viền 2px `accent`); không bỏ viền focus.
 
 ## Bố cục
 

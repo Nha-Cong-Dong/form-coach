@@ -69,7 +69,13 @@ export default function SessionList({ onSelect }: Props) {
               ) : (
                 <tr key={s.session_id} className="pick" onClick={() => onSelect(s.session_id)}>
                   <td>{formatRecordedAt(s.recorded_at)}</td>
-                  <td>{s.set_errors?.length ? s.set_errors.join(', ') : 'không (tập đúng)'}</td>
+                  <td>
+                    {s.capture_mode === 'train'
+                      ? 'chế độ Tập (không kịch bản)'
+                      : s.set_errors?.length
+                        ? s.set_errors.join(', ')
+                        : 'không (tập đúng)'}
+                  </td>
                   <td>{s.duration_s} s</td>
                   <td>{s.n_reps}</td>
                   <td>
