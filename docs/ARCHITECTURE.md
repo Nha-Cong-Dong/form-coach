@@ -237,7 +237,7 @@ Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện tho
 
 ### Web (`web/src`)
 - `App.tsx`: cổng đăng nhập (`GET /api/auth/options` + `/me` lúc mở; chưa đăng nhập thì chỉ có `LoginView`; API trả 401 giữa chừng → `LoginView` đè lên, màn dưới giữ nguyên), rồi các tab theo hash URL: `#capture` (Quay), `#label` (Gán nhãn), `#quick` (Gán nhanh), `#result/<bài>/<id>` (trang kết quả, `ResultView`). Thanh tab có nút sáng/tối và Đăng xuất.
-- Tab Quay có hai chế độ: **Tập** (`TrainView`, app): Chuẩn bị (máy dọc, tự chuyển khi xoay ngang) → Sẵn sàng (camera tự bật, "đã thấy toàn thân" từ `train/body.ts`) → đếm ngược 5 s → Đang ghi (đồng hồ; số rep trực tiếp chờ Track C) → Xong: gửi, sang trang kết quả. **Quay dữ liệu** (`CaptureView`, công cụ dataset: chọn lỗi cố ý, ghi chú). Gửi hiệp và danh sách "chưa gửi" dùng chung `session/upload.ts`.
+- Tab Quay có hai chế độ: **Tập** (`TrainView`, app): Chuẩn bị (máy dọc, tự chuyển khi xoay ngang) → Sẵn sàng (camera tự bật, "đã thấy toàn thân" từ `train/body.ts`) → đếm ngược 5 s → Đang ghi (số rep trực tiếp qua WebSocket `/api/live`, mở từ lúc đếm ngược; khung chỉ gửi khi đang ghi, tối đa 30 khung/s, `start` mang fps đo được; không kết nối được thì hiện đồng hồ, việc ghi không bị ảnh hưởng — `train/live.ts`) → Xong: gửi, sang trang kết quả. **Quay dữ liệu** (`CaptureView`, công cụ dataset: chọn lỗi cố ý, ghi chú). Gửi hiệp và danh sách "chưa gửi" dùng chung `session/upload.ts`.
 - Gọi API: `auth/api.ts` (đăng nhập), `label/api.ts` (hiệp, review, nhãn), `CaptureView.tsx` (tải hiệp lên); lỗi HTTP đọc chung ở `http.ts`. Cookie phiên do trình duyệt tự gửi (cùng nguồn qua proxy `/api`), JavaScript không đọc/lưu token.
 - Giao diện theo `DESIGN.md`; token ở `theme.css`, chế độ sáng/tối ở `theme.ts`.
 
