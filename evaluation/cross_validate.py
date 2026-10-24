@@ -35,13 +35,20 @@ def to_rep(i: int, row: RepRow) -> Rep:
 
 
 def cross_validate(
-    make_model: Callable[[], FormClassifier], rows: Sequence[RepRow], groups: Sequence[str]
+    make_model: Callable[[], FormClassifier],
+    rows: Sequence[RepRow],
+    groups: Sequence[str],
+    on_fold: Callable[[str, FormClassifier], None] | None = None,
 ) -> list[FoldResult]:
+    """`on_fold(nhóm_test, mô_hình_đã_fit)` (tuỳ chọn) được gọi sau mỗi lần chia: để xem thứ mô
+    hình đã học (vd ngưỡng) mà không làm đổi cách chấm."""
     results = []
     for fold in leave_one_group_out(groups):
         model = make_model()  # model mới mỗi lần: không mang gì từ lần chia trước
         model.fit([to_rep(i, rows[i]) for i in fold.train], [rows[i].errors for i in fold.train])
         predicted = model.predict([to_rep(i, rows[i]) for i in fold.test])
+        if on_fold is not None:
+            on_fold(fold.test_group, model)
         results.append(
             FoldResult(
                 test_group=fold.test_group,
