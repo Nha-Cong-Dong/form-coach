@@ -45,6 +45,42 @@ def _series(x: np.ndarray, digits: int = 1) -> list[float | None]:
     return [_num(v, digits) for v in x]
 
 
+def _stick_keypoints(pose: PoseSequence, frames: slice) -> list[list[list[float | None] | None]]:
+    """[khung][khớp STICK_JOINTS] = [x, y] chuẩn hoá 0–1 (4 chữ số), hoặc None nếu không thấy."""
+    idx = [pose.joint_names.index(j) for j in STICK_JOINTS]
+    return [
+        [None if not np.isfinite(p[:2]).all() else [_num(p[0], 4), _num(p[1], 4)] for p in frame]
+        for frame in pose.keypoints[frames, idx, :]
+    ]
+
+
+def build_rep_replay(
+    pose: PoseSequence,
+    meta: SessionMeta,
+    start_frame: int,
+    end_frame: int,
+    pad_s: float = 0.3,
+) -> dict[str, Any]:
+    """Người que của MỘT rep để phát lại ở trang kết quả: các khung từ đầu đến cuối rep, thêm
+    `pad_s` giây mỗi bên (thấy cả lúc vào và ra rep), cắt trong phạm vi hiệp.
+
+    `times_s` tính từ khung đầu của đoạn cắt (0 = bắt đầu phát).
+    """
+    times = (meta.timestamps_ms - meta.timestamps_ms[0]) / 1000.0
+    n = len(times)
+    first = int(np.searchsorted(times, times[max(start_frame, 0)] - pad_s, side="left"))
+    last = int(np.searchsorted(times, times[min(end_frame, n - 1)] + pad_s, side="right")) - 1
+    first, last = max(first, 0), min(last, n - 1)
+    return {
+        "joints": STICK_JOINTS,
+        "frame_size": list(pose.frame_size),
+        "times_s": _series(times[first : last + 1] - times[first], 3),
+        "keypoints": _stick_keypoints(pose, slice(first, last + 1)),
+        "rep_start_s": _num(times[start_frame] - times[first], 3),
+        "rep_end_s": _num(times[min(end_frame, n - 1)] - times[first], 3),
+    }
+
+
 def build_review(
     pose: PoseSequence,
     meta: SessionMeta,
@@ -63,11 +99,7 @@ def build_review(
         labels = saved
         problems = check_alignment(saved, reps, times)
 
-    idx = [pose.joint_names.index(j) for j in STICK_JOINTS]
-    keypoints = [
-        [None if not np.isfinite(p[:2]).all() else [_num(p[0], 4), _num(p[1], 4)] for p in frame]
-        for frame in pose.keypoints[:, idx, :]
-    ]
+    keypoints = _stick_keypoints(pose, slice(None))
 
     return {
         "session_id": meta.session_id,

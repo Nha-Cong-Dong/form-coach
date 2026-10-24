@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from formcoach.conditions import parse_condition
 from formcoach.exercises import get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, load_labels
 from formcoach.pipeline import analyze
@@ -91,6 +92,11 @@ def build_dataset(data_dir: Path, exercise: str) -> Dataset:
             skipped.append(
                 (sid, f"nguồn keypoint {meta.source.get('pose')!r}, không phải trang quay")
             )
+            continue
+        # Hiệp thí nghiệm điều kiện quay (ghi chú `ao:… goc:…`): đáp án đã biết là "tập đúng",
+        # chỉ để đo báo nhầm. Lỡ gán nhãn cũng không đưa vào train/đánh giá.
+        if parse_condition(meta.notes) is not None:
+            skipped.append((sid, "hiệp thí nghiệm điều kiện quay, không dùng để train"))
             continue
         if labels is None:
             skipped.append((sid, "chưa gán nhãn"))

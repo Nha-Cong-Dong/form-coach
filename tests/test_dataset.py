@@ -21,6 +21,7 @@ def add_session(
     label: bool = True,
     edit=None,
     pose_source: str = "mediapipe-js",
+    notes: str = "",
 ) -> None:
     """Ghi một hiệp tổng hợp (3 rep) vào <data_dir>/sessions/pushup/ và (tuỳ chọn) nhãn của nó.
 
@@ -30,6 +31,7 @@ def add_session(
     data["session_id"] = session_id
     data["recorded_at"] = recorded_at
     data["source"]["pose"] = pose_source
+    data["notes"] = notes
     folder = data_dir / "sessions" / "pushup"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{session_id}.json").write_text(json.dumps(data), encoding="utf-8")
@@ -125,6 +127,15 @@ def test_sessions_from_other_pose_source_are_skipped(tmp_path: Path) -> None:
     ds = build_dataset(tmp_path, "pushup")
     assert {r.session_id for r in ds.rows} == {"js_pushup"}
     assert "không phải trang quay" in dict(ds.skipped)["py_pushup"]
+
+
+def test_capture_condition_experiments_are_skipped_even_if_labeled(tmp_path: Path) -> None:
+    # Hiệp thí nghiệm (ghi chú `ao:… goc:…`) chỉ để đo báo nhầm: lỡ gán nhãn vẫn không vào train.
+    add_session(tmp_path, "a_pushup", notes="tối, áo đen")  # ghi chú thường
+    add_session(tmp_path, "b_pushup", notes="ao:co goc:20 rep:3")  # có nhãn nhưng là thí nghiệm
+    ds = build_dataset(tmp_path, "pushup")
+    assert {r.session_id for r in ds.rows} == {"a_pushup"}
+    assert "thí nghiệm" in dict(ds.skipped)["b_pushup"]
 
 
 def test_rows_remember_the_sessions_intended_errors(tmp_path: Path) -> None:

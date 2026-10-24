@@ -1106,6 +1106,192 @@ a:focus-visible {
   gap: 6px;
 }
 
+/* Số đo từng rep: ô đúng nền track, ô bị báo lỗi viền ink (như rep-dot, không dùng đỏ). */
+.measure-target {
+  margin: -6px 0 12px;
+}
+
+.measure-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.measure {
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: var(--radius-input);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.measure-ok {
+  background: var(--color-track);
+}
+
+.measure-fix {
+  border: 2px solid var(--color-ink);
+}
+
+.measure-rep {
+  font-size: var(--text-caption);
+  color: var(--color-ink2);
+}
+
+.measure-value {
+  font-size: var(--text-heading);
+  font-weight: 700;
+}
+
+/* Vòng rep và ô số đo là nút (bấm để xem lại): bỏ kiểu mặc định của <button>. */
+.rep-grid li,
+.measure-grid li {
+  display: flex;
+}
+
+button.rep-dot,
+button.measure {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+}
+
+button.rep-dot.ok {
+  background: var(--color-accent);
+}
+
+button.rep-dot.fix {
+  border: 2px solid var(--color-ink);
+}
+
+button.measure-ok {
+  background: var(--color-track);
+}
+
+button.measure-fix {
+  border: 2px solid var(--color-ink);
+}
+
+/* Xem lại một rep: khung phủ giữa màn hình. */
+.replay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  padding: var(--space-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-stage) 60%, transparent);
+}
+
+.replay {
+  width: 100%;
+  max-width: 560px;
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: enter var(--motion-base) var(--motion-ease) both;
+}
+
+.replay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.replay-head h2 {
+  margin: 0;
+}
+
+.replay-head .icon-button {
+  margin: 0 -10px 0 0;
+}
+
+.replay-verdict {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.replay .label {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--color-ink2);
+}
+
+.replay-stage {
+  position: relative;
+  border-radius: var(--radius-input);
+  overflow: hidden;
+  background: var(--color-stage);
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.replay-stage .stick {
+  width: 100%;
+  height: auto;
+  max-height: 50vh;
+}
+
+.replay-phase {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: var(--text-caption);
+  color: var(--color-skeleton-joint);
+  background: color-mix(in srgb, var(--color-skeleton-joint) 14%, transparent);
+}
+
+.replay-phase.in {
+  color: var(--color-skeleton-bone);
+  background: color-mix(in srgb, var(--color-skeleton-bone) 18%, transparent);
+}
+
+.replay-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.replay-controls .segmented {
+  flex: 1;
+}
+
+.secondary-button {
+  height: var(--size-touch);
+  padding: 0 16px;
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-input);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.replay .caption {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-ink2);
+  text-align: center;
+}
+
 .fix-list {
   list-style: none;
   margin: 0;

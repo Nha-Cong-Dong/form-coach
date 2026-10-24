@@ -2,6 +2,7 @@ import dataclasses
 import json
 
 import numpy as np
+import pytest
 
 from formcoach.exercises import PushUp
 from formcoach.labels import default_labels
@@ -68,3 +69,37 @@ def test_review_keeps_saved_edits() -> None:
     review = build_review(pose, meta, PushUp(), saved=edited)
     assert review["alignment_problems"] == []
     assert review["labels"]["reps"][0]["valid"] is False
+
+
+# --- phát lại một rep (trang kết quả) ---
+
+
+def _even_session(n: int = 90) -> tuple:
+    """Hiệp khung đều 30 fps (t_ms = 0, 33.3, ...) để tính tay khung cắt."""
+    data = three_rep_session()
+    data["frames"] = data["frames"][:n]
+    for i, f in enumerate(data["frames"]):
+        f["t_ms"] = round(i * 1000 / 30, 3)
+    return parse_session(data)
+
+
+def test_rep_replay_pads_and_starts_at_zero() -> None:
+    from formcoach.review import build_rep_replay
+
+    pose, meta = _even_session()
+    r = build_rep_replay(pose, meta, start_frame=30, end_frame=59, pad_s=0.3)
+    # 0,3 s ≈ 9 khung mỗi bên: khung 21..68 → 48 khung.
+    assert len(r["keypoints"]) == len(r["times_s"]) == 48
+    assert r["times_s"][0] == 0.0
+    assert r["rep_start_s"] == pytest.approx(0.3, abs=0.04)
+    assert r["rep_end_s"] - r["rep_start_s"] == pytest.approx(29 / 30, abs=0.01)
+    assert r["joints"] == STICK_JOINTS and len(r["keypoints"][0]) == len(STICK_JOINTS)
+    json.dumps(r)  # JSON hợp lệ (không NaN)
+
+
+def test_rep_replay_clamps_to_session() -> None:
+    from formcoach.review import build_rep_replay
+
+    pose, meta = _even_session()
+    r = build_rep_replay(pose, meta, start_frame=0, end_frame=89, pad_s=1.0)
+    assert len(r["keypoints"]) == 90 and r["rep_start_s"] == 0.0

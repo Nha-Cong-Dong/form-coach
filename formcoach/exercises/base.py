@@ -32,11 +32,15 @@ class Exercise(ABC):
     Tuỳ chọn:
         error_display: mã lỗi -> tên hiển thị cho người dùng (vd "hip_sag" -> "Hông võng").
             Lỗi không có trong đây thì giao diện hiện mã lỗi.
+        measure_display: đặc trưng -> (tên, đơn vị) hiện số đo từng rep cho người dùng, vd
+            "min_elbow_angle" -> ("Góc khuỷu ở đáy", "°"). Chỉ khai báo số đo người tập hiểu
+            được; mục tiêu lấy từ `error_rules()` của lỗi dùng đặc trưng đó.
     """
 
     name: str
     error_labels: list[str]
     error_display: dict[str, str] = {}
+    measure_display: dict[str, tuple[str, str]] = {}
 
     @abstractmethod
     def angle_definitions(self) -> dict[str, tuple[str, str, str]]:

@@ -28,6 +28,34 @@ export function formatRecordedAt(iso: string): string {
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} · ${two(d.getHours())}:${two(d.getMinutes())}`
 }
 
+/** Khung đang hiện tại thời điểm t (giây): khung cuối cùng có times[i] ≤ t. Rỗng → -1. */
+export function frameAt(times: (number | null)[], t: number): number {
+  let lo = 0
+  let hi = times.length - 1
+  if (hi < 0) return -1
+  let best = 0
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if ((times[mid] ?? 0) <= t) {
+      best = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  return best
+}
+
+/** Mục tiêu của một số đo: lỗi khi `giá trị > ngưỡng` thì mục tiêu "≤ ngưỡng", và ngược lại. */
+export function targetText(op: '<' | '>', threshold: number, unit: string): string {
+  return `${op === '>' ? '≤' : '≥'} ${Math.round(threshold)}${unit}`
+}
+
+/** Số đo một rep: làm tròn, kèm đơn vị; không đo được (null) → "—". */
+export function measureText(value: number | null | undefined, unit: string): string {
+  return value === null || value === undefined ? '—' : `${Math.round(value)}${unit}`
+}
+
 /** Mỗi lỗi có ít nhất một rep → danh sách số rep (đếm từ 1), theo thứ tự `errorLabels`. */
 export function repsByError(
   reps: { index: number; errors: string[] }[],

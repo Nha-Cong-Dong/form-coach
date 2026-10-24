@@ -50,15 +50,47 @@ def _finite(features: dict[str, float]) -> dict[str, float | None]:
     return {k: (v if math.isfinite(v) else None) for k, v in features.items()}
 
 
-def rep_json(result: RepResult) -> dict[str, Any]:
+def _from_json(text: str) -> dict[str, float]:
+    """Đặc trưng đã lưu: null (NaN lúc lưu) → NaN lại."""
+    return {k: (float("nan") if v is None else v) for k, v in json.loads(text).items()}
+
+
+def rep_json(result: RepResult, exercise: Exercise) -> dict[str, Any]:
+    """Một rep cho web: lỗi đoán được, điểm, và số đo hiện cho người dùng (`measure_display`)."""
     rep = result.rep
+    shown = _finite({f: rep.features.get(f, float("nan")) for f in exercise.measure_display})
     return {
         "index": rep.index,
         "start_frame": rep.start_frame,
         "end_frame": rep.end_frame,
         "errors": sorted(result.errors),
         "scores": result.scores,
+        "measures": shown,
     }
+
+
+def measures_json(exercise: Exercise) -> list[dict[str, Any]]:
+    """Số đo hiện ở trang kết quả, kèm mục tiêu lấy từ luật của lỗi dùng số đo đó.
+
+    Lỗi khi `giá trị <op> ngưỡng` (vd shallow: góc khuỷu ở đáy > 67°), nên mục tiêu là phía
+    ngược lại. Chỉ là mốc tham khảo: rep có lỗi hay không vẫn do bộ phân loại quyết định.
+    """
+    out = []
+    for error, rule in exercise.error_rules().items():
+        if rule is None or rule.feature not in exercise.measure_display:
+            continue
+        label, unit = exercise.measure_display[rule.feature]
+        out.append(
+            {
+                "error": error,
+                "feature": rule.feature,
+                "label": label,
+                "unit": unit,
+                "op": rule.op,
+                "threshold": rule.threshold,
+            }
+        )
+    return out
 
 
 def store_result(
@@ -116,9 +148,10 @@ def load_result(
     ).fetchone()
     if row is None:
         return None
+    ex = get_exercise(exercise)
     results = [
         RepResult(
-            Rep(r["idx"], r["start_frame"], r["end_frame"], json.loads(r["features_json"])),
+            Rep(r["idx"], r["start_frame"], r["end_frame"], _from_json(r["features_json"])),
             frozenset(json.loads(r["predicted_errors"])),
             json.loads(r["scores_json"]) or None,
         )
@@ -135,9 +168,22 @@ def load_result(
         "model_name": row["model_name"],
         "n_frames": row["n_frames"],
         "duration_s": row["duration_s"],
-        "reps": [rep_json(r) for r in results],
-        "summary": summarize(session, get_exercise(exercise).error_labels),
+        "reps": [rep_json(r, ex) for r in results],
+        "summary": summarize(session, ex.error_labels),
+        "measures": measures_json(ex),
     }
+
+
+def rep_frames(
+    db: sqlite3.Connection, user_id: int, exercise: str, session_id: str, index: int
+) -> tuple[int, int] | None:
+    """(khung đầu, khung cuối) của rep đã lưu, chỉ khi hiệp là của user; không có → None."""
+    row = db.execute(
+        "SELECT r.start_frame, r.end_frame FROM reps r JOIN sessions s ON s.id = r.session_pk"
+        " WHERE s.user_id = ? AND s.exercise = ? AND s.session_id = ? AND r.idx = ?",
+        (user_id, exercise, session_id, index),
+    ).fetchone()
+    return None if row is None else (row["start_frame"], row["end_frame"])
 
 
 def list_results(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
