@@ -34,6 +34,34 @@ def test_notes_parsed() -> None:
     assert parse_session(data)[1].notes == "tối, đèn trần, áo đen"
 
 
+def test_capture_mode_defaults_to_dataset() -> None:
+    # File cũ (trước 2026-10-24) không có trường này: đều quay bằng màn Quay dữ liệu.
+    assert parse_session(make_session())[1].capture_mode == "dataset"
+
+
+def test_capture_mode_train() -> None:
+    data = make_session()
+    data["capture_mode"] = "train"
+    assert parse_session(data)[1].capture_mode == "train"
+
+
+@pytest.mark.parametrize("mode", ["", "tap", None, 1])
+def test_capture_mode_invalid(mode) -> None:
+    data = make_session()
+    data["capture_mode"] = mode
+    with pytest.raises(SessionFormatError, match="capture_mode"):
+        parse_session(data)
+
+
+def test_train_mode_has_no_set_errors() -> None:
+    # Chế độ Tập không có kịch bản lỗi; có set_errors là file sai (tránh hiểu nhầm khi đánh giá).
+    data = make_session()
+    data["capture_mode"] = "train"
+    data["set_errors"] = ["shallow"]
+    with pytest.raises(SessionFormatError, match="set_errors"):
+        parse_session(data)
+
+
 def test_fps_from_jittery_timestamps() -> None:
     # Khung cách nhau 33 ms ± 10 ms ngẫu nhiên. Trung vị của ~300 khoảng cách cũng dao động
     # khoảng ±1 ms (≈ ±1 fps) tuỳ seed, nên dung sai ±2 fps.

@@ -56,6 +56,27 @@ def test_evaluation_rows_never_contain_pilot() -> None:
     assert [r.session_id for r in evaluation_rows(ds)] == ["a_pushup"]
 
 
+def test_evaluation_rows_skip_train_mode_by_default() -> None:
+    # Hiệp chế độ Tập không có kịch bản lỗi: mặc định không chấm, bật được khi cần.
+    dataset_row = row("a_pushup", "2026-10-21T08:00:00+07:00")
+    train_row = RepRow(
+        session_id="b_pushup",
+        recorded_at=datetime.fromisoformat("2026-10-25T08:00:00+07:00"),
+        rep_index=0,
+        start_s=0.0,
+        end_s=1.0,
+        features={},
+        errors=frozenset(),
+        capture_mode="train",
+    )
+    ds = Dataset("pushup", ERRORS, (dataset_row, train_row), ())
+    assert [r.session_id for r in evaluation_rows(ds)] == ["a_pushup"]
+    assert [r.session_id for r in evaluation_rows(ds, include_train=True)] == [
+        "a_pushup",
+        "b_pushup",
+    ]
+
+
 # --- nhóm ---
 
 

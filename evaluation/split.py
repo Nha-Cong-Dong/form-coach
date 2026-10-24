@@ -64,9 +64,16 @@ def is_pilot(row: RepRow) -> bool:
     return is_pilot_session(row.session_id, row.recorded_at)
 
 
-def evaluation_rows(dataset: Dataset) -> list[RepRow]:
-    """Các rep dùng để chấm điểm: bỏ hiệp quay thử."""
-    return [r for r in dataset.rows if not is_pilot(r)]
+def evaluation_rows(dataset: Dataset, include_train: bool = False) -> list[RepRow]:
+    """Các rep dùng để chấm điểm: bỏ hiệp quay thử, và (mặc định) bỏ hiệp chế độ Tập.
+
+    Hiệp Tập không có kịch bản lỗi (`set_errors` rỗng không có nghĩa "cố ý tập đúng") và không
+    thuộc tập dữ liệu đã đăng ký trước (README §8): đưa vào sẽ đổi con số đã báo cáo và làm sai
+    phép thử lỗi cố ý (`protocol_check`). `include_train=True` để thử nghiệm riêng sau này.
+    """
+    return [
+        r for r in dataset.rows if not is_pilot(r) and (include_train or r.capture_mode != "train")
+    ]
 
 
 GROUP_NAMES = {"day": "ngày", "block": "buổi"}

@@ -27,6 +27,7 @@ const session = buildSession({
   exercise: 'pushup',
   setErrors: ['shallow'],
   notes: 'tối, áo đen',
+  captureMode: 'dataset',
   startedAt: new Date(2026, 9, 20, 19, 5, 12),
   frameSize: [1280, 720],
   frames: recorder.take(),

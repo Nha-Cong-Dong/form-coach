@@ -30,7 +30,12 @@ def print_counter_accuracy(ds: Dataset) -> None:
     Chỉ tính hiệp chấm điểm: bộ đếm được chỉnh theo hiệp quay thử nên số trên đó không đại
     diện. Chỉ đo được rep cắt THỪA; rep thật mà bộ đếm bỏ sót không có nhãn nên chưa đo được.
     """
-    sessions = [s for s in ds.sessions if not is_pilot_session(s.session_id, s.recorded_at)]
+    # Cùng tập hiệp với evaluation_rows: bỏ hiệp quay thử và hiệp chế độ Tập.
+    sessions = [
+        s
+        for s in ds.sessions
+        if not is_pilot_session(s.session_id, s.recorded_at) and s.capture_mode != "train"
+    ]
     counted, valid = sum(s.counted for s in sessions), sum(s.valid for s in sessions)
     extra = [s for s in sessions if s.extra]
     print(f"\nBộ đếm ({len(sessions)} hiệp chấm điểm): cắt {counted} rep, {valid} là rep thật.")
@@ -56,8 +61,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"bỏ qua {sid}: {reason}")
 
     # CSV gồm cả hiệp quay thử (cột pilot = 1) để xem lại ngưỡng; chấm điểm thì bỏ.
+    # Cột capture_mode: hiệp chế độ Tập ("train") cũng không vào chấm điểm (evaluation_rows).
     pilot = [str(int(is_pilot(r))) for r in ds.rows]
-    out = write_csv(ds, args.out / f"dataset_{args.exercise}.csv", {"pilot": pilot})
+    modes = [r.capture_mode for r in ds.rows]
+    out = write_csv(
+        ds, args.out / f"dataset_{args.exercise}.csv", {"pilot": pilot, "capture_mode": modes}
+    )
     print(f"\n{len(ds.rows)} rep hợp lệ đã gán nhãn ({pilot.count('1')} rep quay thử) → {out}")
 
     rows = evaluation_rows(ds)
