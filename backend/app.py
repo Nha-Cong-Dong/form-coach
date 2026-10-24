@@ -16,13 +16,15 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 
 import numpy as np
-from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 
-from backend import auth, live, results
+from backend import auth, live, progress, results
 from backend.db import get_db
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
@@ -33,6 +35,7 @@ from formcoach.pose.session_json import (
     load_session_json,
     parse_session,
 )
+from formcoach.progress.goals import Goal
 from formcoach.progress.summary import summarize
 from formcoach.review import build_rep_replay, build_review
 
@@ -135,6 +138,62 @@ def session_result(exercise: str, session_id: str, db: Db, user: CurrentUser) ->
 def my_results(db: Db, user: CurrentUser) -> list[dict[str, Any]]:
     """Lịch sử các hiệp của mình, mới nhất trước."""
     return results.list_results(db, user.id)
+
+
+def _exercise_or_404(name: str) -> str:
+    if name not in EXERCISES:
+        raise HTTPException(status_code=404, detail=f"bài tập {name!r} không hỗ trợ")
+    return name
+
+
+class GoalIn(BaseModel):
+    exercise: str
+    daily_reps: int = Field(ge=1, le=10_000)
+    min_good_ratio: float | None = Field(default=None, ge=0, le=1)
+    today: date  # ngày theo giờ điện thoại; mục tiêu áp dụng từ ngày này
+
+
+@protected.get("/api/goals")
+def get_goal(db: Db, user: CurrentUser, exercise: str = "pushup") -> dict[str, Any]:
+    """Mục tiêu mới nhất của mình cho một bài; chưa đặt → `goal: null`."""
+    goals = progress.load_goals(db, user.id, _exercise_or_404(exercise))
+    return {"exercise": exercise, "goal": progress.goal_json(goals[-1] if goals else None)}
+
+
+@protected.put("/api/goals")
+def put_goal(body: GoalIn, db: Db, user: CurrentUser) -> dict[str, Any]:
+    """Đặt mục tiêu từ hôm nay. Ngày cũ vẫn chấm theo mục tiêu cũ; đặt lại cùng ngày thì ghi đè.
+
+    422: `today` lệch quá 1 ngày so với ngày của server (không cho đặt mục tiêu lùi về quá khứ).
+    """
+    _exercise_or_404(body.exercise)
+    if not progress.plausible_today(body.today):
+        raise HTTPException(status_code=422, detail="ngày hôm nay không hợp lệ (kiểm tra giờ máy)")
+    goal = Goal(body.daily_reps, body.today, body.min_good_ratio)
+    progress.save_goal(db, user.id, body.exercise, goal)
+    return {"exercise": body.exercise, "goal": progress.goal_json(goal)}
+
+
+@protected.get("/api/progress")
+def get_progress(
+    db: Db,
+    user: CurrentUser,
+    start: Annotated[date, Query(alias="from")],
+    end: Annotated[date, Query(alias="to")],
+    exercise: str = "pushup",
+) -> dict[str, Any]:
+    """Tiến độ từng ngày từ `from` tới `to` (gồm cả hai), mục tiêu, streak tính tới `to`.
+
+    Web gửi `to` = hôm nay theo giờ điện thoại. 422: `from` > `to` hoặc quá `MAX_DAYS` ngày.
+    """
+    _exercise_or_404(exercise)
+    if start > end or (end - start).days >= progress.MAX_DAYS:
+        raise HTTPException(
+            status_code=422, detail=f"khoảng ngày phải từ 1 tới {progress.MAX_DAYS} ngày"
+        )
+    records = progress.set_records(db, user.id, exercise)
+    goals = progress.load_goals(db, user.id, exercise)
+    return {"exercise": exercise, **progress.progress_json(records, goals, start, end)}
 
 
 @protected.get("/api/sessions/{exercise}/{session_id}/result/reps/{index}/replay")
