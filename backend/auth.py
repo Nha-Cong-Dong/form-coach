@@ -115,13 +115,11 @@ def _register_allowed() -> bool:
     return os.environ.get("FORMCOACH_ALLOW_REGISTER") == "1"
 
 
-def current_user(
-    db: Db,
-    token: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
-) -> User:
-    """Dependency: người dùng của request. Không cookie, token lạ hoặc hết hạn → 401."""
+def user_for_token(db: sqlite3.Connection, token: str | None) -> User | None:
+    """Người dùng của token trong cookie; không có / lạ / hết hạn → None. Dùng chung cho
+    `current_user` (HTTP) và WebSocket (/api/live), để hai nơi kiểm tra y như nhau."""
     if not token:
-        raise HTTPException(status_code=401, detail="chưa đăng nhập")
+        return None
     row = db.execute(
         "SELECT u.id, u.email, t.expires_at FROM auth_tokens t"
         " JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?",
@@ -129,8 +127,21 @@ def current_user(
     ).fetchone()
     # So thời gian bằng datetime, không so chuỗi, để không phụ thuộc định dạng chuỗi ISO.
     if row is None or datetime.fromisoformat(row["expires_at"]) <= _now():
-        raise HTTPException(status_code=401, detail="phiên đăng nhập không hợp lệ hoặc đã hết hạn")
+        return None
     return User(id=row["id"], email=row["email"])
+
+
+def current_user(
+    db: Db,
+    token: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
+) -> User:
+    """Dependency: người dùng của request. Không cookie, token lạ hoặc hết hạn → 401."""
+    if not token:
+        raise HTTPException(status_code=401, detail="chưa đăng nhập")
+    user = user_for_token(db, token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="phiên đăng nhập không hợp lệ hoặc đã hết hạn")
+    return user
 
 
 @router.get("/options")

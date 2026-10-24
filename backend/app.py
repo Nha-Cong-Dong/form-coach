@@ -22,7 +22,7 @@ from typing import Annotated, Any
 import numpy as np
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
 
-from backend import auth, results
+from backend import auth, live, results
 from backend.db import get_db
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
@@ -38,6 +38,8 @@ from formcoach.review import build_review
 
 app = FastAPI(title="Form Coach", version="0.1.0")
 app.include_router(auth.router)
+# WebSocket tự kiểm tra cookie trước khi accept (router `protected` chỉ áp dụng cho HTTP).
+app.include_router(live.router)
 # Endpoint thêm vào router này tự động cần đăng nhập (không phải nhớ gắn từng route).
 protected = APIRouter(dependencies=[Depends(auth.current_user)])
 Db = Annotated[sqlite3.Connection, Depends(get_db)]
