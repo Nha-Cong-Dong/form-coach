@@ -104,8 +104,43 @@ def test_learned_model_without_labels_falls_back_to_rules(make_client, monkeypat
     assert body["model_name"] == "rules"
 
 
+def test_result_has_measures_with_targets_from_rules(make_client) -> None:
+    client = make_client("an@example.com")
+    payload = three_rep_session()
+    uploaded = client.post("/api/sessions", json=payload).json()
+    stored = client.get(f"/api/sessions/pushup/{payload['session_id']}/result").json()
+    for body in (uploaded, stored):
+        by_error = {m["error"]: m for m in body["measures"]}
+        # Mục tiêu lấy đúng từ PushUp.error_rules(), không đặt ngưỡng mới.
+        assert by_error["shallow"]["feature"] == "min_elbow_angle"
+        assert (by_error["shallow"]["op"], by_error["shallow"]["threshold"]) == (">", 67.0)
+        assert by_error["incomplete_lockout"]["feature"] == "top_elbow_angle"
+        assert set(by_error) == {"shallow", "incomplete_lockout"}  # hông không có đơn vị dễ hiểu
+        # Mỗi rep có số đo; đáy rep tổng hợp ~70° (165° ↔ 70°).
+        assert all(
+            set(r["measures"]) == {"min_elbow_angle", "top_elbow_angle"} for r in body["reps"]
+        )
+        assert all(60 < r["measures"]["min_elbow_angle"] < 80 for r in body["reps"])
+    assert stored["reps"] == uploaded["reps"]  # đọc lại từ DB ra y hệt
+
+
 def test_exercise_info_has_display_names(make_client) -> None:
     client = make_client("an@example.com")
     body = client.get("/api/exercises/pushup").json()
     assert body["error_display"]["hip_sag"] == "Hông võng"
     assert set(body["error_display"]) == set(body["error_labels"])
+
+
+def test_rep_replay_owner_only(make_client) -> None:
+    an = make_client("an@example.com")
+    binh = make_client("binh@example.com")
+    payload = three_rep_session()
+    an.post("/api/sessions", json=payload)
+    url = f"/api/sessions/pushup/{payload['session_id']}/result/reps/1/replay"
+    r = an.get(url)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["keypoints"]) == len(body["times_s"]) > 0
+    assert 0 < body["rep_start_s"] < body["rep_end_s"]
+    assert binh.get(url).status_code == 404  # hiệp của người khác
+    assert an.get(url.replace("/reps/1/", "/reps/9/")).status_code == 404  # không có rep 9

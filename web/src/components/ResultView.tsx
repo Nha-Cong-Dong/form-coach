@@ -1,9 +1,17 @@
 // Trang kết quả một hiệp, theo canvas "Kết quả" (DESIGN.md). Chỉ hiển thị: rep và lỗi do server
 // phân loại (formcoach). Chưa có coach và mục tiêu ngày (tuần 4).
 import { useEffect, useState } from 'react'
+import RepReplay from './RepReplay'
 import { fetchExercise, fetchResult } from '../results/api'
 import type { ExerciseInfo, SessionResult } from '../results/api'
-import { formatDuration, formatRecordedAt, repRanges, repsByError } from '../results/format'
+import {
+  formatDuration,
+  formatRecordedAt,
+  measureText,
+  repRanges,
+  repsByError,
+  targetText,
+} from '../results/format'
 
 const EXERCISE_NAMES: Record<string, string> = { pushup: 'Push-up', squat: 'Squat' }
 const MODEL_NAMES: Record<string, string> = {
@@ -25,6 +33,7 @@ export default function ResultView({ exercise, sessionId }: Props) {
   const [result, setResult] = useState<SessionResult | null | undefined>(undefined)
   const [info, setInfo] = useState<ExerciseInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [replay, setReplay] = useState<number | null>(null) // rep đang xem lại (người que)
 
   useEffect(() => {
     let cancelled = false
@@ -137,16 +146,20 @@ export default function ResultView({ exercise, sessionId }: Props) {
       {n_reps > 0 && (
         <section className="card">
           <h2>Từng rep</h2>
+          <p className="label measure-target">Bấm vào một rep để xem lại bằng người que.</p>
           <ol className="rep-grid">
             {result.reps.map((rep) => {
               const ok = rep.errors.length === 0
               return (
-                <li
-                  key={rep.index}
-                  className={ok ? 'rep-dot ok' : 'rep-dot fix'}
-                  aria-label={`Rep ${rep.index + 1}, ${ok ? 'đúng' : rep.errors.map(name).join(', ')}`}
-                >
-                  {rep.index + 1}
+                <li key={rep.index}>
+                  <button
+                    type="button"
+                    className={ok ? 'rep-dot ok' : 'rep-dot fix'}
+                    aria-label={`Rep ${rep.index + 1}, ${ok ? 'đúng' : rep.errors.map(name).join(', ')}. Xem lại`}
+                    onClick={() => setReplay(rep.index)}
+                  >
+                    {rep.index + 1}
+                  </button>
                 </li>
               )
             })}
@@ -163,6 +176,37 @@ export default function ResultView({ exercise, sessionId }: Props) {
           </div>
         </section>
       )}
+
+      {/* Số đo từng rep (vd góc khuỷu ở đáy) kèm mục tiêu: người tập thấy cần sửa bao nhiêu,
+          không chỉ "sai". Màu theo kết luận của bộ phân loại, mục tiêu chỉ là mốc tham khảo. */}
+      {n_reps > 0 &&
+        result.measures.map((m) => (
+          <section className="card" key={m.feature}>
+            <h2>{m.label}</h2>
+            <p className="label measure-target">
+              Mục tiêu {targetText(m.op, m.threshold, m.unit)} · viền đậm = {name(m.error).toLowerCase()}
+            </p>
+            <ol className="measure-grid">
+              {result.reps.map((rep) => {
+                const flagged = rep.errors.includes(m.error)
+                const value = measureText(rep.measures?.[m.feature], m.unit)
+                return (
+                  <li key={rep.index}>
+                    <button
+                      type="button"
+                      className={flagged ? 'measure measure-fix' : 'measure measure-ok'}
+                      aria-label={`Rep ${rep.index + 1}: ${m.label.toLowerCase()} ${value}${flagged ? `, ${name(m.error).toLowerCase()}` : ''}. Xem lại`}
+                      onClick={() => setReplay(rep.index)}
+                    >
+                      <span className="measure-rep">Rep {rep.index + 1}</span>
+                      <span className="measure-value">{value}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
+        ))}
 
       {byError.length > 0 && (
         <section className="card">
@@ -186,6 +230,17 @@ export default function ResultView({ exercise, sessionId }: Props) {
         </a>
         <span className="caption">Phân tích bằng {MODEL_NAMES[result.model_name] ?? result.model_name}.</span>
       </div>
+
+      {replay !== null && result.reps[replay] && (
+        <RepReplay
+          exercise={result.exercise}
+          sessionId={result.session_id}
+          rep={result.reps[replay]}
+          measures={result.measures}
+          errorName={name}
+          onClose={() => setReplay(null)}
+        />
+      )}
     </div>
   )
 }

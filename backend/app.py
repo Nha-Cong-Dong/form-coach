@@ -34,7 +34,7 @@ from formcoach.pose.session_json import (
     parse_session,
 )
 from formcoach.progress.summary import summarize
-from formcoach.review import build_review
+from formcoach.review import build_rep_replay, build_review
 
 app = FastAPI(title="Form Coach", version="0.1.0")
 app.include_router(auth.router)
@@ -114,8 +114,9 @@ def upload_session(
         "frames_with_person": int(np.isfinite(pose.keypoints[:, 0, 0]).sum()),
         # Trường cộng thêm (B5): trang quay cũ chỉ đọc các trường ở trên nên không vỡ.
         "model_name": model_name,
-        "reps": [results.rep_json(r) for r in session.results],
+        "reps": [results.rep_json(r, exercise) for r in session.results],
         "summary": summarize(session, exercise.error_labels),
+        "measures": results.measures_json(exercise),
     }
 
 
@@ -132,6 +133,22 @@ def session_result(exercise: str, session_id: str, db: Db, user: CurrentUser) ->
 def my_results(db: Db, user: CurrentUser) -> list[dict[str, Any]]:
     """Lịch sử các hiệp của mình, mới nhất trước."""
     return results.list_results(db, user.id)
+
+
+@protected.get("/api/sessions/{exercise}/{session_id}/result/reps/{index}/replay")
+def rep_replay(
+    exercise: str, session_id: str, index: int, db: Db, user: CurrentUser
+) -> dict[str, Any]:
+    """Người que của một rep (thêm 0,3 s mỗi bên) để phát lại ở trang kết quả.
+
+    Rep lấy theo kết quả đã lưu của chính user (khung đầu/cuối trong DB), keypoint đọc từ file
+    hiệp. Hiệp người khác, rep không có → 404. Không có video: chỉ khung xương.
+    """
+    frames = results.rep_frames(db, user.id, exercise, session_id, index)
+    if frames is None:
+        raise HTTPException(status_code=404, detail="không có rep này")
+    pose, meta = _load(exercise, session_id)
+    return build_rep_replay(pose, meta, *frames)
 
 
 def _session_path(exercise: str, session_id: str) -> Path:

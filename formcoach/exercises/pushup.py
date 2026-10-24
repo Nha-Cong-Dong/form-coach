@@ -16,6 +16,12 @@ class PushUp(Exercise):
         "hip_high": "Hông nhô cao",
         "neck_drop": "Cổ gục hoặc rướn",
     }
+    # Số đo hiện ở trang kết quả: góc khuỷu dễ hiểu và tự sửa được ("xuống thêm 20°"). Độ lệch
+    # hông không có đơn vị dễ hiểu nên không hiện.
+    measure_display = {
+        "min_elbow_angle": ("Góc khuỷu ở đáy", "°"),
+        "top_elbow_angle": ("Góc khuỷu ở đỉnh", "°"),
+    }
 
     def angle_definitions(self) -> dict[str, tuple[str, str, str]]:
         return {

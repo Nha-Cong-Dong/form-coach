@@ -2,7 +2,34 @@
 // tests/test_web_result_format.py gọi script này; thoát mã khác 0 nếu có assert sai.
 // Chạy: node web/scripts/check-result-format.ts   (Node ≥ 22.18 chạy thẳng .ts)
 import assert from 'node:assert/strict'
-import { formatDuration, formatRecordedAt, repRanges, repsByError } from '../src/results/format.ts'
+import {
+  frameAt,
+  formatDuration,
+  formatRecordedAt,
+  measureText,
+  repRanges,
+  repsByError,
+  targetText,
+} from '../src/results/format.ts'
+
+// targetText: mục tiêu là phía ngược với luật lỗi
+assert.equal(targetText('>', 67, '°'), '≤ 67°') // shallow: lỗi khi góc đáy > 67°
+assert.equal(targetText('<', 146, '°'), '≥ 146°') // incomplete_lockout: lỗi khi góc đỉnh < 146°
+assert.equal(targetText('>', 66.6, '°'), '≤ 67°')
+
+// frameAt: khung cuối cùng có thời gian ≤ t
+const times = [0, 0.033, 0.067, 0.1]
+assert.equal(frameAt(times, 0), 0)
+assert.equal(frameAt(times, 0.05), 1)
+assert.equal(frameAt(times, 0.067), 2)
+assert.equal(frameAt(times, 5), 3) // quá cuối → khung cuối
+assert.equal(frameAt(times, -1), 0) // trước đầu → khung đầu
+assert.equal(frameAt([], 1), -1)
+
+// measureText
+assert.equal(measureText(94.6, '°'), '95°')
+assert.equal(measureText(null, '°'), '—')
+assert.equal(measureText(undefined, '°'), '—')
 
 // repRanges: gộp số liên tiếp, bỏ trùng, sắp xếp
 assert.equal(repRanges([]), '')
