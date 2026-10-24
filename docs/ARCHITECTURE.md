@@ -206,6 +206,15 @@ def classify_session(pose, exercise, classifier, session_id) -> Session: ...  # 
 def summarize(session: Session, error_labels) -> dict: ...  # progress/summary.py
     # {n_reps, n_good, good_ratio (None khi 0 rep), error_counts: đủ mọi lỗi, theo thứ tự}
 
+# progress/goals.py: mục tiêu và streak, tính lúc đọc; không đọc đồng hồ (today truyền vào)
+SetRecord(recorded_at: datetime, n_reps, n_good)       # một hiệp đã chấm; ngày = recorded_at.date()
+Goal(daily_reps, from_date, min_good_ratio=None)       # hiệu lực từ from_date tới mục tiêu mới hơn
+DayProgress(day, n_reps, n_good, good_ratio, goal, met)
+def goal_on(day, goals) -> Goal | None: ...
+def daily_progress(records, goals, start, end) -> list[DayProgress]: ...  # đủ mọi ngày, kể cả ngày trống
+def streak(records, goals, today) -> int: ...  # hôm nay chưa đạt thì chưa đứt, đếm từ hôm qua
+    # đạt = n_reps ≥ daily_reps và (nếu có) good_ratio ≥ min_good_ratio; chưa có mục tiêu: có tập là đạt
+
 class Coach(ABC):                           # TemplateCoach, DeepSeekCoach
     def summarize(self, session: Session) -> str: ...
 ```
