@@ -164,8 +164,11 @@ fieldset {
 
 /* Điện thoại dọc: 3 tab + 2 nút phải vừa một hàng (không xuống dòng giữa chữ). */
 @media (max-width: 480px) {
+  /* 4 tab + 2 nút không vừa 390px: thanh tab tự cuộn ngang, trang không bị tràn. */
   .tabs {
     gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .tabs a {
@@ -1617,6 +1620,139 @@ main .train-panel h1 {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) auto;
   }
+}
+
+/* ---------- Dashboard (canvas "Dashboard", DESIGN.md) ---------- */
+.dashboard {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+}
+
+.dashboard .label {
+  font-size: var(--text-label);
+  color: var(--color-ink2);
+}
+
+.dashboard-cols,
+.dashboard-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+}
+
+/* Máy tính: cột trái mục tiêu + số liệu, cột phải đồ thị (như canvas máy tính). */
+@media (min-width: 960px) {
+  .dashboard {
+    max-width: 1120px;
+  }
+
+  .dashboard-cols {
+    display: grid;
+    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+  }
+}
+
+.goal-edit {
+  align-self: flex-start;
+  padding: 0;
+}
+
+.stat-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-unit {
+  font-size: var(--text-body-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-ink2);
+}
+
+.goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goal-form h2,
+.goal-form .label {
+  margin: 0;
+}
+
+.goal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.goal-actions .primary {
+  flex: 1;
+  margin-top: 0;
+}
+
+.goal-actions .secondary-button {
+  height: var(--size-button);
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-card h2 {
+  margin: 0;
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.day-chart {
+  display: block;
+}
+
+.dashboard .chart-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-caption);
+}
+
+.chart-today {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-swatch.met {
+  background: var(--color-accent);
+}
+
+.legend-swatch.unmet {
+  background: var(--color-tint);
+}
+
+.dashboard > * {
+  animation: enter var(--motion-slow) var(--motion-ease) both;
+}
+
+.dashboard > :nth-child(2) {
+  animation-delay: 60ms;
 }
 
 .result > * {

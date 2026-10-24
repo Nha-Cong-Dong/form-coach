@@ -3,6 +3,7 @@ import { fetchAllowRegister, fetchMe, logout } from './auth/api'
 import type { User } from './auth/api'
 import AuditLabel from './components/AuditLabel'
 import CaptureView from './components/CaptureView'
+import DashboardView from './components/DashboardView'
 import { parseAuditHash } from './label/audit'
 import LabelView from './components/LabelView'
 import LoginView from './components/LoginView'
@@ -13,15 +14,18 @@ import TrainView from './components/TrainView'
 import { UNAUTHORIZED_EVENT } from './http'
 import './App.css'
 
-type Tab = 'capture' | 'label' | 'quick' | 'result' | 'audit'
+type Tab = 'dashboard' | 'capture' | 'label' | 'quick' | 'result' | 'audit'
 
 // Tab lưu trên URL (#label) để tải lại trang vẫn ở đúng màn; không cần thư viện router.
+// Không có hash (vừa mở app) → Dashboard.
 function tabFromHash(): Tab {
-  if (window.location.hash.startsWith('#result/')) return 'result'
+  const hash = window.location.hash
+  if (hash.startsWith('#result/')) return 'result'
   // Gán lại mù: chỉ mở bằng link do `python -m evaluation.relabel_consistency sample` in ra.
-  if (window.location.hash.startsWith('#audit/')) return 'audit'
-  if (window.location.hash === '#label') return 'label'
-  return window.location.hash === '#quick' ? 'quick' : 'capture'
+  if (hash.startsWith('#audit/')) return 'audit'
+  if (hash === '#capture') return 'capture'
+  if (hash === '#label') return 'label'
+  return hash === '#quick' ? 'quick' : 'dashboard'
 }
 
 /** `#result/<exercise>/<session_id>` → hai phần, hoặc null nếu hash không đúng dạng. */
@@ -117,6 +121,9 @@ export default function App() {
     )}
     <main inert={sessionExpired}>
       <nav className="tabs">
+        <a href="#dashboard" className={tab === 'dashboard' ? 'active' : ''}>
+          Dashboard
+        </a>
         <a href="#capture" className={tab === 'capture' ? 'active' : ''}>
           Quay
         </a>
@@ -136,6 +143,8 @@ export default function App() {
           {signOutError}
         </div>
       )}
+      {/* Dashboard gắn lại mỗi lần mở tab: tải tiến độ mới (vd vừa tập xong một hiệp). */}
+      {tab === 'dashboard' && <DashboardView />}
       {/* Màn Quay chỉ bị ẩn, không bị gỡ: gỡ ra sẽ mất danh sách hiệp chưa gửi (nằm trong
           state của CaptureView) và tắt camera giữa chừng. */}
       <div hidden={tab !== 'capture'}>
