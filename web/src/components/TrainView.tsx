@@ -1,12 +1,15 @@
 // Chế độ Tập theo canvas "3 · Tập": Chuẩn bị (máy dọc, chờ xoay ngang) → Sẵn sàng (camera, đã
 // thấy toàn thân chưa) → đếm ngược 5 s → Đang ghi → Xong: gửi hiệp, sang trang kết quả.
-// Chưa đếm rep trực tiếp (Track C): lúc ghi chỉ hiện thời gian. Không có logic ML ở đây.
+// Lúc ghi: số rep trực tiếp từ server qua WebSocket /api/live (OnlineRepCounter, chỉ để hiển
+// thị); không kết nối được thì vẫn ghi và hiện đồng hồ. Kết quả từng rep luôn từ phân tích cả
+// hiệp sau khi gửi. Không có logic ML ở đây.
 import { useEffect, useRef, useState } from 'react'
 import { MEDIAPIPE_VERSION, MODEL_NAME } from '../pose/landmarker'
 import { formatDuration } from '../results/format'
 import { FrameRecorder, buildSession, toKeypoints } from '../session/format'
 import { useSessionUpload } from '../session/upload'
 import { FULL_BODY_RATIO, RollingRatio, bodyVisible } from '../train/body'
+import { FpsMeter, MAX_SEND_FPS, SendThrottle, encodeFrame, liveUrl, parseServerMessage } from '../train/live'
 import CameraPose from './CameraPose'
 import type { PoseFrame } from './CameraPose'
 import UnsentList from './UnsentList'
@@ -15,6 +18,8 @@ const EXERCISE = 'pushup'
 const COUNTDOWN_S = 5 // bạn chọn 5 s (canvas ghi 3 s) để kịp đặt máy và vào tư thế
 
 type Stage = 'prep' | 'ready' | 'countdown' | 'recording'
+// off: chưa ghi · connecting: đang mở kết nối · live: đã nhận số từ server · failed: không được
+type LiveStatus = 'off' | 'connecting' | 'live' | 'failed'
 
 const landscapeQuery = () => window.matchMedia('(orientation: landscape)')
 
@@ -27,7 +32,11 @@ export default function TrainView() {
   const [fullBody, setFullBody] = useState(false)
   const [countdown, setCountdown] = useState(COUNTDOWN_S)
   const [elapsed, setElapsed] = useState({ s: 0, seen: 0 })
+  const [live, setLive] = useState<{ status: LiveStatus; reps: number | null }>({ status: 'off', reps: null })
   const { upload, uploading, message, setMessage, unsent } = useSessionUpload()
+  const wsRef = useRef<WebSocket | null>(null)
+  const fpsRef = useRef(new FpsMeter()) // đo từ lúc Sẵn sàng: khi bắt đầu ghi đã có fps thật
+  const throttleRef = useRef(new SendThrottle())
 
   const recorderRef = useRef<FrameRecorder | null>(null)
   const startedAtRef = useRef<{ date: Date; perf: number } | null>(null)
@@ -64,15 +73,60 @@ export default function TrainView() {
     return () => window.clearTimeout(timer)
   }, [stage, countdown])
 
+  // Rời màn Tập giữa chừng (gỡ component): đóng kết nối.
+  useEffect(() => () => closeLive(), [])
+
+  /** Mở WebSocket đếm trực tiếp. Lỗi ở đây không chặn việc ghi hiệp (ghi nằm ở trình duyệt). */
+  function openLive() {
+    closeLive()
+    throttleRef.current = new SendThrottle()
+    setLive({ status: 'connecting', reps: null })
+    let ws: WebSocket
+    try {
+      ws = new WebSocket(liveUrl(window.location))
+    } catch {
+      setLive({ status: 'failed', reps: null })
+      return
+    }
+    wsRef.current = ws
+    ws.onopen = () => {
+      // fps thật (camera điện thoại thường 13–30): server đổi ngưỡng giây → số khung theo nó.
+      const fps = Math.min(fpsRef.current.fps ?? MAX_SEND_FPS, MAX_SEND_FPS)
+      ws.send(JSON.stringify({ type: 'start', exercise: EXERCISE, fps, frame_size: frameSizeRef.current }))
+    }
+    ws.onmessage = (e) => {
+      const msg = parseServerMessage(String(e.data))
+      if (msg?.type === 'count') setLive({ status: 'live', reps: msg.n_reps })
+    }
+    // Rớt hoặc bị từ chối (vd chưa đăng nhập: uvicorn trả 403) → quay về hiện đồng hồ.
+    ws.onclose = () => {
+      if (wsRef.current === ws) setLive((cur) => ({ ...cur, status: 'failed' }))
+    }
+  }
+
+  /** Báo server kết thúc (nếu còn mở) rồi đóng. Không chờ "final": kết quả lấy từ cả hiệp. */
+  function closeLive() {
+    const ws = wsRef.current
+    wsRef.current = null
+    if (!ws) return
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'stop' }))
+    ws.close()
+  }
+
   function handleFrame(f: PoseFrame) {
     frameSizeRef.current = [f.width, f.height]
     const portraitNow = f.height > f.width
     setFramePortrait((cur) => (cur === portraitNow ? cur : portraitNow))
     const ok = ratioRef.current.push(bodyVisible(f.landmarks)) >= FULL_BODY_RATIO
     setFullBody((cur) => (cur === ok ? cur : ok))
+    fpsRef.current.push(f.ts)
     const recorder = recorderRef.current
     if (!recorder) return
     recorder.add(f.ts, toKeypoints(f.landmarks))
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN && throttleRef.current.shouldSend(f.ts)) {
+      ws.send(encodeFrame(f.ts, f.landmarks))
+    }
     if (f.ts - lastUpdate.current > 250) {
       lastUpdate.current = f.ts
       const s = (performance.now() - (startedAtRef.current?.perf ?? 0)) / 1000
@@ -84,17 +138,24 @@ export default function TrainView() {
     setMessage(null)
     setCountdown(COUNTDOWN_S)
     setStage('countdown')
+    // Mở kết nối ngay từ đếm ngược: 5 s đủ để xong, vào ghi là có số. Khung chỉ gửi khi đang ghi
+    // (handleFrame), nên lúc đang vào tư thế không bị đếm.
+    openLive()
   }
 
   function cancel() {
     if (stage === 'recording' && !window.confirm('Huỷ hiệp đang ghi?')) return
     recorderRef.current = null
+    closeLive()
+    setLive({ status: 'off', reps: null })
     setStage('prep') // tắt camera; máy vẫn ngang thì bấm Tiếp tục để quay lại
   }
 
   function finish() {
     const frames = recorderRef.current?.take() ?? []
     recorderRef.current = null
+    closeLive()
+    setLive({ status: 'off', reps: null })
     // Về Chuẩn bị: camera tắt (CameraPose gỡ ra) trong lúc xem kết quả.
     setStage('prep')
     if (frames.length < 2) {
@@ -247,10 +308,29 @@ export default function TrainView() {
 
         {stage === 'recording' && (
           <>
-            <span className="counter" role="timer" aria-label={`Đã tập ${Math.round(elapsed.s)} giây`}>
-              {formatDuration(elapsed.s)}
-            </span>
-            <span className="muted">{elapsed.seen} khung có người</span>
+            {live.status === 'live' && live.reps !== null ? (
+              <>
+                {/* aria-live: trình đọc màn hình đọc số mới khi tăng. */}
+                <span className="counter" role="status" aria-live="polite" aria-label={`${live.reps} rep`}>
+                  {live.reps}
+                </span>
+                <span className="counter-unit">rep</span>
+                <span className="muted">
+                  {formatDuration(elapsed.s)} · {elapsed.seen} khung có người
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="counter" role="timer" aria-label={`Đã tập ${Math.round(elapsed.s)} giây`}>
+                  {formatDuration(elapsed.s)}
+                </span>
+                <span className="muted">
+                  {live.status === 'failed'
+                    ? 'Không đếm trực tiếp được; số rep sẽ có ở trang kết quả.'
+                    : 'Đang kết nối bộ đếm…'}
+                </span>
+              </>
+            )}
             <div className="train-actions">
               <button type="button" className="finish" onClick={finish}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

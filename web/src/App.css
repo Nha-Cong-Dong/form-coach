@@ -1388,8 +1388,18 @@ main .train-panel h1 {
   line-height: 1;
 }
 
-.train-panel .counter + .muted {
+.train-panel .counter + .muted,
+.train-panel .counter-unit + .muted {
   text-align: center;
+}
+
+/* "rep" dưới số đếm lớn. */
+.counter-unit {
+  margin-top: -6px;
+  text-align: center;
+  font-size: var(--text-body);
+  font-weight: 500;
+  opacity: 0.72;
 }
 
 .train-actions {

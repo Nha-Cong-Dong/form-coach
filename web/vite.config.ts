@@ -16,8 +16,11 @@ export default defineConfig({
     host: true,
     // Điện thoại gọi /api/... trên chính trang này; Vite chuyển tiếp về backend ở laptop.
     // Nhờ vậy backend chỉ cần nghe 127.0.0.1, không lộ ra mạng.
+    // ws: true để chuyển tiếp cả WebSocket (/api/live, đếm rep trực tiếp); trang https thì trình
+    // duyệt mở wss tới Vite, Vite nối ws thường tới backend trên chính máy này.
+    // FORMCOACH_API: đổi địa chỉ backend (vd chạy thử trên cổng khác), mặc định cổng 8000.
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      '/api': { target: process.env.FORMCOACH_API ?? 'http://127.0.0.1:8000', ws: true },
     },
   },
 })
