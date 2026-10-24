@@ -195,7 +195,7 @@ Macro-F1 (4 lỗi chính) **0,72**; tỉ lệ rep đoán đúng toàn bộ tập
 - **Rep bị bỏ sót chưa đo được:** chỉ đo được rep bộ đếm cắt thừa.
 - **`neck_drop` còn là thử nghiệm:** vị trí tai khi quay ngang kém ổn định; không tính vào macro-F1.
 - **Nhịp khung không đều:** các hiệp đã kiểm tra có 12–19 khung/giây, lệch chuẩn khoảng cách khung 9–27%; chưa lấy mẫu lại.
-- **Chưa so với random forest:** đây mới là baseline; phần so sánh luật với random forest là việc của tuần 3.
+- **Chưa so với random forest:** đây mới là baseline; phần so sánh luật với random forest nằm ở §8 (tuần 3).
 
 ### 4.5 Coach (lớp mỏng)
 Đầu vào là **dữ liệu định lượng thật** (số rep, góc đáy từng rep, lỗi theo rep, tiến độ so với mục tiêu), không phải ảnh hay video:
@@ -305,6 +305,57 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 | **3** | Random forest, đánh giá theo buổi, đếm rep online | FastAPI + DB + đăng nhập, WebSocket realtime, trang kết quả | Bảng so sánh luật vs RF; app chạy local đủ luồng |
 | **4** | Coach DeepSeek + mẫu câu | Dashboard mục tiêu/streak/đồ thị, PWA, **deploy** | Sản phẩm demo được |
 
+### Đăng ký trước: so sánh luật với random forest (tuần 3)
+
+Ghi ngày 2026-10-24, **trước khi chạy random forest lần đầu**, để kết quả không bị chọn theo điểm.
+- **Dữ liệu và cách chấm:** nhãn v3 (167 rep, 5 buổi), kiểm định chéo bỏ ra một buổi (`evaluation.compare`). Macro-F1 và exact match tính trên bốn lỗi chính (`shallow`, `incomplete_lockout`, `hip_high`, `hip_sag`); `neck_drop` (thử nghiệm) báo riêng. Không sửa nhãn và không đổi danh sách lỗi chính.
+- **Ba mô hình:** luật tay (ngưỡng cố định, tuần 2); ngưỡng học (mỗi lỗi giữ đặc trưng và chiều so sánh của luật, ngưỡng chọn để F1 cao nhất trên tập train của từng lần chia); random forest (một rừng nhị phân mỗi lỗi).
+- **Siêu tham số random forest, cố định, không chỉnh theo điểm:** `n_estimators=300`, `max_depth=4`, `min_samples_leaf=5`, `class_weight="balanced_subsample"`, `random_state=0`, báo lỗi khi xác suất ≥ 0,5. Không tinh chỉnh lồng nhau (4 buổi trong ~130 rep quá nhiễu); ghi vào hạn chế.
+- **Quy tắc kết luận:** random forest chỉ được coi là tốt hơn luật khi khoảng tin cậy 95% ghép cặp của hiệu macro-F1 (random forest trừ luật) **không chứa 0**; ngược lại kết luận là "chưa có bằng chứng random forest tốt hơn luật" (cũng là một kết luận hợp lệ).
+
+### Kết quả so sánh luật với random forest và hạn chế (tuần 3)
+
+**Cách chấm.** Như phần đăng ký trước: nhãn v3, 167 rep, kiểm định chéo bỏ ra một buổi (5 lần chia), macro-F1 và exact match trên bốn lỗi chính, `neck_drop` báo riêng. Cả ba mô hình chạy trên đúng cùng các rep và các lần chia, mô hình được tạo mới ở mỗi lần chia và chỉ học trên tập train của lần đó. Siêu tham số random forest giữ nguyên như đã đăng ký (không chỉnh sau khi xem điểm).
+
+**Kết quả chính** (số gộp qua 5 lần chia theo buổi):
+
+| Lỗi | F1 luật | F1 ngưỡng học | F1 random forest | RF: precision / recall | RF: báo đúng / báo nhầm / bỏ sót |
+|---|---|---|---|---|---|
+| `shallow` | 0,54 | 0,53 | **0,75** | 0,94 / 0,62 | 15 / 1 / 9 |
+| `incomplete_lockout` | 0,76 | 0,77 | 0,69 | 0,71 / 0,68 | 34 / 14 / 16 |
+| `hip_high` | 0,98 | 0,98 | 0,98 | 1,00 / 0,96 | 26 / 0 / 1 |
+| `hip_sag` | 0,58 | 0,67 | **0,92** | 0,87 / 0,96 | 27 / 4 / 1 |
+| *`neck_drop` (thử nghiệm)* | 0,83 | 0,81 | 0,71 | 0,70 / 0,72 | 26 / 11 / 10 |
+| **Macro-F1 gộp** | **0,72** | **0,74** | **0,84** | | |
+| Macro-F1 theo lần chia | 0,72 ± 0,07 | 0,73 ± 0,06 | 0,82 ± 0,06 | | |
+| **Exact match** | **0,55** | **0,63** | **0,74** | | |
+
+**Theo quy tắc đã đăng ký:** khoảng tin cậy 95% ghép cặp (bootstrap 1000 lần, lấy mẫu lại rep, cùng mẫu cho mọi mô hình) của hiệu macro-F1 random forest − luật là **+0,12 [+0,07, +0,17]**, không chứa 0, nên random forest được coi là tốt hơn luật. Với ngưỡng học − luật là **+0,02 [−0,01, +0,06]**, chứa 0: chưa có bằng chứng ngưỡng học tốt hơn ngưỡng chọn tay. Hiệu macro-F1 theo từng lần chia (random forest − luật) là +0,12, +0,03, +0,07, +0,20, +0,09: cả 5 lần đều dương. Chạy random forest với 5 seed cho macro-F1 gộp 0,83–0,85 (0,84 ± 0,01): kết quả không phụ thuộc may rủi của seed.
+
+**Kiểm tra bảo thủ: nhóm theo ngày** (2 lần chia: 21/10 và 23/10; train chỉ còn 68 hoặc 99 rep). Macro-F1 gộp: luật 0,72, ngưỡng học 0,74, random forest **0,78**; hiệu random forest − luật **+0,07 [+0,02, +0,11]**, cả 2 lần chia random forest cao hơn (0,83 và 0,77 so với 0,72 và 0,72). Theo từng lỗi: `hip_sag` 0,58 / 0,75 / **0,90**; `shallow` 0,54 / 0,49 / **0,55**; `incomplete_lockout` 0,76 / 0,73 / 0,68; `hip_high` 0,98 / 0,98 / 1,00.
+
+**Ngưỡng học.** Ổn định qua các lần chia: `shallow` ≈ 66,9° (một lần 70,6°; tay 67°), `incomplete_lockout` 148–150° (tay 146°), `hip_sag` −0,020 đến −0,031 (tay −0,01), `neck_drop` 123–128° (tay 128°). `hip_high` học ra ngưỡng âm (−0,019 đến −0,004; tay +0,01) vì rep `hip_high` và rep võng tách nhau rất xa trên số đo này; điểm vẫn 0,98.
+
+**Thăm dò sau khi đã thấy kết quả** (không phải kiểm định đăng ký trước; `evaluation.compare` và `evaluation.protocol_check`):
+- *Độ quan trọng đặc trưng của random forest (trung bình qua 5 lần chia, chỉ để mô tả).* `incomplete_lockout`: `top_elbow_angle` 0,30; `hip_sag` và `hip_high`: `min_hip_offset` 0,27–0,28 và `median_hip_offset` 0,22; `neck_drop`: `median_neck_angle` 0,24; `shallow`: `min_body_tilt` 0,22 xếp trên `min_elbow_angle` 0,16. Không có đặc trưng về thời lượng hay nhịp nào lọt top 5.
+- *Rừng đọc số đo hay theo kịch bản quay?* Mỗi hiệp quay với một lỗi cố ý, nên nhãn rep phần lớn trùng lỗi cố ý của hiệp (122/167 rep). Bộ đoán "luôn báo lỗi cố ý của hiệp" (biết trước kịch bản) đạt exact match 0,73, gần bằng random forest (0,74), nên exact match cao tự nó không chứng minh mô hình giỏi hơn kịch bản. Chỗ phân biệt là 45 rep có nhãn **khác** lỗi cố ý của hiệp (rep tốt lẫn trong hiệp lỗi, hoặc lỗi phụ). Ở đó, số rep đoán đúng nhãn thật / đoán đúng lỗi cố ý / khác cả hai: luật 17 / 4 / 24; ngưỡng học 23 / 6 / 16; random forest **26 / 16 / 3**. Ở 122 rep còn lại (nhãn trùng lỗi cố ý), exact match: luật 0,61; ngưỡng học 0,68; random forest 0,80.
+
+**Phân tích.**
+- Random forest tốt hơn luật về macro-F1, và hướng đó nhất quán qua cả 5 lần chia theo buổi lẫn 2 lần chia theo ngày. Mức hơn không do may rủi của seed.
+- **Mức hơn không đồng đều giữa các lỗi.** Phần chắc nhất nằm ở `hip_sag` (0,58 → 0,90–0,92 ở cả hai cách chia). Với `shallow`, mức hơn (0,54 → 0,75, báo nhầm 27 → 1) chỉ có khi chia theo buổi; chia theo ngày điểm về bằng luật (0,55). Với `incomplete_lockout` và `neck_drop` random forest không tốt hơn luật (0,69 so với 0,76; 0,71 so với 0,83). Mình chưa tính khoảng tin cậy riêng cho từng lỗi, nên chưa biết các chênh lệch từng lỗi này có vượt nhiễu hay không.
+- **Ngưỡng học chỉ thêm khoảng 0,02 macro-F1 (chưa có bằng chứng khác luật)**, nên phần lớn mức hơn của random forest không đến từ việc chọn ngưỡng tốt hơn cho cùng một số đo. Ngoại lệ có thể là `hip_sag`: ngưỡng học (−0,02 đến −0,03) chặt hơn ngưỡng tay (−0,01) và F1 tăng 0,58 → 0,67 (theo buổi) / 0,75 (theo ngày), vì luật tay báo nhầm 36 lần; ngưỡng tay ở `hip_sag` có vẻ quá nhạy. Random forest còn cao hơn nữa, nhiều khả năng vì dùng thêm `median_hip_offset` (ổn định hơn số đo cực trị). Đây là giả thuyết chưa kiểm chứng.
+- **Random forest đánh đổi theo hướng "báo ít nhưng chắc".** Ở `shallow`, báo nhầm giảm 27 → 1 nhưng bỏ sót tăng 5 → 9 (recall 0,79 → 0,62).
+- **Chưa có bằng chứng random forest chỉ học "kiểu hiệp" thay vì số đo.** Ở ba lỗi (`hip_sag`, `incomplete_lockout`, `neck_drop`) rừng dựa chủ yếu vào đúng số đo mô tả lỗi, và ở nhóm rep có nhãn khác lỗi cố ý nó vẫn đoán đúng nhãn thật nhiều hơn luật (26 so với 17 trên 45 rep). Tuy vậy random forest nghiêng về kịch bản nhiều hơn luật (16 so với 4 rep đoán đúng lỗi cố ý nhưng sai nhãn thật); không phân biệt được là nó nhận ra kiểu hiệp, hay học rằng "rep sát ngưỡng trong hiệp lỗi thường được gán là có lỗi". Riêng `shallow`, độ nghiêng thân (phụ thuộc góc đặt máy) quan trọng ngang góc khuỷu, và mức hơn biến mất khi chia theo ngày: nên đọc kết quả `shallow` của random forest thận trọng.
+
+**Hạn chế (thêm vào các hạn chế của tuần 2).**
+- **Khoảng tin cậy lạc quan.** Bootstrap lấy mẫu lại 167 rep như thể độc lập, trong khi rep cùng buổi giống nhau hơn rep khác buổi và chỉ có một người quay, một người gán nhãn. Con số "cao hơn" nên tin hơn độ rộng của khoảng. Bằng chứng theo lần chia chỉ có 5 điểm (hai cặp cùng ngày); kiểm định dấu hai phía với 5/5 lần cùng chiều cũng chỉ cho p ≈ 0,06.
+- **Chưa tách được "rò rỉ theo ngày" khỏi "ít dữ liệu".** Khi chia theo ngày, train còn 68–99 rep (so với ~135 khi chia theo buổi), nên điểm theo ngày thấp hơn có thể do rò rỉ giữa các buổi cùng ngày, hoặc chỉ do ít dữ liệu huấn luyện hơn. Chỉ có 2 lần chia theo ngày.
+- **Luật được ưu ái, nhãn bị sửa sau khi xem kết quả.** Tiêu chí nhãn dùng chính các ngưỡng của luật; nhãn v3 được sửa sau khi đã xem kết quả của luật (xem tuần 2). Khả năng nhãn thiên về luật làm mức hơn của random forest nhiều khả năng bị ước lượng **thấp** chứ không cao, nhưng chưa kiểm chứng.
+- **Không tinh chỉnh siêu tham số.** Siêu tham số random forest cố định theo đăng ký trước (không tinh chỉnh lồng nhau vì 4 buổi trong ~130 rep quá nhiễu). Một cấu hình khác có thể tốt hơn hay kém hơn; chưa thử.
+- **Các phân tích thăm dò làm sau khi đã thấy kết quả:** độ quan trọng đặc trưng, so sánh theo ngày và phép thử lỗi cố ý không phải kiểm định đăng ký trước. Nhóm "nhãn khác lỗi cố ý" chỉ có 45 rep. Nhãn ban đầu của mỗi hiệp lấy từ lỗi cố ý rồi mới sửa tay, nên nhãn trùng kịch bản (122 rep) có thể chứa rep chưa được xem lại kỹ.
+- **Độ quan trọng đặc trưng chỉ để mô tả:** mức quan trọng theo độ giảm tạp chất (impurity) của rừng, không chứng minh đặc trưng đó gây ra lỗi.
+- **Không có bằng chứng cho người dùng khác.** Mọi kết luận vẫn chỉ cho một người, một điều kiện quay; random forest học đặc thù của người và chỗ đặt máy có thể kém hơn luật khi gặp người dùng mới.
+
 ### Checklist
 - [x] **Ngày 1:** MediaPipe chạy trên một clip push-up, xem pose có ổn không (rủi ro cao nhất)
 - [x] Tuần 1: đồ thị góc khuỷu theo thời gian, thấy được các "sóng" của rep
@@ -313,8 +364,8 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 - [x] Tuần 2: viết tiêu chí nhãn trước khi quay
 - [x] Tuần 2: quay nhiều buổi khác nhau (không chỉ một buổi dài): 5 buổi, trong 2 ngày
 - [x] Tuần 2: gán nhãn trong app, file nhãn theo từng hiệp
-- [ ] Tuần 3: chia train/test theo buổi, không theo rep
-- [ ] Tuần 3: bảng precision/recall/F1 và ma trận 2×2 cho từng lỗi, so với baseline luật
+- [x] Tuần 3: chia train/test theo buổi, không theo rep
+- [x] Tuần 3: bảng precision/recall/F1 và ma trận 2×2 cho từng lỗi, so với baseline luật
 - [ ] Tuần 3: app chạy local đủ luồng: đăng nhập → quay → kết quả
 - [ ] Tuần 4: coach, mục tiêu, streak, đồ thị, deploy, README, demo
 
