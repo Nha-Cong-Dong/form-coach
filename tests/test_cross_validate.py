@@ -58,6 +58,19 @@ def test_no_test_row_is_ever_used_for_fit() -> None:
         assert {GROUPS[i] for i in model.fitted} == set(GROUPS) - {res.test_group}
 
 
+def test_on_fold_hook_sees_each_fitted_model_once() -> None:
+    Spy.instances = []
+    seen: list[tuple[str, list[int]]] = []
+    results = cross_validate(
+        Spy, ROWS, GROUPS, on_fold=lambda group, model: seen.append((group, list(model.fitted)))
+    )
+    assert [g for g, _ in seen] == [r.test_group for r in results]  # đúng thứ tự các lần chia
+    for (_, fitted), res in zip(seen, results, strict=True):
+        assert fitted and not set(fitted) & set(res.rows)  # đã fit, trên train, không có test
+    # Có hook hay không, kết quả chấm không đổi.
+    assert cross_validate(Spy, ROWS, GROUPS) == results
+
+
 def test_every_row_predicted_exactly_once() -> None:
     results = cross_validate(Spy, ROWS, GROUPS)
     assert sorted(i for r in results for i in r.rows) == list(range(len(ROWS)))

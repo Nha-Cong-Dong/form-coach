@@ -110,3 +110,9 @@ Mẫu:
 - **Nguyên nhân:** Nhãn mới nằm sát ngoài ngưỡng của luật (top_elbow_angle 147–159° so với ngưỡng 146°; median_neck_angle 130–140° so với 128°): ngưỡng chọn từ buổi quay thử nghiêm hơn mắt người gán. Nghi vấn về công cụ: ảnh "Đỉnh" là end_frame trong khi số đo lấy max 0,5 s sau đó.
 - **Cách sửa:** Chưa sửa. Ghi cả ba bản kết quả; v3 làm nhãn dùng tiếp; tuần 3 thử ngưỡng học trên tập train của từng lần chia.
 - **Bài học:** Con số tổng (macro-F1) bền theo cách gán nhãn, còn precision/recall từng lỗi phụ thuộc mạnh vào ranh giới mà mắt người đặt; muốn so sánh công bằng thì ngưỡng nên được học từ chính nhãn.
+
+## 2026-10-24 — rf hơn luật theo buổi, nhưng mức hơn co lại khi nhóm theo ngày
+- **Chuyện gì xảy ra:** Theo buổi (5 lần chia): macro-F1 gộp rules 0,72, stump 0,74, rf 0,84; hiệu rf − rules +0,12, khoảng tin cậy 95% [+0,07, +0,17]. Theo ngày (2 lần chia): rf 0,78, hiệu +0,07 [+0,02, +0,11]. F1 shallow của rf từ 0,75 xuống 0,55 (bằng luật 0,54); hip_sag giữ 0,90–0,92 (luật 0,58).
+- **Nguyên nhân:** Chưa chắc. Có thể buổi cùng ngày chia sẻ chỗ đặt máy (shallow dùng min_body_tilt, phụ thuộc góc máy), hoặc chỉ vì theo ngày train còn 68–99 rep thay vì ~135. Chưa tách được hai khả năng.
+- **Cách sửa:** Chưa. README báo cả hai cách chia, nói chỗ vững (hip_sag) và chỗ mong manh (shallow).
+- **Bài học:** Một cách chia dữ liệu cho một con số chưa đủ; chạy thêm cách chia bảo thủ hơn mới thấy phần nào của mức hơn là thật. Giả thuyết "rf học kịch bản" (đã kiểm) chỉ giải thích được phần nhỏ: trên 45 rep có nhãn khác lỗi cố ý, rf đoán đúng nhãn thật 26, theo kịch bản 16 (luật: 17 và 4).
