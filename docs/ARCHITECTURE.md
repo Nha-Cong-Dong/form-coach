@@ -215,8 +215,11 @@ def daily_progress(records, goals, start, end) -> list[DayProgress]: ...  # đ�
 def streak(records, goals, today) -> int: ...  # hôm nay chưa đạt thì chưa đứt, đếm từ hôm qua
     # đạt = n_reps ≥ daily_reps và (nếu có) good_ratio ≥ min_good_ratio; chưa có mục tiêu: có tập là đạt
 
+CoachProgress(day_reps, daily_reps: int | None, streak)  # tiến độ trong ngày TỚI HẾT hiệp này
 class Coach(ABC):                           # TemplateCoach, DeepSeekCoach
-    def summarize(self, session: Session) -> str: ...
+    def summarize(self, session: Session, progress: CoachProgress | None = None) -> str: ...
+    # chỉ dùng số liệu trong session/progress; tên lỗi, số đo, mục tiêu lấy từ get_exercise().
+    # Dòng "Công cụ hỗ trợ, không thay huấn luyện viên." do giao diện luôn hiện, không nằm trong chữ
 ```
 
 Ghi chú:
