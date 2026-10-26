@@ -141,44 +141,159 @@ fieldset {
   font-variant-numeric: tabular-nums;
 }
 
-/* Thanh tab Quay / Gán nhãn (link #capture / #label). */
-.tabs {
+/* ---------- Điều hướng (DESIGN.md "Thanh điều hướng dưới") ----------
+   Máy tính: thanh trên như canvas máy tính (tên app · Dashboard / Quay / Gán nhãn · sáng/tối ·
+   Đăng xuất). Điện thoại (≤ 720px): <nav> thành thanh dưới cố định như canvas Dashboard. */
+.app-bar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 20px;
   border-bottom: 1px solid var(--color-line);
   margin-bottom: 8px;
 }
 
-.tabs a {
-  padding: 8px 16px;
+.brand {
+  color: var(--color-ink);
+  font-size: var(--text-button);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* "‹ Dashboard": chỉ hiện trên điện thoại ở màn không có thanh dưới (Quay, Kết quả). */
+.back-link {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--size-touch);
+  color: var(--color-ink2);
+  font-size: var(--text-body-sm);
+  text-decoration: none;
+}
+
+.main-nav {
+  display: flex;
+  gap: 24px;
+  font-size: var(--text-body-sm);
+}
+
+.main-nav a {
+  display: flex;
+  align-items: center;
+  padding: 20px 0 18px;
   color: var(--color-ink2);
   text-decoration: none;
   white-space: nowrap;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
 }
 
-.tabs .text-button {
+.main-nav a[aria-current='page'] {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-bottom-color: var(--color-accent);
+}
+
+/* Máy tính: chỉ chữ, không icon. */
+.main-nav svg,
+.nav-capture-dot {
+  display: none;
+}
+
+/* Link trong dòng gợi ý (vd "Gán nhanh (v2) →"): màu token thay cho xanh/tím mặc định. */
+.hint a {
+  color: var(--color-ink);
+}
+
+.app-bar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-bar-actions .icon-button {
+  margin-left: 0;
+}
+
+.app-bar-actions .text-button {
   white-space: nowrap;
 }
 
-/* Điện thoại dọc: 3 tab + 2 nút phải vừa một hàng (không xuống dòng giữa chữ). */
-@media (max-width: 480px) {
-  /* 4 tab + 2 nút không vừa 390px: thanh tab tự cuộn ngang, trang không bị tràn. */
-  .tabs {
+@media (max-width: 720px) {
+  .app-bar {
+    gap: 8px;
+  }
+
+  .nav-hidden .brand {
+    display: none;
+  }
+
+  .nav-hidden .back-link {
+    display: flex;
+  }
+
+  .main-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
     gap: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
+    align-items: flex-end;
+    padding: 6px 24px calc(10px + env(safe-area-inset-bottom));
+    background: var(--color-card);
+    border-top: 1px solid var(--color-line);
+    font-size: var(--text-caption);
   }
 
-  .tabs a {
-    padding: 8px 8px;
-    font-size: var(--text-body-sm);
+  .nav-hidden .main-nav {
+    display: none;
   }
 
-  .tabs .text-button {
-    padding: 0 4px;
-    font-size: var(--text-label);
+  .main-nav a {
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0 0;
+    border-bottom: 0;
+    font-weight: 500;
+  }
+
+  .main-nav svg {
+    display: block;
+  }
+
+  .main-nav a[aria-current='page'] svg {
+    color: var(--color-accent);
+  }
+
+  /* Nút Quay tròn nổi giữa thanh (canvas): vòng nền `bg` tách nút khỏi thanh. */
+  .nav-capture {
+    margin-top: -26px;
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+
+  .main-nav .nav-capture-dot {
+    display: flex;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    box-shadow: 0 0 0 6px var(--color-bg);
+  }
+
+  .main-nav .nav-capture-dot svg {
+    color: var(--color-on-accent);
+  }
+
+  /* Chừa chỗ cho thanh dưới để nút cuối trang không bị che. */
+  main.with-bottom-nav {
+    padding-bottom: 120px;
   }
 }
 
@@ -197,11 +312,6 @@ fieldset {
   justify-content: center;
 }
 
-.tabs a.active {
-  color: var(--color-ink);
-  font-weight: 600;
-  border-bottom-color: var(--color-accent);
-}
 
 /* Danh sách hiệp ở màn gán nhãn: bấm một hàng để mở hiệp đó. */
 .sessions {
@@ -452,10 +562,11 @@ fieldset {
     padding: 4px 8px;
   }
 
-  /* Gán nhãn làm trên laptop: trên điện thoại ngang ẩn cả thanh tab để màn Quay vừa màn hình. */
+  /* Gán nhãn làm trên laptop: trên điện thoại ngang ẩn cả thanh điều hướng để màn Quay vừa màn
+     hình. */
   main h1,
   main .hint,
-  .tabs {
+  .app-bar {
     display: none;
   }
 
