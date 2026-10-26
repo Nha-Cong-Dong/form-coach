@@ -14,6 +14,13 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 - Nếu không chắc về API của một thư viện (MediaPipe, scikit-learn...), nói rõ là không chắc và đề xuất cách kiểm tra, đừng đoán.
 - **Code xong thì tóm tắt thay đổi:** liệt kê file đã thêm và file đã sửa, mỗi file một dòng nói nó làm gì hoặc sửa gì và để làm gì. Ngắn gọn, không dán lại code.
 
+## Khi mình vắng (không duyệt được)
+
+- Chỉ làm đúng các bước mình đã giao, xong thì dừng; không làm "tiện tay" bước sau.
+- Quyết định chưa chốt: chọn phương án an toàn, dễ đổi; ghi lý do vào mục "Chờ duyệt" của plan. Không có phương án an toàn thì để trống và hỏi khi mình về.
+- Không đổi interface đã có, không thêm thư viện, không sửa file ngoài phạm vi bước.
+- Mọi thứ ngoài yêu cầu (công cụ, test phụ, ý tưởng) chỉ ghi thành đề xuất, không viết code.
+
 ## Phần đánh giá và dữ liệu
 
 - **Chia train/test và metric (`evaluation/`):** Claude được viết, nhưng trước khi viết phải giải thích cách chia (vì sao theo buổi quay) và ý nghĩa từng metric. Viết xong thì tự soát theo checklist của `/check-eval`.

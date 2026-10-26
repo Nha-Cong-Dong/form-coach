@@ -52,6 +52,20 @@ CREATE TABLE IF NOT EXISTS reps (
     UNIQUE (session_pk, idx)
 );
 
+-- Mục tiêu rep mỗi ngày (tuần 4). Giữ cả lịch sử: mục tiêu áp dụng từ from_date tới khi có mục
+-- tiêu mới hơn, nên đổi mục tiêu không chấm lại ngày cũ. Tiến độ/streak tính lúc đọc
+-- (formcoach/progress/goals.py), không lưu cờ "đã đạt". Đặt lại trong cùng ngày thì ghi đè.
+CREATE TABLE IF NOT EXISTS goals (
+    id             INTEGER PRIMARY KEY,
+    user_id        INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    exercise       TEXT NOT NULL,
+    daily_reps     INTEGER NOT NULL,
+    min_good_ratio REAL,           -- NULL = không xét tỉ lệ rep đúng
+    from_date      TEXT NOT NULL,  -- YYYY-MM-DD theo giờ điện thoại
+    created_at     TEXT NOT NULL,
+    UNIQUE (user_id, exercise, from_date)
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);

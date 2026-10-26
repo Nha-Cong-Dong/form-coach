@@ -206,6 +206,15 @@ def classify_session(pose, exercise, classifier, session_id) -> Session: ...  # 
 def summarize(session: Session, error_labels) -> dict: ...  # progress/summary.py
     # {n_reps, n_good, good_ratio (None khi 0 rep), error_counts: đủ mọi lỗi, theo thứ tự}
 
+# progress/goals.py: mục tiêu và streak, tính lúc đọc; không đọc đồng hồ (today truyền vào)
+SetRecord(recorded_at: datetime, n_reps, n_good)       # một hiệp đã chấm; ngày = recorded_at.date()
+Goal(daily_reps, from_date, min_good_ratio=None)       # hiệu lực từ from_date tới mục tiêu mới hơn
+DayProgress(day, n_reps, n_good, good_ratio, goal, met)
+def goal_on(day, goals) -> Goal | None: ...
+def daily_progress(records, goals, start, end) -> list[DayProgress]: ...  # đủ mọi ngày, kể cả ngày trống
+def streak(records, goals, today) -> int: ...  # hôm nay chưa đạt thì chưa đứt, đếm từ hôm qua
+    # đạt = n_reps ≥ daily_reps và (nếu có) good_ratio ≥ min_good_ratio; chưa có mục tiêu: có tập là đạt
+
 class Coach(ABC):                           # TemplateCoach, DeepSeekCoach
     def summarize(self, session: Session) -> str: ...
 ```
@@ -232,6 +241,9 @@ Ghi chú:
 | `POST` | `/api/auth/logout` | Xoá token khỏi DB và xoá cookie; chưa đăng nhập cũng 200 |
 | `GET` | `/api/auth/options` | `{allow_register}` theo `FORMCOACH_ALLOW_REGISTER`; mở, không cần đăng nhập. Web ẩn "Tạo tài khoản" khi `false` |
 | `GET` | `/api/auth/me` | `{id, email}` của người đang đăng nhập; 401 nếu không |
+| `GET` | `/api/goals?exercise=pushup` | Mục tiêu mới nhất của mình: `{exercise, goal: {daily_reps, min_good_ratio, from_date} \| null}`. Bài lạ → 404 |
+| `PUT` | `/api/goals` | `{exercise, daily_reps (1–10000), min_good_ratio (0–1, tuỳ chọn), today: "YYYY-MM-DD"}` → mục tiêu áp dụng từ `today` (ngày theo giờ điện thoại), đặt lại cùng ngày thì ghi đè; ngày cũ giữ mục tiêu cũ. `today` lệch quá 1 ngày so với ngày UTC của server → 422 (không đặt lùi về quá khứ) |
+| `GET` | `/api/progress?exercise=pushup&from=&to=` | `backend/progress.py` → `formcoach/progress/goals.py`. `to` = hôm nay theo giờ điện thoại. Trả `from, to, goal` (hiệu lực ngày `to`), `today` (ngày `to`), `streak` (tính tới `to`), `totals{n_reps, n_good, good_ratio}`, `days[{day, n_reps, n_good, good_ratio, daily_reps, met}]` đủ mọi ngày kể cả ngày trống. Tính từ mọi hiệp của mình (cả hiệp Quay dữ liệu). `from > to` hoặc > 366 ngày → 422 |
 | `WS` | `/api/live` | Đếm rep trực tiếp (`backend/live.py`, `OnlineRepCounter`), không lưu gì. Client gửi `{"type":"start","exercise","fps","frame_size"}`, rồi mỗi khung `{"t_ms","kp":[[x,y,v]×33] \| null}`, cuối cùng `{"type":"stop"}`. Server gửi `{"type":"count","n_reps","phase"}` khi số rep/pha đổi, `{"type":"final","n_reps"}` rồi đóng. Tin sai → `{"type":"error","detail"}`, kết nối vẫn mở. Kiểm tra cookie phiên TRƯỚC khi accept: không hợp lệ → đóng mã 4401 (TestClient thấy 4401; uvicorn thật trả HTTP 403, trình duyệt chỉ thấy kết nối thất bại). Cần gói `websockets` (requirements) |
 
 **Đăng nhập (`backend/auth.py`):** cookie `formcoach_session` (HttpOnly, SameSite=Lax, `Secure` mặc định, tắt bằng `FORMCOACH_COOKIE_SECURE=0` khi chạy qua http thuần như test, 30 ngày) chứa token ngẫu nhiên; DB lưu sha256 của token. Đăng nhập dọn token hết hạn của user đó. Các route ghi token `commit()` trước khi trả về (không có cookie trỏ tới token chưa lưu). Mật khẩu ≤ 1024 ký tự, email ≤ 254 (422 trước khi chạy scrypt). Mọi endpoint trừ `/api/auth/*` và `/api/exercises/*` cần đăng nhập (router `protected` trong `app.py`, dependency `current_user`), thiếu/sai/hết hạn → 401. Email lưu đúng như gõ, so sánh không phân biệt hoa thường. Mật khẩu: `backend/security.py` (scrypt).
@@ -239,7 +251,7 @@ Ghi chú:
 Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện thoại đi qua proxy Vite). Lần đầu tạo tài khoản: thêm `FORMCOACH_ALLOW_REGISTER=1`.
 
 ### Web (`web/src`)
-- `App.tsx`: cổng đăng nhập (`GET /api/auth/options` + `/me` lúc mở; chưa đăng nhập thì chỉ có `LoginView`; API trả 401 giữa chừng → `LoginView` đè lên, màn dưới giữ nguyên), rồi các tab theo hash URL: `#capture` (Quay), `#label` (Gán nhãn), `#quick` (Gán nhanh), `#result/<bài>/<id>` (trang kết quả, `ResultView`). Thanh tab có nút sáng/tối và Đăng xuất.
+- `App.tsx`: cổng đăng nhập (`GET /api/auth/options` + `/me` lúc mở; chưa đăng nhập thì chỉ có `LoginView`; API trả 401 giữa chừng → `LoginView` đè lên, màn dưới giữ nguyên), rồi các tab theo hash URL: `#dashboard` (mặc định khi không có hash; `DashboardView`: `/api/progress` 14 ngày tới hôm nay theo giờ máy, đặt mục tiêu bằng `PUT /api/goals`, gắn lại mỗi lần mở tab để tải số mới — `progress/api.ts`, `progress/format.ts`), `#capture` (Quay), `#label` (Gán nhãn), `#quick` (Gán nhanh), `#result/<bài>/<id>` (trang kết quả, `ResultView`). Điều hướng (`header.app-bar`): máy tính là thanh trên (Form Coach · Dashboard / Quay / Gán nhãn · sáng/tối · Đăng xuất); điện thoại (≤ 720px) `<nav>` thành thanh dưới cố định (nút Quay tròn ở giữa), chỉ hiện ở Dashboard và Gán nhãn, màn Quay/Kết quả thay bằng link "‹ Dashboard"; điện thoại xoay ngang ẩn cả thanh để màn Tập vừa màn hình. Gán nhanh mở bằng link trong màn Gán nhãn.
 - Tab Quay có hai chế độ: **Tập** (`TrainView`, app): Chuẩn bị (máy dọc, tự chuyển khi xoay ngang) → Sẵn sàng (camera tự bật, "đã thấy toàn thân" từ `train/body.ts`) → đếm ngược 5 s → Đang ghi (số rep trực tiếp qua WebSocket `/api/live`, mở từ lúc đếm ngược; khung chỉ gửi khi đang ghi, tối đa 30 khung/s, `start` mang fps đo được; không kết nối được thì hiện đồng hồ, việc ghi không bị ảnh hưởng — `train/live.ts`) → Xong: gửi, sang trang kết quả. **Quay dữ liệu** (`CaptureView`, công cụ dataset: chọn lỗi cố ý, ghi chú). Gửi hiệp và danh sách "chưa gửi" dùng chung `session/upload.ts`.
 - Gọi API: `auth/api.ts` (đăng nhập), `label/api.ts` (hiệp, review, nhãn), `CaptureView.tsx` (tải hiệp lên); lỗi HTTP đọc chung ở `http.ts`. Cookie phiên do trình duyệt tự gửi (cùng nguồn qua proxy `/api`), JavaScript không đọc/lưu token.
 - Giao diện theo `DESIGN.md`; token ở `theme.css`, chế độ sáng/tối ở `theme.ts`.
@@ -247,8 +259,7 @@ Chạy: `uvicorn backend.app:app --port 8000` (chỉ nghe 127.0.0.1; điện tho
 ### Endpoint dự kiến (tuần 3–4)
 | Method | Đường dẫn | Việc |
 |---|---|---|
-| `GET`/`PUT` | `/api/goals` | Đọc / đặt mục tiêu |
-| `GET` | `/api/progress?from=&to=` | Tổng rep, tỉ lệ rep đúng, streak, dữ liệu đồ thị |
+| — | — | (`/api/goals`, `/api/progress` đã làm ở P2, xem bảng trên) |
 
 ### Bảng dữ liệu (SQLite, `backend/schema.sql`, kết nối ở `backend/db.py`)
 ```
@@ -258,7 +269,8 @@ sessions    (id, user_id, exercise, session_id, recorded_at, set_errors, source,
              n_frames, duration_s, created_at; UNIQUE(exercise, session_id))
 reps        (id, session_pk, idx, start_frame, end_frame, features_json, predicted_errors,
              scores_json; UNIQUE(session_pk, idx))
-goals       (id, user_id, exercise, daily_reps, min_good_ratio, from_date)   -- tuần 4, chưa tạo
+goals       (id, user_id, exercise, daily_reps, min_good_ratio, from_date, created_at;
+             UNIQUE(user_id, exercise, from_date))   -- giữ lịch sử mục tiêu
 ```
 - File DB: `$FORMCOACH_DATA_DIR/formcoach.db`. Mỗi request một kết nối (`get_db`): commit khi route xong, rollback khi lỗi. Khoá ngoại bật, xoá user thì xoá theo token/hiệp/rep.
 - **DB chỉ giữ tài khoản và kết quả app đã phân tích.** File quay (`data/sessions/**`, §2b) và file nhãn (§2c) vẫn là dữ liệu huấn luyện mà `build_dataset` đọc; không chép keypoint hay nhãn thật vào DB. `predicted_errors`/`scores_json` là thứ bộ phân loại `model_name` đoán.

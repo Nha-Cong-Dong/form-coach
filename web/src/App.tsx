@@ -3,6 +3,7 @@ import { fetchAllowRegister, fetchMe, logout } from './auth/api'
 import type { User } from './auth/api'
 import AuditLabel from './components/AuditLabel'
 import CaptureView from './components/CaptureView'
+import DashboardView from './components/DashboardView'
 import { parseAuditHash } from './label/audit'
 import LabelView from './components/LabelView'
 import LoginView from './components/LoginView'
@@ -13,15 +14,18 @@ import TrainView from './components/TrainView'
 import { UNAUTHORIZED_EVENT } from './http'
 import './App.css'
 
-type Tab = 'capture' | 'label' | 'quick' | 'result' | 'audit'
+type Tab = 'dashboard' | 'capture' | 'label' | 'quick' | 'result' | 'audit'
 
 // Tab lưu trên URL (#label) để tải lại trang vẫn ở đúng màn; không cần thư viện router.
+// Không có hash (vừa mở app) → Dashboard.
 function tabFromHash(): Tab {
-  if (window.location.hash.startsWith('#result/')) return 'result'
+  const hash = window.location.hash
+  if (hash.startsWith('#result/')) return 'result'
   // Gán lại mù: chỉ mở bằng link do `python -m evaluation.relabel_consistency sample` in ra.
-  if (window.location.hash.startsWith('#audit/')) return 'audit'
-  if (window.location.hash === '#label') return 'label'
-  return window.location.hash === '#quick' ? 'quick' : 'capture'
+  if (hash.startsWith('#audit/')) return 'audit'
+  if (hash === '#capture') return 'capture'
+  if (hash === '#label') return 'label'
+  return hash === '#quick' ? 'quick' : 'dashboard'
 }
 
 /** `#result/<exercise>/<session_id>` → hai phần, hoặc null nếu hash không đúng dạng. */
@@ -103,6 +107,9 @@ export default function App() {
     }
   }
 
+  // Thanh dưới (điện thoại) chỉ ở các màn chính, như canvas; màn Quay/Kết quả có link quay lại.
+  const showBottomNav = tab === 'dashboard' || tab === 'label' || tab === 'quick'
+
   return (
     <>
     {sessionExpired && (
@@ -115,27 +122,62 @@ export default function App() {
         }}
       />
     )}
-    <main inert={sessionExpired}>
-      <nav className="tabs">
-        <a href="#capture" className={tab === 'capture' ? 'active' : ''}>
-          Quay
+    <main inert={sessionExpired} className={showBottomNav ? 'with-bottom-nav' : undefined}>
+      {/* Máy tính: thanh trên (canvas máy tính). Điện thoại: CSS đưa <nav> xuống đáy màn hình
+          (canvas Dashboard), và chỉ hiện ở màn chính; Quay/Kết quả dùng link "‹ Dashboard"
+          để màn Tập không bị che. */}
+      <header className={showBottomNav ? 'app-bar' : 'app-bar nav-hidden'}>
+        <a className="brand" href="#dashboard">
+          Form Coach
         </a>
-        <a href="#label" className={tab === 'label' ? 'active' : ''}>
-          Gán nhãn
+        <a className="back-link" href="#dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Dashboard
         </a>
-        <a href="#quick" className={tab === 'quick' ? 'active' : ''}>
-          Gán nhanh
-        </a>
-        <ThemeToggle />
-        <button type="button" className="text-button" onClick={signOut} title={user.email}>
-          Đăng xuất
-        </button>
-      </nav>
+        <nav className="main-nav" aria-label="Điều hướng chính">
+          <a href="#dashboard" aria-current={tab === 'dashboard' ? 'page' : undefined}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="9" rx="1.5" />
+              <rect x="14" y="3" width="7" height="5" rx="1.5" />
+              <rect x="14" y="12" width="7" height="9" rx="1.5" />
+              <rect x="3" y="16" width="7" height="5" rx="1.5" />
+            </svg>
+            <span>Dashboard</span>
+          </a>
+          <a href="#capture" className="nav-capture" aria-current={tab === 'capture' ? 'page' : undefined}>
+            <span className="nav-capture-dot">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="8" />
+                <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+              </svg>
+            </span>
+            <span>Quay</span>
+          </a>
+          {/* Gán nhanh là một kiểu của Gán nhãn (link trong màn đó), không phải mục riêng. */}
+          <a href="#label" aria-current={tab === 'label' || tab === 'quick' ? 'page' : undefined}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+            </svg>
+            <span>Gán nhãn</span>
+          </a>
+        </nav>
+        <div className="app-bar-actions">
+          <ThemeToggle />
+          <button type="button" className="text-button" onClick={signOut} title={user.email}>
+            Đăng xuất
+          </button>
+        </div>
+      </header>
       {signOutError && (
         <div className="form-alert" role="alert">
           {signOutError}
         </div>
       )}
+      {/* Dashboard gắn lại mỗi lần mở tab: tải tiến độ mới (vd vừa tập xong một hiệp). */}
+      {tab === 'dashboard' && <DashboardView />}
       {/* Màn Quay chỉ bị ẩn, không bị gỡ: gỡ ra sẽ mất danh sách hiệp chưa gửi (nằm trong
           state của CaptureView) và tắt camera giữa chừng. */}
       <div hidden={tab !== 'capture'}>
@@ -164,12 +206,18 @@ export default function App() {
       {labelOpened && (
         <div hidden={tab !== 'label'}>
           <h1>Form Coach — gán nhãn rep</h1>
+          <p className="hint">
+            <a href="#quick">Gán nhanh (v2) →</a>
+          </p>
           <LabelView />
         </div>
       )}
       {quickOpened && (
         <div hidden={tab !== 'quick'}>
           <h1>Form Coach — gán nhãn nhanh (v2)</h1>
+          <p className="hint">
+            <a href="#label">← Gán nhãn từng rep</a>
+          </p>
           <QuickLabel />
         </div>
       )}
