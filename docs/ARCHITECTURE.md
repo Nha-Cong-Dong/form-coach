@@ -216,6 +216,7 @@ def streak(records, goals, today) -> int: ...  # hôm nay chưa đạt thì chư
     # đạt = n_reps ≥ daily_reps và (nếu có) good_ratio ≥ min_good_ratio; chưa có mục tiêu: có tập là đạt
 
 CoachProgress(day_reps, daily_reps: int | None, streak)  # tiến độ trong ngày TỚI HẾT hiệp này
+def progress_after(records, goals, at: datetime) -> CoachProgress: ...  # chỉ hiệp ghi ≤ at (cùng ngày so giờ đồng hồ)
 class Coach(ABC):                           # TemplateCoach, DeepSeekCoach
     def summarize(self, session: Session, progress: CoachProgress | None = None) -> str: ...
     # chỉ dùng số liệu trong session/progress; tên lỗi, số đo, mục tiêu lấy từ get_exercise().
@@ -232,8 +233,8 @@ Ghi chú:
 | Method | Đường dẫn | Việc |
 |---|---|---|
 | `GET` | `/api/exercises/{name}` | Tên bài + `error_labels` + `error_display` (tên lỗi cho người dùng). Tên lạ → 404 |
-| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → `classify_session` bằng bộ phân loại `FORMCOACH_MODEL` (mặc định `rf`; huấn luyện lần đầu cần từ `data/`, không được thì `rules`) → ghi `sessions`/`reps` gắn `user_id` → lưu file nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` → commit. Trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person` và (cộng thêm) `model_name, reps[{index, start_frame, end_frame, errors, scores, measures{đặc trưng: số}}], summary{n_reps, n_good, good_ratio, error_counts}, measures[{error, feature, label, unit, op, threshold}]` (số đo hiện cho người dùng theo `Exercise.measure_display`, mục tiêu từ `error_rules()`). Sai định dạng → 422; trùng `session_id` → 409, không ghi đè |
-| `GET` | `/api/sessions/{exercise}/{session_id}/result` | Kết quả đã lưu của chính user: như trên + `recorded_at, set_errors`. Hiệp người khác / quay trước khi có DB → 404 |
+| `POST` | `/api/sessions` | Kiểm tra bằng `parse_session` (§2b) → `classify_session` bằng bộ phân loại `FORMCOACH_MODEL` (mặc định `rf`; huấn luyện lần đầu cần từ `data/`, không được thì `rules`) → ghi `sessions`/`reps` gắn `user_id` → lưu file nguyên văn vào `$FORMCOACH_DATA_DIR/sessions/{exercise}/{session_id}.json` → commit. Trả `session_id, exercise, n_frames, duration_s, fps, frames_with_person` và (cộng thêm) `model_name, reps[{index, start_frame, end_frame, errors, scores, measures{đặc trưng: số}}], summary{n_reps, n_good, good_ratio, error_counts}, measures[{error, feature, label, unit, op, threshold}]` (số đo hiện cho người dùng theo `Exercise.measure_display`, mục tiêu từ `error_rules()`). `coach{text, source}` (K1: `source = "template"`, `backend/progress.py` `coach_json` → `progress_after` + `TemplateCoach`; tính lúc đọc, không lưu DB; tiến độ chỉ tính các hiệp ghi tới hết hiệp này, mục tiêu là mục tiêu hiện có cho ngày đó; các dòng cách nhau bằng `\n`). Sai định dạng → 422; trùng `session_id` → 409, không ghi đè |
+| `GET` | `/api/sessions/{exercise}/{session_id}/result` | Kết quả đã lưu của chính user: như trên (kể cả `coach`) + `recorded_at, set_errors`. Hiệp người khác / quay trước khi có DB → 404 |
 | `GET` | `/api/results` | Lịch sử của user, mới nhất trước: `exercise, session_id, recorded_at, duration_s, model_name, n_reps, n_good` |
 | `GET` | `/api/sessions/{exercise}/{session_id}/result/reps/{index}/replay` | Người que của một rep để xem lại ở trang kết quả (`build_rep_replay`): 15 khớp `STICK_JOINTS`, khung từ đầu đến cuối rep thêm 0,3 s mỗi bên, `times_s` tính từ khung đầu đoạn, `rep_start_s/rep_end_s`. Rep lấy theo kết quả đã lưu của chính user; hiệp người khác / rep không có → 404. Không có video |
 | `GET` | `/api/sessions/{exercise}` | Danh sách hiệp (mới nhất trước): `session_id, recorded_at, set_errors, duration_s, n_reps, labeled`. File hỏng vẫn hiện kèm `error` |

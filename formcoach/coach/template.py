@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 
 from formcoach.coach.base import Coach, CoachProgress
 from formcoach.exercises import get_exercise
+from formcoach.models.rule_based import rule_fires
 from formcoach.types import Session
 
 
@@ -53,8 +53,11 @@ class TemplateCoach(Coach):
             # Chỉ kèm số đo người tập hiểu được (measure_display); lỗi hông/cổ không có số.
             if rule is not None and rule.feature in exercise.measure_display:
                 label, unit = exercise.measure_display[rule.feature]
-                values = [r.rep.features.get(rule.feature, math.nan) for r in hit]
-                values = [v for v in values if math.isfinite(v)]
+                # Chỉ lấy rep có số đo vượt ngưỡng luật: mô hình (vd rf) có thể chấm lỗi dù số đo
+                # vẫn trong mục tiêu, in ra thì câu tự mâu thuẫn ("57°, mục tiêu ≤ 67°").
+                values = [
+                    r.rep.features[rule.feature] for r in hit if rule_fires(rule, r.rep.features)
+                ]
                 if values:
                     lo, hi = round(min(values)), round(max(values))
                     shown = f"{lo}{unit}" if lo == hi else f"{lo}–{hi}{unit}"

@@ -1,7 +1,9 @@
 from collections.abc import Iterable
+from datetime import date, datetime, timedelta, timezone
 
-from formcoach.coach import CoachProgress, TemplateCoach
+from formcoach.coach import CoachProgress, TemplateCoach, progress_after
 from formcoach.coach.template import rep_ranges
+from formcoach.progress.goals import Goal, SetRecord
 from formcoach.types import Rep, RepResult, Session
 
 
@@ -60,3 +62,43 @@ def test_missing_measure_is_not_invented() -> None:
     text = TemplateCoach().summarize(Session("s", "pushup", results))
     assert "Chưa xuống đủ sâu ở rep 1–2." in text.splitlines()
     assert "°" not in text
+
+
+def test_measure_shown_only_for_reps_past_rule_threshold() -> None:
+    # Mô hình chấm "shallow" cả 2 rep, nhưng chỉ rep 2 vượt ngưỡng luật (> 67°): chỉ in số đo rep 2.
+    # Không rep nào vượt thì không in số (tránh "57°, mục tiêu ≤ 67°").
+    results = [
+        _result(0, {"shallow"}, min_elbow_angle=57.0),
+        _result(1, {"shallow"}, min_elbow_angle=80.0),
+    ]
+    text = TemplateCoach().summarize(Session("s", "pushup", results))
+    assert "Chưa xuống đủ sâu ở rep 1–2 (góc khuỷu ở đáy 80°, mục tiêu ≤ 67°)." in text.splitlines()
+    text = TemplateCoach().summarize(Session("s", "pushup", results[:1]))
+    assert "Chưa xuống đủ sâu ở rep 1." in text.splitlines()
+    assert "°" not in text
+
+
+VN = timezone(timedelta(hours=7))
+D = date(2026, 10, 20)
+
+
+def _set(day: date, hour: int, n_reps: int) -> SetRecord:
+    return SetRecord(datetime(day.year, day.month, day.day, hour, 0, tzinfo=VN), n_reps, n_reps)
+
+
+def test_progress_after_counts_only_sets_up_to_this_one() -> None:
+    # Hôm qua 10 rep, hôm nay 3 hiệp; xem hiệp lúc 18h: hiệp 20h (ghi sau) chưa tính.
+    records = [_set(D - timedelta(1), 18, 10), _set(D, 7, 12), _set(D, 18, 8), _set(D, 20, 30)]
+    goals = [Goal(daily_reps=20, from_date=D - timedelta(1))]
+    at = datetime(2026, 10, 20, 18, 0, tzinfo=VN)
+    assert progress_after(records, goals, at) == CoachProgress(20, 20, streak=1)
+    # Hiệp lúc 7h: hôm nay mới 12/20 (chưa đạt), hôm qua 10/20 cũng chưa đạt → streak 0.
+    at7 = datetime(2026, 10, 20, 7, 0, tzinfo=VN)
+    assert progress_after(records, goals, at7) == CoachProgress(12, 20, streak=0)
+
+
+def test_progress_after_without_goal_and_naive_time() -> None:
+    # Chưa đặt mục tiêu: có tập là đạt. Chuỗi không múi giờ vẫn so được với chuỗi có múi giờ.
+    records = [_set(D - timedelta(1), 18, 5), _set(D, 9, 4)]
+    at = datetime(2026, 10, 20, 9, 0)  # không múi giờ
+    assert progress_after(records, [], at) == CoachProgress(4, None, streak=2)
