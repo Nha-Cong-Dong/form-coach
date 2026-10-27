@@ -1,5 +1,5 @@
 // Trang kết quả một hiệp, theo canvas "Kết quả" (DESIGN.md). Chỉ hiển thị: rep và lỗi do server
-// phân loại (formcoach). Chưa có coach và mục tiêu ngày (tuần 4).
+// phân loại (formcoach) và câu coach do server dựng.
 import { useEffect, useState } from 'react'
 import RepReplay from './RepReplay'
 import { fetchExercise, fetchResult } from '../results/api'
@@ -8,6 +8,7 @@ import {
   formatDuration,
   formatRecordedAt,
   measureText,
+  outsideTarget,
   repRanges,
   repsByError,
   targetText,
@@ -178,24 +179,27 @@ export default function ResultView({ exercise, sessionId }: Props) {
       )}
 
       {/* Số đo từng rep (vd góc khuỷu ở đáy) kèm mục tiêu: người tập thấy cần sửa bao nhiêu,
-          không chỉ "sai". Màu theo kết luận của bộ phân loại, mục tiêu chỉ là mốc tham khảo. */}
+          không chỉ "sai". Viền theo số đo so với mục tiêu, không theo bộ phân loại: mô hình (rf)
+          có thể báo lỗi dù số đo trong mục tiêu, viền khi đó tự mâu thuẫn ("57°" viền đậm cạnh
+          "Mục tiêu ≤ 67°"). Kết luận của mô hình vẫn ở vòng rep và thẻ "Cần sửa". */}
       {n_reps > 0 &&
         result.measures.map((m) => (
           <section className="card" key={m.feature}>
             <h2>{m.label}</h2>
             <p className="label measure-target">
-              Mục tiêu {targetText(m.op, m.threshold, m.unit)} · viền đậm = {name(m.error).toLowerCase()}
+              Mục tiêu {targetText(m.op, m.threshold, m.unit)}
             </p>
             <ol className="measure-grid">
               {result.reps.map((rep) => {
-                const flagged = rep.errors.includes(m.error)
-                const value = measureText(rep.measures?.[m.feature], m.unit)
+                const raw = rep.measures?.[m.feature]
+                const outside = outsideTarget(m.op, m.threshold, raw)
+                const value = measureText(raw, m.unit)
                 return (
                   <li key={rep.index}>
                     <button
                       type="button"
-                      className={flagged ? 'measure measure-fix' : 'measure measure-ok'}
-                      aria-label={`Rep ${rep.index + 1}: ${m.label.toLowerCase()} ${value}${flagged ? `, ${name(m.error).toLowerCase()}` : ''}. Xem lại`}
+                      className={outside ? 'measure measure-fix' : 'measure measure-ok'}
+                      aria-label={`Rep ${rep.index + 1}: ${m.label.toLowerCase()} ${value}${outside ? ', ngoài mục tiêu' : ''}. Xem lại`}
                       onClick={() => setReplay(rep.index)}
                     >
                       <span className="measure-rep">Rep {rep.index + 1}</span>
@@ -205,6 +209,16 @@ export default function ResultView({ exercise, sessionId }: Props) {
                 )
               })}
             </ol>
+            <div className="legend" aria-hidden="true">
+              <span>
+                <i className="measure-swatch measure-ok" />
+                Đạt
+              </span>
+              <span>
+                <i className="measure-swatch measure-fix" />
+                Chưa đạt
+              </span>
+            </div>
           </section>
         ))}
 
@@ -221,6 +235,14 @@ export default function ResultView({ exercise, sessionId }: Props) {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {result.coach && (
+        <section className="card coach-card" aria-labelledby="coach-title">
+          <h2 id="coach-title">Coach</h2>
+          <p className="coach-text">{result.coach.text}</p>
+          <p className="caption">Công cụ hỗ trợ, không thay huấn luyện viên.</p>
         </section>
       )}
 
