@@ -140,8 +140,11 @@ def store_result(
 
 def load_result(
     db: sqlite3.Connection, user_id: int, exercise: str, session_id: str
-) -> dict[str, Any] | None:
-    """Kết quả một hiệp của chính user; không có (hoặc của người khác) → None."""
+) -> tuple[dict[str, Any], Session] | None:
+    """(JSON kết quả, Session) một hiệp của chính user; không có (hoặc của người khác) → None.
+
+    Trả kèm `Session` để route dựng nhận xét coach (ở backend/progress.py) mà không đọc lại DB.
+    """
     row = db.execute(
         "SELECT * FROM sessions WHERE user_id = ? AND exercise = ? AND session_id = ?",
         (user_id, exercise, session_id),
@@ -171,7 +174,7 @@ def load_result(
         "reps": [rep_json(r, ex) for r in results],
         "summary": summarize(session, ex.error_labels),
         "measures": measures_json(ex),
-    }
+    }, session
 
 
 def rep_frames(

@@ -1220,14 +1220,14 @@ a:focus-visible {
   gap: 6px;
 }
 
-/* Số đo từng rep: ô đúng nền track, ô bị báo lỗi viền ink (như rep-dot, không dùng đỏ). */
+/* Số đo từng rep: ô đạt mục tiêu nền track, ô chưa đạt viền ink (như rep-dot, không dùng đỏ). */
 .measure-target {
   margin: -6px 0 12px;
 }
 
 .measure-grid {
   list-style: none;
-  margin: 0;
+  margin: 0 0 14px;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
@@ -1241,6 +1241,15 @@ a:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* Ô mẫu trong chú giải: ô số đo thu nhỏ, bo góc theo cùng tỉ lệ. */
+.measure-swatch {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 14px;
+  height: 12px;
+  border-radius: calc(var(--radius-input) / 4);
 }
 
 .measure-ok {
@@ -1429,6 +1438,31 @@ button.measure-fix {
 .fix-name {
   font-size: var(--text-body);
   font-weight: 600;
+}
+
+/* Coach (canvas "Kết quả"): chữ "Coach" màu accent, mỗi ý một dòng (server tách bằng "\n"). */
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coach-card h2 {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--color-accent);
+}
+
+.coach-text {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.result .coach-card .caption {
+  margin: 0;
+  text-align: left;
 }
 
 .result-actions {

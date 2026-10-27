@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatRecordedAt,
   measureText,
+  outsideTarget,
   repRanges,
   repsByError,
   targetText,
@@ -16,6 +17,15 @@ import {
 assert.equal(targetText('>', 67, '°'), '≤ 67°') // shallow: lỗi khi góc đáy > 67°
 assert.equal(targetText('<', 146, '°'), '≥ 146°') // incomplete_lockout: lỗi khi góc đỉnh < 146°
 assert.equal(targetText('>', 66.6, '°'), '≤ 67°')
+
+// outsideTarget: cùng phía với luật lỗi; đúng bằng ngưỡng vẫn trong mục tiêu; không đo được → false
+assert.equal(outsideTarget('>', 67, 57), false) // 57° đáy: trong mục tiêu ≤ 67° dù mô hình báo lỗi
+assert.equal(outsideTarget('>', 67, 80), true)
+assert.equal(outsideTarget('>', 67, 67), false)
+assert.equal(outsideTarget('<', 146, 130), true)
+assert.equal(outsideTarget('<', 146, 160), false)
+assert.equal(outsideTarget('>', 67, null), false)
+assert.equal(outsideTarget('>', 67, undefined), false)
 
 // frameAt: khung cuối cùng có thời gian ≤ t
 const times = [0, 0.033, 0.067, 0.1]

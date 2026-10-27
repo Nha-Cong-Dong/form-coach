@@ -131,3 +131,33 @@ def test_progress_needs_login(make_client) -> None:
     make_client("an@example.com")
     r = TestClient(app).get("/api/progress", params={"from": str(TODAY), "to": str(TODAY)})
     assert r.status_code == 401
+
+
+def test_result_has_coach_with_progress_up_to_that_set(make_client) -> None:
+    client = make_client("an@example.com")
+    client.put("/api/goals", json={"exercise": "pushup", "daily_reps": 6, "today": str(TODAY)})
+    _upload(client, TODAY - timedelta(days=1), 0)  # hôm qua chưa có mục tiêu: có tập là đạt
+    _upload(client, TODAY, 0)
+    _upload(client, TODAY, 1)
+
+    def coach(i: int) -> dict:
+        sid = f"{TODAY.isoformat()}T18-00-{i:02d}_pushup"
+        r = client.get(f"/api/sessions/pushup/{sid}/result")
+        assert r.status_code == 200
+        return r.json()["coach"]
+
+    # Hiệp đầu hôm nay: chỉ tính chính nó (3/6, chưa đạt → streak chỉ có hôm qua), dù xem sau
+    # khi đã tập hiệp thứ hai. Sau hiệp thứ hai: 6/6 đạt → streak hôm qua + hôm nay.
+    assert coach(0)["source"] == "template"
+    assert coach(0)["text"].splitlines()[-1] == "Hôm nay 3/6 rep, streak 1 ngày."
+    assert coach(1)["text"].splitlines()[-1] == "Hôm nay 6/6 rep, streak 2 ngày."
+    assert coach(1)["text"].startswith("Hiệp này: 3 rep")
+
+
+def test_upload_response_has_coach(make_client) -> None:
+    client = make_client("an@example.com")
+    payload = three_rep_session()
+    payload["recorded_at"] = f"{TODAY.isoformat()}T18:00:00+07:00"
+    r = client.post("/api/sessions", json=payload)
+    assert r.status_code == 201
+    assert r.json()["coach"]["text"].splitlines()[-1] == "Hôm nay 3 rep, streak 1 ngày."

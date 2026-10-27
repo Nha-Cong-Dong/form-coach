@@ -122,6 +122,7 @@ def upload_session(
         "reps": [results.rep_json(r, exercise) for r in session.results],
         "summary": summarize(session, exercise.error_labels),
         "measures": results.measures_json(exercise),
+        "coach": progress.coach_json(db, user.id, session, meta.recorded_at),
     }
 
 
@@ -131,7 +132,8 @@ def session_result(exercise: str, session_id: str, db: Db, user: CurrentUser) ->
     found = results.load_result(db, user.id, exercise, session_id)
     if found is None:
         raise HTTPException(status_code=404, detail="không có kết quả cho hiệp này")
-    return found
+    result, session = found
+    return {**result, "coach": progress.coach_json(db, user.id, session, result["recorded_at"])}
 
 
 @protected.get("/api/results")

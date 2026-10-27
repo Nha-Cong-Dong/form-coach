@@ -15,7 +15,9 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from backend import results
+from formcoach.coach import TemplateCoach, progress_after
 from formcoach.progress.goals import DayProgress, Goal, SetRecord, daily_progress, goal_on, streak
+from formcoach.types import Session
 
 MAX_DAYS = 366  # một lần hỏi tối đa một năm: đủ cho đồ thị, chặn khoảng ngày vô lý
 
@@ -105,3 +107,16 @@ def progress_json(
         },
         "days": [_day_json(d) for d in days],
     }
+
+
+def coach_json(
+    db: sqlite3.Connection, user_id: int, session: Session, recorded_at: str
+) -> dict[str, Any]:
+    """Nhận xét của coach cho một hiệp đã lưu, tính lúc đọc (không lưu chữ vào DB).
+
+    Tiến độ chỉ tính tới hết hiệp này; mục tiêu là mục tiêu hiện có cho ngày đó.
+    """
+    records = set_records(db, user_id, session.exercise)
+    goals = load_goals(db, user_id, session.exercise)
+    at = progress_after(records, goals, datetime.fromisoformat(recorded_at))
+    return {"text": TemplateCoach().summarize(session, at), "source": "template"}

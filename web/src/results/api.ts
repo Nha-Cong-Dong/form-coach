@@ -38,6 +38,13 @@ export interface SessionResult {
   reps: ResultRep[]
   summary: ResultSummary
   measures: Measure[]
+  coach?: CoachText // server dựng câu (TemplateCoach); web chỉ hiển thị
+}
+
+/** Nhận xét của coach; các dòng cách nhau bằng "\n". `source`: "template" (sau này "deepseek"). */
+export interface CoachText {
+  text: string
+  source: string
 }
 
 export interface ExerciseInfo {

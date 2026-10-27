@@ -51,6 +51,13 @@ export function targetText(op: '<' | '>', threshold: number, unit: string): stri
   return `${op === '>' ? '≤' : '≥'} ${Math.round(threshold)}${unit}`
 }
 
+/** Số đo có nằm ngoài mục tiêu không (lỗi khi `giá trị <op> ngưỡng`, như luật ở server).
+ *  Không đo được → false. Chỉ so số đo với mốc, không phải kết luận của bộ phân loại. */
+export function outsideTarget(op: '<' | '>', threshold: number, value: number | null | undefined): boolean {
+  if (value === null || value === undefined) return false
+  return op === '<' ? value < threshold : value > threshold
+}
+
 /** Số đo một rep: làm tròn, kèm đơn vị; không đo được (null) → "—". */
 export function measureText(value: number | null | undefined, unit: string): string {
   return value === null || value === undefined ? '—' : `${Math.round(value)}${unit}`
