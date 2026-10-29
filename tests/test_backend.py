@@ -17,6 +17,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     # Luật: không cần dữ liệu đã gán nhãn hay scikit-learn (mô hình học test ở test_train.py).
     monkeypatch.setenv("FORMCOACH_MODEL", "rules")
+    # File này test công cụ dữ liệu (danh sách hiệp, nhãn): user giả là admin. Quyền: test_auth.py.
+    monkeypatch.setenv("FORMCOACH_ADMIN_EMAILS", "test@example.com")
     # Giả vờ đã đăng nhập: test ở đây kiểm tra endpoint, phần đăng nhập test ở test_auth.py.
     # User 1 phải có trong DB vì kết quả tải lên được lưu kèm user_id (khoá ngoại).
     conn = connect(db_path())

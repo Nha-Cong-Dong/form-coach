@@ -53,6 +53,23 @@ export interface ExerciseInfo {
   error_display: Record<string, string>
 }
 
+/** Một dòng của `GET /api/results` (lịch sử của mình, mới nhất trước). */
+export interface HistoryItem {
+  exercise: string
+  session_id: string
+  recorded_at: string
+  duration_s: number
+  model_name: string
+  n_reps: number
+  n_good: number
+}
+
+export async function fetchHistory(): Promise<HistoryItem[]> {
+  const r = await fetch('/api/results')
+  if (!r.ok) throw await failure(r)
+  return r.json()
+}
+
 /** Kết quả đã lưu của một hiệp; 404 (không có / không phải của mình) → null. */
 export async function fetchResult(exercise: string, sessionId: string): Promise<SessionResult | null> {
   const r = await fetch(`/api/sessions/${exercise}/${encodeURIComponent(sessionId)}/result`)

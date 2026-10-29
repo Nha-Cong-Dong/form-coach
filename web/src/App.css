@@ -420,6 +420,16 @@ fieldset {
   text-decoration: line-through;
 }
 
+/* Rep chưa duyệt (hiệp Tập, D0c): chữ nhạt + nghiêng, khác hẳn rep đã duyệt "tốt". */
+.reps tr.pending td {
+  color: var(--color-ink2);
+  font-style: italic;
+}
+
+.reps button.review-ok {
+  padding: 2px 10px;
+}
+
 .reps input.note {
   width: 12em;
 }
@@ -1922,5 +1932,191 @@ main .train-panel h1 {
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* Link công cụ dữ liệu mở khi không phải admin (D0d). */
+.admin-only {
+  max-width: 640px;
+  margin: 24px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* ---------- Lịch sử (D0e, bản B: lịch tháng + hiệp của ngày đang chọn) ---------- */
+.history {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+}
+
+/* Đệm ngang nhỏ hơn thẻ thường để 7 ô ngày đủ 44px trên điện thoại rộng 390. */
+.history-cal {
+  padding: var(--space-card) 10px;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-head h2 {
+  margin: 0;
+}
+
+.cal-head .icon-button {
+  margin-left: 0;
+}
+
+.cal-head .icon-button:disabled {
+  color: var(--color-line);
+  cursor: default;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.cal-weekday {
+  padding: 4px 0;
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--color-ink2);
+}
+
+/* Ô ngày tròn như vòng rep; màu như đồ thị Dashboard: đạt = accent, có tập = tint. */
+.cal-day {
+  aspect-ratio: 1 / 1;
+  min-height: var(--size-touch);
+  max-height: 56px;
+  justify-self: center;
+  width: 100%;
+  max-width: 56px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+button.cal-day {
+  cursor: pointer;
+}
+
+.cal-day.met {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+
+.cal-day.trained {
+  background: var(--color-tint);
+}
+
+.cal-day.today {
+  font-weight: 700;
+}
+
+/* Ngày đang chọn: vòng ink bên trong, nhìn rõ trên cả ba nền. */
+.cal-day.selected {
+  box-shadow: inset 0 0 0 2px var(--color-ink);
+}
+
+.cal-day.met.selected {
+  box-shadow:
+    inset 0 0 0 2px var(--color-ink),
+    inset 0 0 0 4px var(--color-on-accent);
+}
+
+.cal-day.future {
+  color: var(--color-ink2);
+  opacity: 0.5;
+}
+
+.history .legend {
+  padding: 0 8px;
+}
+
+.history .label {
+  font-size: var(--text-label);
+  color: var(--color-ink2);
+}
+
+.history-day-sum {
+  margin: -6px 0 8px;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-list li + li {
+  border-top: 1px solid var(--color-line);
+}
+
+.history-list a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--size-touch);
+  padding: 8px 0;
+  color: var(--color-ink);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-time {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.history-reps {
+  flex: 1;
+  font-size: var(--text-body-sm);
+}
+
+.history-list svg {
+  color: var(--color-ink2);
+}
+
+.history-admin {
+  padding: 0 4px;
+}
+
+.history > * {
+  animation: enter var(--motion-slow) var(--motion-ease) both;
+}
+
+.history > :nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.history > :nth-child(n + 3) {
+  animation-delay: 120ms;
+}
+
+@media (max-width: 720px) {
+  /* Thanh dưới chỉ việc của người tập (Dashboard · Quay · Lịch sử); Gán nhãn của admin nằm ở
+     cuối màn Lịch sử. Máy tính vẫn có Gán nhãn trên thanh trên. */
+  .main-nav .nav-admin {
+    display: none;
   }
 }

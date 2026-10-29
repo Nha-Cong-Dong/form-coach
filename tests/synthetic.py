@@ -61,3 +61,10 @@ def three_rep_session(set_errors=()) -> dict:
     data = make_session(np.concatenate([np.full(30, 165.0), reps, np.full(30, 165.0)]), 5.0)
     data["set_errors"] = list(set_errors)
     return data
+
+
+def train_session() -> dict:
+    """Như three_rep_session nhưng là hiệp chế độ Tập: người dùng thường (không admin) gửi được."""
+    data = three_rep_session()
+    data["capture_mode"] = "train"
+    return data

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import app
 from backend.db import connect, db_path
-from tests.synthetic import three_rep_session
+from tests.synthetic import train_session
 
 PW = "mat-khau-dai"
 # Mục tiêu chỉ đặt được cho "hôm nay" (±1 ngày so với server), nên dữ liệu thử bám ngày thật.
@@ -32,7 +32,7 @@ def make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def _upload(client: TestClient, day: date, i: int) -> int:
     """Tải một hiệp 3 rep quay lúc 18:0i ngày `day` (giờ VN); trả số rep đúng bộ phân loại chấm."""
-    payload = three_rep_session()
+    payload = train_session()
     payload["session_id"] = f"{day.isoformat()}T18-00-{i:02d}_pushup"
     payload["recorded_at"] = f"{day.isoformat()}T18:00:{i:02d}+07:00"
     r = client.post("/api/sessions", json=payload)
@@ -156,7 +156,7 @@ def test_result_has_coach_with_progress_up_to_that_set(make_client) -> None:
 
 def test_upload_response_has_coach(make_client) -> None:
     client = make_client("an@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     payload["recorded_at"] = f"{TODAY.isoformat()}T18:00:00+07:00"
     r = client.post("/api/sessions", json=payload)
     assert r.status_code == 201

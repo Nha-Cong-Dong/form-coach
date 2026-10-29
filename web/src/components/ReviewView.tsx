@@ -11,6 +11,7 @@ import StickFigure from './StickFigure'
 
 interface Props {
   sessionId: string
+  needsReview: boolean // hiệp Tập: chưa lưu nhãn thì phải duyệt từng rep mới lưu được (D0c)
   onBack: () => void
 }
 
@@ -28,10 +29,13 @@ function frameAt(times: number[], t: number): number {
 
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v.toFixed(0)}°`)
 
-export default function ReviewView({ sessionId, onBack }: Props) {
+export default function ReviewView({ sessionId, needsReview, onBack }: Props) {
   const [data, setData] = useState<ReviewData | null>(null)
   const [labels, setLabels] = useState<RepLabel[]>([])
   const [dirty, setDirty] = useState(false) // có thay đổi chưa lưu
+  // Rep chưa duyệt (chỉ hiệp Tập chưa lưu nhãn lần nào). Chỉ nằm trên trang: rời trang là mất,
+  // nhưng file nhãn chỉ được lưu khi đã duyệt hết, nên không có nhãn "tốt" nào chưa ai xem.
+  const [pending, setPending] = useState<ReadonlySet<number>>(new Set())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [error, setError] = useState('')
@@ -45,9 +49,10 @@ export default function ReviewView({ sessionId, onBack }: Props) {
       .then((d) => {
         setData(d)
         setLabels(d.labels.reps)
+        setPending(new Set(needsReview && !d.labels_saved ? d.labels.reps.map((r) => r.rep_index) : []))
       })
       .catch((e) => setError(`Không tải được hiệp (${e.message}).`))
-  }, [sessionId])
+  }, [sessionId, needsReview])
 
   const times = useMemo(() => data?.times_s ?? [], [data])
   const series: Series[] = useMemo(
@@ -132,6 +137,17 @@ export default function ReviewView({ sessionId, onBack }: Props) {
     setMessage(null)
   }
 
+  const markReviewed = (index: number) => {
+    setPending((p) => {
+      if (!p.has(index)) return p
+      const next = new Set(p)
+      next.delete(index)
+      return next
+    })
+    setDirty(true)
+    setMessage(null)
+  }
+
   const save = () => {
     setSaving(true)
     setMessage(null)
@@ -199,7 +215,9 @@ export default function ReviewView({ sessionId, onBack }: Props) {
         <p className="hint">
           {data.labels_saved
             ? 'Đang hiện nhãn đã lưu lần trước.'
-            : `Chưa lưu lần nào. Đã điền sẵn cho mọi rep lỗi bạn chọn lúc quay (${
+            : needsReview
+              ? 'Hiệp Tập: không có lỗi cố ý nên không điền sẵn nhãn. Xem từng rep rồi bấm Tốt hoặc tick lỗi; duyệt hết mới lưu được.'
+              : `Chưa lưu lần nào. Đã điền sẵn cho mọi rep lỗi bạn chọn lúc quay (${
                 data.set_errors.length ? data.set_errors.join(', ') : 'không lỗi = tập đúng'
               }); xem lại từng rep, sửa rep nào khác đi, rồi bấm Lưu nhãn.`}
         </p>
@@ -220,12 +238,15 @@ export default function ReviewView({ sessionId, onBack }: Props) {
             currentIndex={currentRep ? currentRep.index : null}
             onChange={changeLabel}
             onJump={(i) => seek(data.reps[i].start_s)}
+            pending={needsReview && !data.labels_saved ? pending : undefined}
+            onReviewed={markReviewed}
           />
         )}
         <div className="controls">
-          <button onClick={save} disabled={saving || misaligned || labels.length === 0}>
+          <button onClick={save} disabled={saving || misaligned || labels.length === 0 || pending.size > 0}>
             {saving ? 'Đang lưu…' : 'Lưu nhãn'}
           </button>{' '}
+          {pending.size > 0 && <span className="warn">Còn {pending.size} rep chưa duyệt.</span>}{' '}
           {dirty && <span className="warn">Có thay đổi chưa lưu</span>}
           {message && <span className={message.kind}>{message.text}</span>}
         </div>

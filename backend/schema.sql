@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS goals (
     UNIQUE (user_id, exercise, from_date)
 );
 
+-- Lần đăng nhập sai, để khoá tạm khi bị đoán mật khẩu (backend/auth.py, D0b). Ghi theo email
+-- viết thường, kể cả email chưa đăng ký (không lộ email nào có thật). Không khoá ngoại tới users.
+-- Bản ghi cũ hơn cửa sổ đếm + thời gian khoá bị xoá ở mỗi lần đăng nhập.
+CREATE TABLE IF NOT EXISTS login_failures (
+    id        INTEGER PRIMARY KEY,
+    email_key TEXT NOT NULL,  -- lower(email)
+    at        TEXT NOT NULL
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
+CREATE INDEX IF NOT EXISTS idx_login_failures_email ON login_failures (email_key, at);
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
