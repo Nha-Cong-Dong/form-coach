@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listSessions } from '../label/api'
 import type { SessionSummary } from '../label/api'
+import type { CaptureMode } from '../session/format'
 
 interface Props {
-  onSelect: (sessionId: string) => void
+  // Kèm chế độ quay: màn gán nhãn xử lý hiệp Tập khác hiệp Quay dữ liệu (file cũ = dataset).
+  onSelect: (sessionId: string, mode: CaptureMode) => void
 }
 
 /** "2026-10-20T10:14:01+07:00" → "2026-10-20 10:14:01". Cắt chuỗi, không đổi múi giờ:
@@ -67,7 +69,7 @@ export default function SessionList({ onSelect }: Props) {
                   </td>
                 </tr>
               ) : (
-                <tr key={s.session_id} className="pick" onClick={() => onSelect(s.session_id)}>
+                <tr key={s.session_id} className="pick" onClick={() => onSelect(s.session_id, s.capture_mode ?? 'dataset')}>
                   <td>{formatRecordedAt(s.recorded_at)}</td>
                   <td>
                     {s.capture_mode === 'train'

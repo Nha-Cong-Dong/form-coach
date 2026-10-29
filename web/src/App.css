@@ -420,6 +420,16 @@ fieldset {
   text-decoration: line-through;
 }
 
+/* Rep chưa duyệt (hiệp Tập, D0c): chữ nhạt + nghiêng, khác hẳn rep đã duyệt "tốt". */
+.reps tr.pending td {
+  color: var(--color-ink2);
+  font-style: italic;
+}
+
+.reps button.review-ok {
+  padding: 2px 10px;
+}
+
 .reps input.note {
   width: 12em;
 }
