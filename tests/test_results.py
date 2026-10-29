@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import app
 from backend.db import connect, db_path
-from tests.synthetic import three_rep_session
+from tests.synthetic import train_session
 
 PW = "mat-khau-dai"
 
@@ -31,7 +31,7 @@ def make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def test_upload_returns_reps_and_summary(make_client) -> None:
     client = make_client("an@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     r = client.post("/api/sessions", json=payload)
     assert r.status_code == 201
     body = r.json()
@@ -45,7 +45,7 @@ def test_upload_returns_reps_and_summary(make_client) -> None:
 
 def test_result_is_stored_and_read_back(make_client) -> None:
     client = make_client("an@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     uploaded = client.post("/api/sessions", json=payload).json()
     r = client.get(f"/api/sessions/pushup/{payload['session_id']}/result")
     assert r.status_code == 200
@@ -64,7 +64,7 @@ def test_result_is_stored_and_read_back(make_client) -> None:
 def test_other_user_cannot_read_result(make_client) -> None:
     an = make_client("an@example.com")
     binh = make_client("binh@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     an.post("/api/sessions", json=payload)
     assert binh.get(f"/api/sessions/pushup/{payload['session_id']}/result").status_code == 404
     assert binh.get("/api/results").json() == []
@@ -72,7 +72,7 @@ def test_other_user_cannot_read_result(make_client) -> None:
 
 def test_results_list_only_mine(make_client) -> None:
     an = make_client("an@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     an.post("/api/sessions", json=payload)
     items = an.get("/api/results").json()
     assert len(items) == 1
@@ -83,7 +83,7 @@ def test_results_list_only_mine(make_client) -> None:
 
 def test_duplicate_upload_is_409_and_not_stored_twice(make_client) -> None:
     client = make_client("an@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     assert client.post("/api/sessions", json=payload).status_code == 201
     assert client.post("/api/sessions", json=payload).status_code == 409
     conn = connect(db_path())
@@ -100,13 +100,13 @@ def test_learned_model_without_labels_falls_back_to_rules(make_client, monkeypat
     # Server không có dữ liệu đã gán nhãn (vd khi deploy): vẫn chạy, ghi đúng mô hình đã dùng.
     monkeypatch.setenv("FORMCOACH_MODEL", "stump")
     client = make_client("an@example.com")
-    body = client.post("/api/sessions", json=three_rep_session()).json()
+    body = client.post("/api/sessions", json=train_session()).json()
     assert body["model_name"] == "rules"
 
 
 def test_result_has_measures_with_targets_from_rules(make_client) -> None:
     client = make_client("an@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     uploaded = client.post("/api/sessions", json=payload).json()
     stored = client.get(f"/api/sessions/pushup/{payload['session_id']}/result").json()
     for body in (uploaded, stored):
@@ -134,7 +134,7 @@ def test_exercise_info_has_display_names(make_client) -> None:
 def test_rep_replay_owner_only(make_client) -> None:
     an = make_client("an@example.com")
     binh = make_client("binh@example.com")
-    payload = three_rep_session()
+    payload = train_session()
     an.post("/api/sessions", json=payload)
     url = f"/api/sessions/pushup/{payload['session_id']}/result/reps/1/replay"
     r = an.get(url)

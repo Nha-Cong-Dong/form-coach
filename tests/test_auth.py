@@ -1,4 +1,5 @@
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -7,7 +8,7 @@ from fastapi.testclient import TestClient
 from backend.app import app
 from backend.auth import COOKIE_NAME
 from backend.db import connect, db_path
-from tests.synthetic import make_session
+from tests.synthetic import make_session, train_session
 
 PW = "mat-khau-dai"
 
@@ -215,4 +216,49 @@ def test_exercise_info_is_open(anon_client: TestClient) -> None:
 
 def test_upload_works_after_login(anon_client: TestClient) -> None:
     _register(anon_client)
-    assert anon_client.post("/api/sessions", json=make_session()).status_code == 201
+    assert anon_client.post("/api/sessions", json=train_session()).status_code == 201
+
+
+# --- admin (FORMCOACH_ADMIN_EMAILS) ---
+
+DATA_TOOLS = [
+    ("get", "/api/sessions/pushup"),
+    ("get", "/api/sessions/pushup/s1/review"),
+    ("put", "/api/sessions/pushup/s1/labels"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), DATA_TOOLS)
+def test_data_tools_are_403_for_non_admin(
+    anon_client: TestClient, monkeypatch, method: str, path: str
+) -> None:
+    monkeypatch.setenv("FORMCOACH_ADMIN_EMAILS", "admin@example.com")
+    _register(anon_client)  # an@example.com: không có trong danh sách
+    kwargs = {"json": {}} if method == "put" else {}
+    assert getattr(anon_client, method)(path, **kwargs).status_code == 403
+
+
+def test_admin_list_ignores_case_and_spaces(anon_client: TestClient, monkeypatch) -> None:
+    # Biến gõ tay khi deploy: chấp nhận khoảng trắng và hoa thường khác email đã đăng ký.
+    monkeypatch.setenv("FORMCOACH_ADMIN_EMAILS", " khac@example.com , AN@Example.com ")
+    _register(anon_client)
+    assert anon_client.get("/api/auth/me").json()["is_admin"] is True
+    assert anon_client.get("/api/sessions/pushup").status_code == 200
+
+
+def test_no_admin_by_default(anon_client: TestClient) -> None:
+    _register(anon_client)
+    assert anon_client.get("/api/auth/me").json()["is_admin"] is False
+    assert anon_client.get("/api/sessions/pushup").status_code == 403
+
+
+def test_dataset_upload_is_admin_only(anon_client: TestClient, monkeypatch) -> None:
+    # Hiệp Quay dữ liệu (cả file cũ không ghi capture_mode) là dữ liệu train: người thường 403,
+    # không ghi file. Hiệp Tập ("train") thì ai cũng gửi được.
+    monkeypatch.setenv("FORMCOACH_ADMIN_EMAILS", "admin@example.com")
+    _register(anon_client)
+    dataset = make_session()
+    assert anon_client.post("/api/sessions", json=dataset).status_code == 403
+    assert not list(Path(os.environ["FORMCOACH_DATA_DIR"]).glob("sessions/**/*.json"))
+    _register(anon_client, "admin@example.com")  # đăng ký = đăng nhập bằng tài khoản admin
+    assert anon_client.post("/api/sessions", json=dataset).status_code == 201

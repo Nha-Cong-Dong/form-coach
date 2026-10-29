@@ -2,7 +2,9 @@
 (xem lại một hiệp, lưu nhãn vào data/labels/).
 
 Đăng nhập ở backend/auth.py: mọi endpoint trong router `protected` cần cookie phiên hợp lệ
-(401 nếu không); chỉ /api/auth/* và /api/exercises/* mở. Mọi logic nằm trong formcoach/.
+(401 nếu không); chỉ /api/auth/* và /api/exercises/* mở. Công cụ dữ liệu (danh sách hiệp, review,
+nhãn) nằm trong router `admin`: thêm 403 nếu không phải admin (`FORMCOACH_ADMIN_EMAILS`).
+Mọi logic nằm trong formcoach/.
 Chỉ lắng nghe 127.0.0.1; điện thoại đi qua proxy của Vite dev server (bước 9) nên backend
 không lộ ra mạng LAN.
 
@@ -45,6 +47,8 @@ app.include_router(auth.router)
 app.include_router(live.router)
 # Endpoint thêm vào router này tự động cần đăng nhập (không phải nhớ gắn từng route).
 protected = APIRouter(dependencies=[Depends(auth.current_user)])
+# Công cụ dữ liệu: thấy hiệp của mọi người và ghi nhãn train, nên chỉ admin.
+admin = APIRouter(dependencies=[Depends(auth.admin_user)])
 Db = Annotated[sqlite3.Connection, Depends(get_db)]
 CurrentUser = Annotated[auth.User, Depends(auth.current_user)]
 
@@ -84,6 +88,10 @@ def upload_session(
         pose, meta = parse_session(payload)
     except SessionFormatError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
+    # Hiệp "Quay dữ liệu" (lỗi cố ý, ghi chú) là dữ liệu train: chỉ admin. File không ghi
+    # capture_mode được coi là "dataset" (file cũ), nên trang Tập phải gửi "train".
+    if meta.capture_mode == "dataset" and not auth.is_admin(user):
+        raise HTTPException(status_code=403, detail="chỉ admin được gửi hiệp Quay dữ liệu")
 
     folder = (data_dir() / "sessions" / meta.exercise).resolve()
     path = (folder / f"{meta.session_id}.json").resolve()
@@ -231,7 +239,7 @@ def _load(exercise: str, session_id: str):
         raise HTTPException(status_code=422, detail=f"file hiệp hỏng: {e}") from None
 
 
-@protected.get("/api/sessions/{exercise}")
+@admin.get("/api/sessions/{exercise}")
 def list_sessions(exercise: str) -> list[dict[str, Any]]:
     """Các hiệp đã quay của một bài, mới nhất trước. File hỏng vẫn hiện, kèm lỗi."""
     if exercise not in EXERCISES:
@@ -262,7 +270,7 @@ def list_sessions(exercise: str) -> list[dict[str, Any]]:
     return items
 
 
-@protected.get("/api/sessions/{exercise}/{session_id}/review")
+@admin.get("/api/sessions/{exercise}/{session_id}/review")
 def review_session(exercise: str, session_id: str) -> dict[str, Any]:
     """Dữ liệu cho màn hình gán nhãn: thời gian, góc, khung xương rút gọn, rep, nhãn."""
     pose, meta = _load(exercise, session_id)
@@ -273,7 +281,7 @@ def review_session(exercise: str, session_id: str) -> dict[str, Any]:
     return build_review(pose, meta, get_exercise(exercise), saved)
 
 
-@protected.put("/api/sessions/{exercise}/{session_id}/labels")
+@admin.put("/api/sessions/{exercise}/{session_id}/labels")
 def put_labels(
     exercise: str,
     session_id: str,
@@ -300,3 +308,4 @@ def put_labels(
 
 # Phải gọi SAU khi khai báo route: include_router chép các route đang có tại thời điểm gọi.
 app.include_router(protected)
+app.include_router(admin)

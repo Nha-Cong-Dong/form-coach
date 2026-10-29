@@ -7,6 +7,8 @@ bảng `auth_tokens` một lần; đăng xuất = xoá hàng đó, token mất h
 Biến môi trường:
 - `FORMCOACH_ALLOW_REGISTER=1`: cho phép tạo tài khoản. Mặc định TẮT, để deploy mà quên cấu
   hình thì người lạ cũng không tự tạo tài khoản được.
+- `FORMCOACH_ADMIN_EMAILS=a@x.com,b@y.com`: tài khoản admin (dùng công cụ dữ liệu: danh sách
+  hiệp, gán nhãn, Quay dữ liệu). So không phân biệt hoa thường. Mặc định trống = không ai là admin.
 - `FORMCOACH_COOKIE_SECURE=0`: cho cookie đi qua HTTP thường. Mặc định cookie có cờ `Secure`
   (chỉ gửi qua HTTPS), để deploy mà quên cấu hình cũng an toàn. Dev vẫn chạy vì trình duyệt vào
   Vite qua HTTPS (và localhost được coi là an toàn); test chạy qua http nên đặt 0.
@@ -144,6 +146,23 @@ def current_user(
     return user
 
 
+def is_admin(user: User) -> bool:
+    """Email có trong `FORMCOACH_ADMIN_EMAILS` không. Đọc lại mỗi lần để test đổi được.
+
+    Danh sách nằm ở biến môi trường, không ở DB: chỉ 1–2 admin cố định, không cần đổi bảng.
+    """
+    raw = os.environ.get("FORMCOACH_ADMIN_EMAILS", "")
+    admins = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    return user.email.lower() in admins
+
+
+def admin_user(user: Annotated[User, Depends(current_user)]) -> User:
+    """Dependency: như `current_user` (401 nếu chưa đăng nhập), thêm 403 nếu không phải admin."""
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="chỉ admin được dùng công cụ dữ liệu")
+    return user
+
+
 @router.get("/options")
 def options() -> dict[str, Any]:
     """Cấu hình màn đăng nhập (không cần đăng nhập): web ẩn nút "Tạo tài khoản" khi tắt đăng ký."""
@@ -204,5 +223,6 @@ def logout(
 
 @router.get("/me")
 def me(user: Annotated[User, Depends(current_user)]) -> dict[str, Any]:
-    """Người dùng đang đăng nhập (web dùng để biết có cần hiện màn đăng nhập không)."""
-    return {"id": user.id, "email": user.email}
+    """Người dùng đang đăng nhập (web dùng để biết có cần hiện màn đăng nhập không, và có hiện
+    công cụ dữ liệu không: `is_admin`)."""
+    return {"id": user.id, "email": user.email, "is_admin": is_admin(user)}
