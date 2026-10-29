@@ -34,6 +34,18 @@ function resultFromHash(): { exercise: string; sessionId: string } | null {
   return m ? { exercise: m[1], sessionId: decodeURIComponent(m[2]) } : null
 }
 
+/** Màn công cụ dữ liệu mở bằng link trực tiếp khi không phải admin (server cũng trả 403). */
+function AdminOnly() {
+  return (
+    <div className="admin-only">
+      <p className="form-notice">Mục này là công cụ dữ liệu, chỉ dành cho admin.</p>
+      <a className="text-button" href="#dashboard">
+        Về Dashboard
+      </a>
+    </div>
+  )
+}
+
 /** Màn gán lại mù: đọc danh sách rep từ hash; link sai thì báo. */
 function AuditRoute() {
   const hash = window.location.hash
@@ -109,6 +121,10 @@ export default function App() {
 
   // Thanh dưới (điện thoại) chỉ ở các màn chính, như canvas; màn Quay/Kết quả có link quay lại.
   const showBottomNav = tab === 'dashboard' || tab === 'label' || tab === 'quick'
+  // Công cụ dữ liệu (Quay dữ liệu, Gán nhãn, Gán nhanh, Gán lại mù) chỉ hiện cho admin. Chỉ để
+  // giao diện gọn: chặn thật là ở server (403).
+  const admin = user.is_admin === true
+  const dataTab = tab === 'label' || tab === 'quick' || tab === 'audit'
 
   return (
     <>
@@ -156,13 +172,15 @@ export default function App() {
             <span>Quay</span>
           </a>
           {/* Gán nhanh là một kiểu của Gán nhãn (link trong màn đó), không phải mục riêng. */}
-          <a href="#label" aria-current={tab === 'label' || tab === 'quick' ? 'page' : undefined}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-            </svg>
-            <span>Gán nhãn</span>
-          </a>
+          {admin && (
+            <a href="#label" aria-current={tab === 'label' || tab === 'quick' ? 'page' : undefined}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+              </svg>
+              <span>Gán nhãn</span>
+            </a>
+          )}
         </nav>
         <div className="app-bar-actions">
           <ThemeToggle />
@@ -181,29 +199,34 @@ export default function App() {
       {/* Màn Quay chỉ bị ẩn, không bị gỡ: gỡ ra sẽ mất danh sách hiệp chưa gửi (nằm trong
           state của CaptureView) và tắt camera giữa chừng. */}
       <div hidden={tab !== 'capture'}>
-        {/* Tập (app) và Quay dữ liệu (công cụ thu dataset) như canvas. Cả hai luôn gắn, chỉ ẩn
+        {/* Tập (app) và Quay dữ liệu (công cụ thu dataset, chỉ admin) như canvas. Cả hai luôn gắn, chỉ ẩn
             cái không chọn: đổi chế độ không làm mất hiệp chưa gửi của chế độ kia. */}
-        <div className="segmented capture-mode" role="group" aria-label="Chế độ">
-          <button type="button" aria-pressed={captureMode === 'train'} onClick={() => setCaptureMode('train')}>
-            Tập
-          </button>
-          <button type="button" aria-pressed={captureMode === 'data'} onClick={() => setCaptureMode('data')}>
-            Quay dữ liệu
-          </button>
-        </div>
-        <div hidden={captureMode !== 'train'}>
+        {admin && (
+          <div className="segmented capture-mode" role="group" aria-label="Chế độ">
+            <button type="button" aria-pressed={captureMode === 'train'} onClick={() => setCaptureMode('train')}>
+              Tập
+            </button>
+            <button type="button" aria-pressed={captureMode === 'data'} onClick={() => setCaptureMode('data')}>
+              Quay dữ liệu
+            </button>
+          </div>
+        )}
+        <div hidden={admin && captureMode !== 'train'}>
           <TrainView />
         </div>
-        <div hidden={captureMode !== 'data'}>
-          <h1>Form Coach — quay dữ liệu push-up</h1>
-          <p className="hint">
-            Đặt điện thoại nằm ngang, sát sàn, nhìn ngang hông; cả người nằm trong khung, chỉ một
-            mình bạn.
-          </p>
-          <CaptureView />
-        </div>
+        {admin && (
+          <div hidden={captureMode !== 'data'}>
+            <h1>Form Coach — quay dữ liệu push-up</h1>
+            <p className="hint">
+              Đặt điện thoại nằm ngang, sát sàn, nhìn ngang hông; cả người nằm trong khung, chỉ một
+              mình bạn.
+            </p>
+            <CaptureView />
+          </div>
+        )}
       </div>
-      {labelOpened && (
+      {!admin && dataTab && <AdminOnly />}
+      {admin && labelOpened && (
         <div hidden={tab !== 'label'}>
           <h1>Form Coach — gán nhãn rep</h1>
           <p className="hint">
@@ -212,7 +235,7 @@ export default function App() {
           <LabelView />
         </div>
       )}
-      {quickOpened && (
+      {admin && quickOpened && (
         <div hidden={tab !== 'quick'}>
           <h1>Form Coach — gán nhãn nhanh (v2)</h1>
           <p className="hint">
@@ -221,7 +244,7 @@ export default function App() {
           <QuickLabel />
         </div>
       )}
-      {tab === 'audit' && <AuditRoute />}
+      {admin && tab === 'audit' && <AuditRoute />}
       {/* Trang kết quả gắn theo hiệp (key): đổi hiệp thì tải lại từ đầu. */}
       {tab === 'result' && resultTarget && (
         <ResultView

@@ -243,13 +243,15 @@ def test_data_tools_are_403_for_non_admin(
 def test_admin_list_ignores_case_and_spaces(anon_client: TestClient, monkeypatch) -> None:
     # Biến gõ tay khi deploy: chấp nhận khoảng trắng và hoa thường khác email đã đăng ký.
     monkeypatch.setenv("FORMCOACH_ADMIN_EMAILS", " khac@example.com , AN@Example.com ")
-    _register(anon_client)
+    assert _register(anon_client).json()["is_admin"] is True
+    assert _login(anon_client).json()["is_admin"] is True
     assert anon_client.get("/api/auth/me").json()["is_admin"] is True
     assert anon_client.get("/api/sessions/pushup").status_code == 200
 
 
 def test_no_admin_by_default(anon_client: TestClient) -> None:
-    _register(anon_client)
+    assert _register(anon_client).json()["is_admin"] is False
+    assert _login(anon_client).json()["is_admin"] is False
     assert anon_client.get("/api/auth/me").json()["is_admin"] is False
     assert anon_client.get("/api/sessions/pushup").status_code == 403
 

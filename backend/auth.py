@@ -224,7 +224,7 @@ def register(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="email đã được đăng ký") from None
     user_id = int(cur.lastrowid)
     _start_session(db, response, user_id)
-    return {"id": user_id, "email": body.email}
+    return {"id": user_id, "email": body.email, "is_admin": is_admin(User(user_id, body.email))}
 
 
 @router.post("/login")
@@ -259,7 +259,12 @@ def login(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="email hoặc mật khẩu không đúng")
     db.execute("DELETE FROM login_failures WHERE email_key = ?", (email_key,))
     _start_session(db, response, row["id"])
-    return {"id": row["id"], "email": row["email"]}
+    # Như /me: web biết ngay có hiện công cụ dữ liệu không, không phải hỏi thêm.
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "is_admin": is_admin(User(row["id"], row["email"])),
+    }
 
 
 @router.post("/logout")

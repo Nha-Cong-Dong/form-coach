@@ -6,6 +6,7 @@ import { lockoutMessage } from './validate'
 export interface User {
   id: number
   email: string
+  is_admin: boolean // email trong FORMCOACH_ADMIN_EMAILS: được dùng công cụ dữ liệu (D0)
 }
 
 export type AuthMode = 'login' | 'register'
