@@ -20,6 +20,7 @@ không có chuyện trình duyệt nhận cookie trỏ tới token chưa đượ
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import secrets
 import sqlite3
@@ -40,6 +41,12 @@ MIN_PASSWORD_LENGTH = 8
 MAX_EMAIL_LENGTH = 254
 # scrypt tốn RAM/CPU theo mỗi lần gọi; chặn mật khẩu khổng lồ trước khi băm (kể cả khi đăng nhập).
 MAX_PASSWORD_LENGTH = 1024
+# Chống đoán mật khẩu (D0b): sai LOGIN_MAX_FAILURES lần trong LOGIN_WINDOW với cùng một email
+# → khoá email đó LOGIN_LOCKOUT, tính từ lần sai cuối. Đếm theo email, không theo IP: sau proxy
+# của nơi deploy, IP thật cần cấu hình thêm (xem lại ở D1).
+LOGIN_MAX_FAILURES = 10
+LOGIN_WINDOW = timedelta(minutes=5)
+LOGIN_LOCKOUT = timedelta(minutes=15)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 Db = Annotated[sqlite3.Connection, Depends(get_db)]
@@ -111,6 +118,35 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int) -> 
         secure=_cookie_secure(),
         path="/",
     )
+
+
+def lockout_end(failures: list[datetime]) -> datetime | None:
+    """Thời điểm hết khoá theo danh sách lần sai (sắp tăng dần), hoặc None nếu chưa từng đủ để khoá.
+
+    Khoá khi có LOGIN_MAX_FAILURES lần sai liên tiếp nằm trong LOGIN_WINDOW; hết khoá sau
+    LOGIN_LOCKOUT tính từ lần sai thứ LOGIN_MAX_FAILURES đó. Hàm thuần: người gọi tự so với giờ
+    hiện tại.
+    """
+    end = None
+    n = LOGIN_MAX_FAILURES
+    for i in range(n - 1, len(failures)):
+        if failures[i] - failures[i - n + 1] <= LOGIN_WINDOW:
+            end = failures[i] + LOGIN_LOCKOUT
+    return end
+
+
+def _login_locked_for(db: sqlite3.Connection, email_key: str, now: datetime) -> timedelta | None:
+    """Còn bị khoá bao lâu (None = không khoá). Dọn luôn lần sai đã quá cũ của email này."""
+    oldest = now - LOGIN_WINDOW - LOGIN_LOCKOUT
+    db.execute(
+        "DELETE FROM login_failures WHERE email_key = ? AND at < ?",
+        (email_key, oldest.isoformat()),
+    )
+    rows = db.execute(
+        "SELECT at FROM login_failures WHERE email_key = ? ORDER BY at", (email_key,)
+    ).fetchall()
+    end = lockout_end([datetime.fromisoformat(r["at"]) for r in rows])
+    return end - now if end is not None and end > now else None
 
 
 def _register_allowed() -> bool:
@@ -193,14 +229,35 @@ def register(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
 
 @router.post("/login")
 def login(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
-    """Đăng nhập. Sai email hay sai mật khẩu đều cùng một thông báo 401."""
+    """Đăng nhập. Sai email hay sai mật khẩu đều cùng một thông báo 401.
+
+    429 (kèm Retry-After, giây) khi email đang bị khoá vì sai quá nhiều lần: không kiểm tra mật
+    khẩu (kể cả đúng), không ghi thêm lần sai, nên thời gian khoá không bị kéo dài.
+    """
+    email_key = body.email.lower()
+    now = _now()
+    remaining = _login_locked_for(db, email_key, now)
+    if remaining is not None:
+        db.commit()  # giữ phần dọn bản ghi cũ; get_db sẽ rollback khi ném lỗi
+        seconds = math.ceil(remaining.total_seconds())
+        raise HTTPException(
+            status_code=429,
+            detail="đăng nhập sai quá nhiều lần, thử lại sau",
+            headers={"Retry-After": str(seconds)},
+        )
     row = db.execute(
         "SELECT id, email, password_hash FROM users WHERE lower(email) = lower(?)",
         (body.email,),
     ).fetchone()
     stored = row["password_hash"] if row else _dummy_hash()
     if not verify_password(body.password, stored) or row is None:
+        db.execute(
+            "INSERT INTO login_failures (email_key, at) VALUES (?, ?)", (email_key, now.isoformat())
+        )
+        # Commit trước khi ném 401: get_db rollback mọi thứ khi route lỗi, kể cả lần sai này.
+        db.commit()
         raise HTTPException(status_code=401, detail="email hoặc mật khẩu không đúng")
+    db.execute("DELETE FROM login_failures WHERE email_key = ?", (email_key,))
     _start_session(db, response, row["id"])
     return {"id": row["id"], "email": row["email"]}
 

@@ -1,6 +1,7 @@
 // Gọi API đăng nhập (ARCHITECTURE §4). Phiên đăng nhập là cookie HttpOnly do server đặt:
 // JavaScript không đọc được nó, trình duyệt tự gửi kèm mọi request cùng nguồn (kể cả qua proxy
 // /api của Vite), nên ở đây không lưu token nào.
+import { lockoutMessage } from './validate'
 
 export interface User {
   id: number
@@ -43,8 +44,10 @@ export async function fetchAllowRegister(): Promise<boolean> {
 }
 
 /** Câu báo theo mã HTTP, không hiện nguyên câu kỹ thuật của server (backend/auth.py). */
-function messageFor(mode: AuthMode, status: number): AuthError {
+function messageFor(mode: AuthMode, status: number, retryAfter: string | null): AuthError {
   if (mode === 'login' && status === 401) return new AuthError('Email hoặc mật khẩu không chính xác.')
+  // 429: sai quá nhiều lần, server khoá email này một lúc (backend/auth.py, D0b).
+  if (mode === 'login' && status === 429) return new AuthError(lockoutMessage(retryAfter))
   if (mode === 'register' && status === 409) return new AuthError('Email này đã được đăng ký.', 'email')
   if (mode === 'register' && status === 403) return new AuthError('Hiện chưa mở đăng ký tài khoản mới.')
   // 422: web đã kiểm tra email và độ dài mật khẩu trước khi gửi, nên hiếm khi tới đây.
@@ -67,7 +70,7 @@ export async function submitCredentials(mode: AuthMode, email: string, password:
     throw new AuthError(NETWORK) // mất mạng, server không chạy
   }
   if (r.ok) return r.json()
-  throw messageFor(mode, r.status)
+  throw messageFor(mode, r.status, r.headers.get('Retry-After'))
 }
 
 /** Đăng xuất; lỗi (mất mạng, server lỗi) thì ném để web không báo đã đăng xuất khi chưa chắc. */

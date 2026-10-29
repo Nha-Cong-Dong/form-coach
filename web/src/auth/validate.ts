@@ -34,3 +34,12 @@ export function validateCredentials(
 }
 
 export const hasErrors = (errors: FieldErrors): boolean => Object.keys(errors).length > 0
+
+/** Câu báo khi server khoá đăng nhập (429). `retryAfter` = header Retry-After (giây), làm tròn
+ *  lên theo phút; thiếu hoặc lạ thì không nói số phút. */
+export function lockoutMessage(retryAfter: string | null): string {
+  const seconds = Number(retryAfter)
+  if (!retryAfter || !Number.isFinite(seconds) || seconds <= 0)
+    return 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ít phút.'
+  return `Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ${Math.ceil(seconds / 60)} phút.`
+}

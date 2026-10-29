@@ -241,7 +241,7 @@ Ghi chú:
 | `GET` | `/api/sessions/{exercise}/{session_id}/review` | **Chỉ admin** (403). `formcoach.review.build_review`: thời gian từng khung, tín hiệu đã lọc, khung xương rút gọn (15 khớp, NaN → `null`), rep + đặc trưng, nhãn đã lưu hoặc nhãn mặc định, `alignment_problems` nếu nhãn đã lưu không khớp rep hiện tại |
 | `PUT` | `/api/sessions/{exercise}/{session_id}/labels` | **Chỉ admin** (403). Body = file nhãn §2c → kiểm tra (`from_dict`), đúng hiệp, **khớp rep hiện tại** (`check_alignment`, lệch → 409) → lưu `data/labels/...` |
 | `POST` | `/api/auth/register` | `{email, password}` → tạo tài khoản và đăng nhập luôn (đặt cookie). 403 nếu chưa bật `FORMCOACH_ALLOW_REGISTER=1`; 422 email sai hình dạng hoặc mật khẩu < 8 ký tự; 409 email đã có (so không phân biệt hoa thường) |
-| `POST` | `/api/auth/login` | `{email, password}` → đặt cookie. Sai email hay sai mật khẩu đều 401 cùng thông báo |
+| `POST` | `/api/auth/login` | `{email, password}` → đặt cookie. Sai email hay sai mật khẩu đều 401 cùng thông báo. Sai 10 lần trong 5 phút (cùng email, không phân biệt hoa thường, kể cả email chưa đăng ký) → khoá email đó 15 phút từ lần sai thứ 10: **429** + `Retry-After` (giây), kể cả mật khẩu đúng; trong lúc khoá không chạy scrypt, không đếm thêm. Đăng nhập đúng xoá các lần sai. Web: "Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau N phút." |
 | `POST` | `/api/auth/logout` | Xoá token khỏi DB và xoá cookie; chưa đăng nhập cũng 200 |
 | `GET` | `/api/auth/options` | `{allow_register}` theo `FORMCOACH_ALLOW_REGISTER`; mở, không cần đăng nhập. Web ẩn "Tạo tài khoản" khi `false` |
 | `GET` | `/api/auth/me` | `{id, email, is_admin}` của người đang đăng nhập; 401 nếu không |
@@ -275,6 +275,7 @@ reps        (id, session_pk, idx, start_frame, end_frame, features_json, predict
              scores_json; UNIQUE(session_pk, idx))
 goals       (id, user_id, exercise, daily_reps, min_good_ratio, from_date, created_at;
              UNIQUE(user_id, exercise, from_date))   -- giữ lịch sử mục tiêu
+login_failures (id, email_key, at)   -- lần đăng nhập sai (D0b); email_key = lower(email), không khoá ngoại
 ```
 - File DB: `$FORMCOACH_DATA_DIR/formcoach.db`. Mỗi request một kết nối (`get_db`): commit khi route xong, rollback khi lỗi. Khoá ngoại bật, xoá user thì xoá theo token/hiệp/rep.
 - **DB chỉ giữ tài khoản và kết quả app đã phân tích.** File quay (`data/sessions/**`, §2b) và file nhãn (§2c) vẫn là dữ liệu huấn luyện mà `build_dataset` đọc; không chép keypoint hay nhãn thật vào DB. `predicted_errors`/`scores_json` là thứ bộ phân loại `model_name` đoán.

@@ -2,7 +2,7 @@
 // tests/test_web_auth_validate.py gọi script này; thoát mã khác 0 nếu có assert sai.
 // Chạy: node web/scripts/check-auth-validate.ts   (Node ≥ 22.18 chạy thẳng .ts)
 import assert from 'node:assert/strict'
-import { hasErrors, validateCredentials } from '../src/auth/validate.ts'
+import { hasErrors, lockoutMessage, validateCredentials } from '../src/auth/validate.ts'
 
 const ok = 'an@example.com'
 
@@ -37,5 +37,12 @@ assert.deepEqual(validateCredentials('register', ok, '12345678', '12345678'), {}
 
 // Ô nhập lại không được kiểm tra khi đăng nhập
 assert.equal(validateCredentials('login', ok, 'pw', 'khac').confirm, undefined)
+
+// lockoutMessage: Retry-After (giây) → số phút làm tròn lên; thiếu/lạ → không nói số phút
+assert.equal(lockoutMessage('900'), 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.')
+assert.equal(lockoutMessage('61'), 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 2 phút.')
+assert.equal(lockoutMessage('1'), 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 1 phút.')
+for (const bad of [null, '', 'abc', '0', '-5'])
+  assert.equal(lockoutMessage(bad), 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ít phút.')
 
 console.log('check-auth-validate: ok')

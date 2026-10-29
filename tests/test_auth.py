@@ -1,12 +1,14 @@
 import hashlib
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from backend import auth
 from backend.app import app
-from backend.auth import COOKIE_NAME
+from backend.auth import COOKIE_NAME, LOGIN_LOCKOUT, LOGIN_WINDOW, lockout_end
 from backend.db import connect, db_path
 from tests.synthetic import make_session, train_session
 
@@ -262,3 +264,100 @@ def test_dataset_upload_is_admin_only(anon_client: TestClient, monkeypatch) -> N
     assert not list(Path(os.environ["FORMCOACH_DATA_DIR"]).glob("sessions/**/*.json"))
     _register(anon_client, "admin@example.com")  # đăng ký = đăng nhập bằng tài khoản admin
     assert anon_client.post("/api/sessions", json=dataset).status_code == 201
+
+
+# --- giới hạn đăng nhập sai (D0b): 10 lần / 5 phút → khoá 15 phút ---
+
+T0 = datetime(2026, 10, 29, 8, 0, tzinfo=UTC)
+
+
+def _times(*seconds: float) -> list[datetime]:
+    return [T0 + timedelta(seconds=s) for s in seconds]
+
+
+def test_lockout_needs_ten_failures_within_window() -> None:
+    assert lockout_end(_times(*range(9))) is None  # 9 lần: chưa khoá
+    ten = _times(*range(10))
+    assert lockout_end(ten) == ten[-1] + LOGIN_LOCKOUT  # khoá tính từ lần thứ 10
+    # 10 lần nhưng trải dài hơn 5 phút (cách nhau 40 s → 6 phút): không khoá
+    assert lockout_end(_times(*range(0, 400, 40))) is None
+    # Đúng bằng 5 phút vẫn tính là trong cửa sổ
+    edge = _times(*range(9), LOGIN_WINDOW.total_seconds())  # lần 1 lúc 0 s, lần 10 lúc 300 s
+    assert lockout_end(edge) == T0 + LOGIN_WINDOW + LOGIN_LOCKOUT
+
+
+def test_lockout_uses_latest_qualifying_run() -> None:
+    # Hai đợt 10 lần: hết khoá theo đợt sau.
+    first = _times(*range(10))
+    second = _times(*range(2000, 2010))
+    assert lockout_end(first + second) == second[-1] + LOGIN_LOCKOUT
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> list[datetime]:
+    """Đồng hồ giả cho backend.auth: test đổi now[0] để "tua" thời gian, không phải đợi thật."""
+    now = [T0]
+    monkeypatch.setattr(auth, "_now", lambda: now[0])
+    return now
+
+
+def test_ten_wrong_passwords_lock_even_correct_one(anon_client: TestClient, clock) -> None:
+    _register(anon_client)
+    for _ in range(10):
+        assert _login(anon_client, password="sai-mat-khau").status_code == 401
+        clock[0] += timedelta(seconds=5)
+    r = _login(anon_client)  # mật khẩu đúng nhưng đang khoá
+    assert r.status_code == 429
+    retry = int(r.headers["Retry-After"])
+    assert 0 < retry <= LOGIN_LOCKOUT.total_seconds()
+    # Đang khoá thì thử thêm không kéo dài thời gian khoá.
+    _login(anon_client, password="sai-mat-khau")
+    clock[0] += LOGIN_LOCKOUT
+    assert _login(anon_client).status_code == 200
+
+
+def test_lock_applies_to_unknown_email_and_ignores_case(anon_client: TestClient, clock) -> None:
+    # Email chưa đăng ký cũng bị khoá như email có thật: không dò được email nào tồn tại.
+    for _ in range(10):
+        assert _login(anon_client, "Khong-Co@Example.com").status_code == 401
+    assert _login(anon_client, "khong-co@example.com").status_code == 429
+
+
+def test_lock_is_per_email(anon_client: TestClient, clock) -> None:
+    _register(anon_client, "an@example.com")
+    _register(anon_client, "binh@example.com")
+    for _ in range(10):
+        _login(anon_client, "an@example.com", "sai-mat-khau")
+    assert _login(anon_client, "an@example.com").status_code == 429
+    assert _login(anon_client, "binh@example.com").status_code == 200
+
+
+def test_success_resets_failures(anon_client: TestClient, clock) -> None:
+    _register(anon_client)
+    for _ in range(9):
+        _login(anon_client, password="sai-mat-khau")
+    assert _login(anon_client).status_code == 200  # xoá 9 lần sai trước đó
+    for _ in range(9):
+        _login(anon_client, password="sai-mat-khau")
+    assert _login(anon_client).status_code == 200  # vẫn chưa tới 10 lần
+
+
+def test_failures_spread_out_do_not_lock(anon_client: TestClient, clock) -> None:
+    _register(anon_client)
+    for _ in range(20):
+        _login(anon_client, password="sai-mat-khau")
+        clock[0] += timedelta(minutes=1)  # 1 lần mỗi phút: tối đa 6 lần trong 5 phút
+    assert _login(anon_client).status_code == 200
+
+
+def test_old_failures_are_cleaned_up(anon_client: TestClient, clock) -> None:
+    _register(anon_client)
+    for _ in range(3):
+        _login(anon_client, password="sai-mat-khau")
+    clock[0] += LOGIN_WINDOW + LOGIN_LOCKOUT + timedelta(seconds=1)
+    _login(anon_client, "khac@example.com", "x")  # chỉ dọn bản ghi của email đang đăng nhập
+    _login(anon_client, password="sai-mat-khau")
+    conn = connect(db_path())
+    keys = [r[0] for r in conn.execute("SELECT email_key FROM login_failures")]
+    conn.close()
+    assert sorted(keys) == ["an@example.com", "khac@example.com"]
