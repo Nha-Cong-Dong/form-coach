@@ -4,6 +4,7 @@ import type { User } from './auth/api'
 import AuditLabel from './components/AuditLabel'
 import CaptureView from './components/CaptureView'
 import DashboardView from './components/DashboardView'
+import HistoryView from './components/HistoryView'
 import { parseAuditHash } from './label/audit'
 import LabelView from './components/LabelView'
 import LoginView from './components/LoginView'
@@ -14,7 +15,7 @@ import TrainView from './components/TrainView'
 import { UNAUTHORIZED_EVENT } from './http'
 import './App.css'
 
-type Tab = 'dashboard' | 'capture' | 'label' | 'quick' | 'result' | 'audit'
+type Tab = 'dashboard' | 'capture' | 'history' | 'label' | 'quick' | 'result' | 'audit'
 
 // Tab lưu trên URL (#label) để tải lại trang vẫn ở đúng màn; không cần thư viện router.
 // Không có hash (vừa mở app) → Dashboard.
@@ -24,6 +25,7 @@ function tabFromHash(): Tab {
   // Gán lại mù: chỉ mở bằng link do `python -m evaluation.relabel_consistency sample` in ra.
   if (hash.startsWith('#audit/')) return 'audit'
   if (hash === '#capture') return 'capture'
+  if (hash === '#history') return 'history'
   if (hash === '#label') return 'label'
   return hash === '#quick' ? 'quick' : 'dashboard'
 }
@@ -120,7 +122,7 @@ export default function App() {
   }
 
   // Thanh dưới (điện thoại) chỉ ở các màn chính, như canvas; màn Quay/Kết quả có link quay lại.
-  const showBottomNav = tab === 'dashboard' || tab === 'label' || tab === 'quick'
+  const showBottomNav = tab === 'dashboard' || tab === 'history' || tab === 'label' || tab === 'quick'
   // Công cụ dữ liệu (Quay dữ liệu, Gán nhãn, Gán nhanh, Gán lại mù) chỉ hiện cho admin. Chỉ để
   // giao diện gọn: chặn thật là ở server (403).
   const admin = user.is_admin === true
@@ -171,9 +173,16 @@ export default function App() {
             </span>
             <span>Quay</span>
           </a>
+          <a href="#history" aria-current={tab === 'history' ? 'page' : undefined}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="4.5" width="18" height="16" rx="2" />
+              <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
+            </svg>
+            <span>Lịch sử</span>
+          </a>
           {/* Gán nhanh là một kiểu của Gán nhãn (link trong màn đó), không phải mục riêng. */}
           {admin && (
-            <a href="#label" aria-current={tab === 'label' || tab === 'quick' ? 'page' : undefined}>
+            <a href="#label" className="nav-admin" aria-current={tab === 'label' || tab === 'quick' ? 'page' : undefined}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
@@ -196,6 +205,8 @@ export default function App() {
       )}
       {/* Dashboard gắn lại mỗi lần mở tab: tải tiến độ mới (vd vừa tập xong một hiệp). */}
       {tab === 'dashboard' && <DashboardView />}
+      {/* Gắn lại mỗi lần mở tab, như Dashboard: thấy ngay hiệp vừa tập. */}
+      {tab === 'history' && <HistoryView admin={admin} />}
       {/* Màn Quay chỉ bị ẩn, không bị gỡ: gỡ ra sẽ mất danh sách hiệp chưa gửi (nằm trong
           state của CaptureView) và tắt camera giữa chừng. */}
       <div hidden={tab !== 'capture'}>
