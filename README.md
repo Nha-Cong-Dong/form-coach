@@ -266,9 +266,11 @@ data/
  ├── videos/             # video thử offline (MediaPipe Python), không dùng để train
  ├── keypoints/          # cache keypoint của video thử
  ├── sessions/
- │    └── {exercise}/{session_id}.json   # keypoint từ trang quay + tập lỗi cố ý của hiệp
- └── labels/
-      └── {exercise}/{session_id}.json   # nhãn từng rep: ranh giới, valid, tập lỗi, ghi chú
+ │    └── {exercise}/{session_id}.json   # hiệp của admin (dữ liệu train): keypoint + tập lỗi cố ý
+ ├── labels/
+ │    └── {exercise}/{session_id}.json   # nhãn từng rep: ranh giới, valid, tập lỗi, ghi chú
+ └── users/{user_id}/sessions/{exercise}/{session_id}.json   # hiệp của người dùng thường: riêng
+                                                              # từng tài khoản, không dùng để train
 ```
 Bảng dữ liệu để train (mỗi dòng một rep: đặc trưng + nhãn) được xuất ra từ các file trên, không sửa tay.
 `data/` không đưa lên git. Video có mặt và không gian riêng tư, không chia sẻ công khai, không lưu trên server.

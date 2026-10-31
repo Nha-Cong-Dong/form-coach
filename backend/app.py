@@ -104,7 +104,7 @@ def upload_session(
     if meta.capture_mode == "dataset" and not auth.is_admin(user):
         raise HTTPException(status_code=403, detail="chỉ admin được gửi hiệp Quay dữ liệu")
 
-    folder = (data_dir() / "sessions" / meta.exercise).resolve()
+    folder = (sessions_root(user) / meta.exercise).resolve()
     path = (folder / f"{meta.session_id}.json").resolve()
     # parse_session đã chặn ký tự lạ trong session_id; kiểm tra thêm lần nữa cho chắc.
     if path.parent != folder:
@@ -229,23 +229,41 @@ def rep_replay(
     frames = results.rep_frames(db, user.id, exercise, session_id, index)
     if frames is None:
         raise HTTPException(status_code=404, detail="không có rep này")
-    pose, meta = _load(exercise, session_id)
+    # DB đã xác nhận hiệp là của user; file: thư mục riêng trước, rồi thư mục chung (user từng là
+    # admin lúc gửi).
+    pose, meta = _load(exercise, session_id, [sessions_root(user), data_dir() / "sessions"])
     return build_rep_replay(pose, meta, *frames)
 
 
-def _session_path(exercise: str, session_id: str) -> Path:
-    """File của một hiệp; bài lạ, id có ký tự lạ hoặc file không có → 404."""
+def sessions_root(user: auth.User) -> Path:
+    """Nơi lưu file hiệp của người gửi (D1, tách dữ liệu theo tài khoản).
+
+    Admin → `data/sessions/` (dữ liệu train: build_dataset, Gán nhãn chỉ đọc ở đây). Người dùng
+    thường → `data/users/<user_id>/sessions/`: không bao giờ lẫn vào dữ liệu train, admin không
+    thấy, xoá dữ liệu một người = xoá một thư mục. Theo quyền admin LÚC GỬI.
+    """
+    if auth.is_admin(user):
+        return data_dir() / "sessions"
+    return data_dir() / "users" / str(user.id) / "sessions"
+
+
+def _session_path(exercise: str, session_id: str, roots: list[Path]) -> Path:
+    """File của một hiệp, tìm lần lượt trong `roots`; bài lạ, id có ký tự lạ hoặc không có → 404."""
     if exercise not in EXERCISES or not SESSION_ID_RE.match(session_id):
         raise HTTPException(status_code=404, detail="không có hiệp này")
-    path = data_dir() / "sessions" / exercise / f"{session_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"không có hiệp {session_id}")
-    return path
+    for root in roots:
+        path = root / exercise / f"{session_id}.json"
+        if path.exists():
+            return path
+    raise HTTPException(status_code=404, detail=f"không có hiệp {session_id}")
 
 
-def _load(exercise: str, session_id: str):
+def _load(exercise: str, session_id: str, roots: list[Path] | None = None):
+    """Đọc file hiệp. Mặc định chỉ thư mục chung (dữ liệu train): công cụ dữ liệu của admin."""
     try:
-        return load_session_json(_session_path(exercise, session_id))
+        return load_session_json(
+            _session_path(exercise, session_id, roots or [data_dir() / "sessions"])
+        )
     except SessionFormatError as e:
         raise HTTPException(status_code=422, detail=f"file hiệp hỏng: {e}") from None
 
