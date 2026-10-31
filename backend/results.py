@@ -3,9 +3,13 @@
 Mọi truy vấn kết quả nằm ở đây (cùng `db.py`, `auth.py`) để đổi DB chỉ sửa trong `backend/`.
 Kết quả luôn gắn `user_id`: người khác hỏi hiệp không phải của mình → không thấy (404).
 
-Bộ phân loại theo `FORMCOACH_MODEL` (`rules` | `stump` | `rf`, mặc định `rf`), huấn luyện LẦN ĐẦU
-cần tới từ dữ liệu đã gán nhãn trong `data/` rồi giữ trong bộ nhớ. Nhãn mới gán sau đó chỉ được
-dùng khi khởi động lại server. Không huấn luyện được (server không có `data/`) → lùi về luật.
+Bộ phân loại, hai cách:
+- `FORMCOACH_MODEL_PATH` (deploy, D1): đọc file do `python -m formcoach train` lưu; không đọc
+  `data/`, không train, bỏ qua `FORMCOACH_MODEL`. File hỏng / sai bản scikit-learn → lỗi ngay lúc
+  khởi động (`check_model_file`). Hiện chỉ có push-up nên một file; thêm bài thì một file mỗi bài.
+- Không đặt (máy có `data/`): theo `FORMCOACH_MODEL` (`rules` | `stump` | `rf`, mặc định `rf`),
+  huấn luyện LẦN ĐẦU cần tới từ dữ liệu đã gán nhãn rồi giữ trong bộ nhớ. Nhãn mới gán sau đó chỉ
+  được dùng khi khởi động lại. Không huấn luyện được (không có `data/`) → lùi về luật.
 """
 
 from __future__ import annotations
@@ -20,9 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from formcoach.dataset import build_dataset
-from formcoach.exercises import get_exercise
+from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.exercises.base import Exercise
 from formcoach.models.base import FormClassifier
+from formcoach.models.store import load_model
 from formcoach.models.train import train_classifier
 from formcoach.pose.session_json import SessionMeta
 from formcoach.progress.summary import summarize
@@ -35,7 +40,16 @@ _lock = threading.Lock()  # hai request đầu tiên cùng lúc: chỉ huấn lu
 
 
 def get_classifier(exercise: Exercise, data_dir: Path) -> tuple[FormClassifier, str]:
-    """(bộ phân loại đã fit, tên mô hình thật sự dùng). Tên lạ trong env → ValueError."""
+    """(bộ phân loại đã fit, tên mô hình thật sự dùng). Tên lạ trong env → ValueError;
+    file mô hình không dùng được → ModelFileError."""
+    path = os.environ.get("FORMCOACH_MODEL_PATH")
+    if path:
+        file_key = ("file:" + path, exercise.name, "")
+        with _lock:
+            if file_key not in _cache:
+                classifier, info = load_model(Path(path), exercise.name)
+                _cache[file_key] = (classifier, info.model_name)
+            return _cache[file_key]
     name = os.environ.get("FORMCOACH_MODEL", DEFAULT_MODEL)
     key = (name, exercise.name, str(data_dir))
     with _lock:
@@ -43,6 +57,15 @@ def get_classifier(exercise: Exercise, data_dir: Path) -> tuple[FormClassifier, 
             dataset = None if name == "rules" else build_dataset(data_dir, exercise.name)
             _cache[key] = train_classifier(name, exercise, dataset)
         return _cache[key]
+
+
+def check_model_file(data_dir: Path) -> None:
+    """Gọi lúc khởi động server: có FORMCOACH_MODEL_PATH thì đọc file ngay cho mọi bài tập, để file
+    sai làm server KHÔNG lên (thấy ngay khi deploy) thay vì 500 ở hiệp đầu tiên của người dùng.
+    Không đặt biến thì không làm gì (không train lúc khởi động: server lên chậm)."""
+    if os.environ.get("FORMCOACH_MODEL_PATH"):
+        for name in EXERCISES:
+            get_classifier(get_exercise(name), data_dir)
 
 
 def _finite(features: dict[str, float]) -> dict[str, float | None]:

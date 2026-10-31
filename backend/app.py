@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
@@ -41,7 +43,15 @@ from formcoach.progress.goals import Goal
 from formcoach.progress.summary import summarize
 from formcoach.review import build_rep_replay, build_review
 
-app = FastAPI(title="Form Coach", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Có FORMCOACH_MODEL_PATH: đọc file mô hình trước khi nhận request; file sai → không khởi động.
+    results.check_model_file(data_dir())
+    yield
+
+
+app = FastAPI(title="Form Coach", version="0.1.0", lifespan=lifespan)
 app.include_router(auth.router)
 # WebSocket tự kiểm tra cookie trước khi accept (router `protected` chỉ áp dụng cho HTTP).
 app.include_router(live.router)
