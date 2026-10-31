@@ -111,7 +111,7 @@ Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScri
 
 Quy tắc kiểm tra (sai thì `SessionFormatError` nói rõ trường / khung / khớp nào sai):
 - Đủ mọi trường ở trên; `format_version == 1`.
-- `session_id` chỉ gồm `[A-Za-z0-9_-]`, 1–100 ký tự (được dùng làm tên file, chặn `../`).
+- `session_id` chỉ gồm `[A-Za-z0-9_-]`, 1–100 ký tự (được dùng làm tên file, chặn `../`). Web đặt `<ngày>T<giờ>_<6 hex ngẫu nhiên>_<bài>` (vd `2026-10-31T08-37-32_a3f9c1_pushup`, từ 2026-10-31): `session_id` duy nhất trên cả server, thiếu đuôi thì hai người gửi cùng giây đụng tên (409 mãi). Hiệp cũ không đuôi vẫn hợp lệ; server không tách chuỗi này (mọi thứ dùng `recorded_at`).
 - `exercise` có trong `formcoach.exercises.EXERCISES`; `set_errors` là danh sách không trùng, mỗi phần tử thuộc `error_labels` của bài đó.
 - `recorded_at` dạng ISO 8601; `source` là object có giá trị chuỗi; `notes` (nếu có) là chuỗi ≤ 1000 ký tự.
 - `frame_size` = `[width, height]` số nguyên dương; `joint_names` đúng 33 tên MediaPipe theo thứ tự.
