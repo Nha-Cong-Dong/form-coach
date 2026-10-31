@@ -2,12 +2,15 @@
 
 python -m formcoach analyze data/sessions/pushup/<session_id>.json
 python -m formcoach analyze data/videos/pushup_clean.mp4 --plot
+python -m formcoach train        # học từ data/ → models/pushup-rf.pkl (cho server, không commit)
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -141,6 +144,37 @@ def cmd_analyze(args: argparse.Namespace) -> None:
         print(f"\nĐồ thị: {plot_session(src, features, reps, args.path.name, out)}")
 
 
+def cmd_train(args: argparse.Namespace) -> None:
+    """Học từ data/ rồi lưu file mô hình cho server (D1). Không lưu nếu phải lùi về luật."""
+    import sklearn
+
+    from formcoach.dataset import build_dataset
+    from formcoach.exercises import get_exercise
+    from formcoach.models.store import ModelInfo, save_model
+    from formcoach.models.train import train_classifier
+
+    exercise = get_exercise(args.exercise)
+    dataset = build_dataset(args.data, args.exercise)
+    classifier, name = train_classifier(args.model, exercise, dataset)
+    if name != args.model:
+        # train_classifier lùi về luật khi không có rep nào / fit lỗi: lưu file đó là lưu nhầm.
+        sys.exit(
+            f"Không huấn luyện được {args.model!r} từ {args.data} (đã lùi về {name!r}); không lưu."
+        )
+    info = ModelInfo(
+        model_name=name,
+        exercise=args.exercise,
+        n_reps=len(dataset.rows),
+        trained_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        sklearn_version=sklearn.__version__,
+    )
+    out = args.out or Path("models") / f"{args.exercise}-{name}.pkl"
+    save_model(out, classifier, info)
+    print(f"Đã lưu {name} ({info.n_reps} rep, {len(dataset.skipped)} hiệp bỏ qua) → {out}")
+    print(f"scikit-learn {info.sklearn_version}: server phải cài đúng bản này.")
+    print("Không commit file này; tải lên server rồi đặt FORMCOACH_MODEL_PATH.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m formcoach", description="Form Coach")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -153,6 +187,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--model", type=Path, default=DEFAULT_MODEL, help="model MediaPipe (chỉ cho video)"
     )
     p.set_defaults(func=cmd_analyze)
+
+    t = sub.add_parser("train", help="học bộ phân loại từ dữ liệu đã gán nhãn, lưu file cho server")
+    t.add_argument("--model", default="rf", help="tên mô hình (rf, stump; mặc định rf)")
+    t.add_argument("--exercise", default="pushup")
+    t.add_argument("--data", type=Path, default=Path("data"), help="thư mục dữ liệu")
+    t.add_argument("--out", type=Path, default=None, help="mặc định models/<bài>-<mô hình>.pkl")
+    t.set_defaults(func=cmd_train)
     return parser
 
 
