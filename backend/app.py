@@ -26,6 +26,7 @@ from typing import Annotated, Any
 
 import numpy as np
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend import auth, live, progress, results
@@ -319,3 +320,18 @@ def put_labels(
 # Phải gọi SAU khi khai báo route: include_router chép các route đang có tại thời điểm gọi.
 app.include_router(protected)
 app.include_router(admin)
+
+
+def mount_web(target: FastAPI, web_dir: Path) -> bool:
+    """Phục vụ web đã build (`npm run build` → web/dist) ở `/`, để server chỉ cần MỘT chương trình
+    (deploy, D1). Gắn SAU mọi route: /api/... và /docs được khớp trước. Web điều hướng bằng
+    `#hash` (phần sau # không gửi lên server) nên chỉ cần index.html ở `/`, không cần trả
+    index.html cho mọi đường dẫn lạ. Chưa build (không có index.html) → không gắn, trả False."""
+    if not (web_dir / "index.html").is_file():
+        return False
+    target.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+    return True
+
+
+# Lúc dev vẫn dùng `npm run dev` (Vite, proxy /api); lúc deploy uvicorn phục vụ luôn web.
+mount_web(app, Path(os.environ.get("FORMCOACH_WEB_DIR", "web/dist")))
