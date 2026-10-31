@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatRecordedAt,
   measureText,
+  modelLabel,
   outsideTarget,
   repRanges,
   repsByError,
@@ -26,6 +27,13 @@ assert.equal(outsideTarget('<', 146, 130), true)
 assert.equal(outsideTarget('<', 146, 160), false)
 assert.equal(outsideTarget('>', 67, null), false)
 assert.equal(outsideTarget('>', 67, undefined), false)
+
+// modelLabel: tên trần như cũ; có ngày train (mô hình đọc từ file) thì kèm ngày; tên lạ giữ nguyên
+assert.equal(modelLabel('rf'), 'random forest')
+assert.equal(modelLabel('rules'), 'luật ngưỡng')
+assert.equal(modelLabel('rf@2026-10-31'), 'random forest (train 31/10/2026)')
+assert.equal(modelLabel('lr'), 'lr')
+assert.equal(modelLabel('rf@khong-phai-ngay'), 'random forest')
 
 // frameAt: khung cuối cùng có thời gian ≤ t
 const times = [0, 0.033, 0.067, 0.1]

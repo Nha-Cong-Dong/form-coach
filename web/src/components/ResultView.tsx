@@ -8,6 +8,7 @@ import {
   formatDuration,
   formatRecordedAt,
   measureText,
+  modelLabel,
   outsideTarget,
   repRanges,
   repsByError,
@@ -15,11 +16,6 @@ import {
 } from '../results/format'
 
 const EXERCISE_NAMES: Record<string, string> = { pushup: 'Push-up', squat: 'Squat' }
-const MODEL_NAMES: Record<string, string> = {
-  rules: 'luật ngưỡng',
-  stump: 'ngưỡng học',
-  rf: 'random forest',
-}
 
 // Vòng tiến độ: bán kính 58 trong khung 132 (như canvas); chu vi = 2πr.
 const RING_R = 58
@@ -250,7 +246,7 @@ export default function ResultView({ exercise, sessionId }: Props) {
         <a className="primary link-button" href="#capture">
           Hiệp tiếp theo
         </a>
-        <span className="caption">Phân tích bằng {MODEL_NAMES[result.model_name] ?? result.model_name}.</span>
+        <span className="caption">Phân tích bằng {modelLabel(result.model_name)}.</span>
       </div>
 
       {replay !== null && result.reps[replay] && (

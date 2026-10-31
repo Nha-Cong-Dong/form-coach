@@ -62,7 +62,7 @@ def test_upload_uses_model_file(env: Path, monkeypatch) -> None:
         )
         r = client.post("/api/sessions", json=train_session())
     assert r.status_code == 201
-    assert r.json()["model_name"] == "rf"
+    assert r.json()["model_name"] == "rf@2026-10-31"  # kèm ngày train trong file
 
 
 @pytest.mark.parametrize(
@@ -76,6 +76,19 @@ def test_bad_model_file_stops_startup(env: Path, monkeypatch, make) -> None:
     monkeypatch.setenv("FORMCOACH_MODEL_PATH", str(make(env)))
     with pytest.raises(ModelFileError), TestClient(app):
         pass
+
+
+def test_startup_logs_model_in_use(env: Path, monkeypatch, caplog) -> None:
+    # Nhận xét mentor: app phải báo rõ đang dùng mô hình nào (log lúc khởi động).
+    monkeypatch.setenv("FORMCOACH_MODEL_PATH", str(_model_file(env / "m.pkl")))
+    with caplog.at_level("INFO", logger="uvicorn.error"), TestClient(app):
+        pass
+    assert "rf, train 2026-10-31T05:00:00+00:00, 20 rep" in caplog.text
+    monkeypatch.delenv("FORMCOACH_MODEL_PATH")
+    caplog.clear()
+    with caplog.at_level("INFO", logger="uvicorn.error"), TestClient(app):
+        pass
+    assert "chưa nạp" in caplog.text
 
 
 def test_without_model_path_startup_does_not_train(env: Path, monkeypatch) -> None:

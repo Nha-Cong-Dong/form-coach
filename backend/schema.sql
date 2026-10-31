@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     recorded_at TEXT,
     set_errors  TEXT NOT NULL,  -- JSON list: lỗi cố ý chọn lúc quay
     source      TEXT,           -- JSON: nguồn pose (vd mediapipe-js)
-    model_name  TEXT NOT NULL,  -- bộ phân loại đã chấm hiệp này (rules, stump, rf)
+    model_name  TEXT NOT NULL,  -- bộ phân loại đã chấm hiệp này (rules, stump, rf; đọc từ file: rf@<ngày train>)
     n_frames    INTEGER NOT NULL,
     duration_s  REAL NOT NULL,
     created_at  TEXT NOT NULL,

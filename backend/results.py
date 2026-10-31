@@ -15,6 +15,7 @@ Bộ phân loại, hai cách:
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import sqlite3
@@ -27,7 +28,7 @@ from formcoach.dataset import build_dataset
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.exercises.base import Exercise
 from formcoach.models.base import FormClassifier
-from formcoach.models.store import load_model
+from formcoach.models.store import ModelInfo, load_model
 from formcoach.models.train import train_classifier
 from formcoach.pose.session_json import SessionMeta
 from formcoach.progress.summary import summarize
@@ -36,6 +37,9 @@ from formcoach.types import Rep, RepResult, Session
 DEFAULT_MODEL = "rf"
 
 _cache: dict[tuple[str, str, str], tuple[FormClassifier, str]] = {}
+_file_info: dict[str, ModelInfo] = {}  # bài tập → thông tin file mô hình đã nạp
+# Logger mà uvicorn hiển thị ("INFO: ..."); logger riêng của module không in INFO khi chạy uvicorn.
+_startup_log = logging.getLogger("uvicorn.error")
 _lock = threading.Lock()  # hai request đầu tiên cùng lúc: chỉ huấn luyện một lần
 
 
@@ -48,7 +52,8 @@ def get_classifier(exercise: Exercise, data_dir: Path) -> tuple[FormClassifier, 
         with _lock:
             if file_key not in _cache:
                 classifier, info = load_model(Path(path), exercise.name)
-                _cache[file_key] = (classifier, info.model_name)
+                _cache[file_key] = (classifier, versioned_name(info))
+                _file_info[exercise.name] = info
             return _cache[file_key]
     name = os.environ.get("FORMCOACH_MODEL", DEFAULT_MODEL)
     key = (name, exercise.name, str(data_dir))
@@ -59,13 +64,40 @@ def get_classifier(exercise: Exercise, data_dir: Path) -> tuple[FormClassifier, 
         return _cache[key]
 
 
+def versioned_name(info: ModelInfo) -> str:
+    """Tên lưu vào `sessions.model_name` khi mô hình đọc từ file: kèm ngày train ("rf@2026-10-31"),
+    để sau mỗi lần cập nhật mô hình vẫn biết hiệp nào chấm bằng bản nào. Mô hình train lúc chạy
+    (không có file) giữ tên trần ("rf"), như trước D1."""
+    return f"{info.model_name}@{info.trained_at[:10]}"
+
+
 def check_model_file(data_dir: Path) -> None:
     """Gọi lúc khởi động server: có FORMCOACH_MODEL_PATH thì đọc file ngay cho mọi bài tập, để file
     sai làm server KHÔNG lên (thấy ngay khi deploy) thay vì 500 ở hiệp đầu tiên của người dùng.
-    Không đặt biến thì không làm gì (không train lúc khởi động: server lên chậm)."""
-    if os.environ.get("FORMCOACH_MODEL_PATH"):
-        for name in EXERCISES:
-            get_classifier(get_exercise(name), data_dir)
+    Không đặt biến thì không đọc gì (không train lúc khởi động: server lên chậm). Cả hai trường hợp
+    đều in ra mô hình sẽ dùng (nhận xét mentor: báo rõ app đang dùng mô hình nào)."""
+    path = os.environ.get("FORMCOACH_MODEL_PATH")
+    if not path:
+        name = os.environ.get("FORMCOACH_MODEL", DEFAULT_MODEL)
+        _startup_log.info(
+            "Mô hình: chưa nạp; train %r từ %s ở lần chấm đầu tiên (không có rep đã gán nhãn"
+            " thì dùng luật).",
+            name,
+            data_dir,
+        )
+        return
+    for ex in EXERCISES:
+        get_classifier(get_exercise(ex), data_dir)
+        info = _file_info[ex]
+        _startup_log.info(
+            "Mô hình %s: %s, train %s, %d rep, scikit-learn %s (file %s).",
+            ex,
+            info.model_name,
+            info.trained_at,
+            info.n_reps,
+            info.sklearn_version,
+            path,
+        )
 
 
 def _finite(features: dict[str, float]) -> dict[str, float | None]:
