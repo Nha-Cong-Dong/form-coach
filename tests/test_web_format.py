@@ -38,7 +38,7 @@ def test_typescript_session_passes_python_validation(tmp_path: Path) -> None:
     assert pose.keypoints.shape == (60, 33, 3)
     assert np.isnan(pose.keypoints[20]).all()  # khung không thấy người
     assert pose.frame_size == (1280, 720)
-    assert meta.session_id == "2026-10-20T19-05-12_pushup"
+    assert meta.session_id == "2026-10-20T19-05-12_a3f9c1_pushup"  # giờ + đuôi ngẫu nhiên
     assert meta.set_errors == frozenset({"shallow"})
     assert meta.notes == "tối, áo đen"
     assert meta.capture_mode == "dataset"

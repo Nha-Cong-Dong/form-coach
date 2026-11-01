@@ -1,0 +1,28 @@
+# Những gì KHÔNG gửi vào Docker khi build. Quan trọng nhất: dữ liệu cá nhân và bí mật
+# không bao giờ được lọt vào ảnh (ảnh có thể bị đẩy lên registry, ai pull cũng đọc được).
+data/
+.env
+.env.*
+models/
+assets/
+outputs/
+*.db
+*.pkl
+*.task
+*.mp4
+*.mov
+
+# Thứ build lại hoặc không cần trên server
+.git/
+web/node_modules/
+web/dist/
+web/public/mediapipe/
+web/public/models/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+notebooks/
+evaluation/
+tools/
+tests/
+docs/

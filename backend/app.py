@@ -18,12 +18,15 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 
 import numpy as np
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend import auth, live, progress, results
@@ -41,7 +44,15 @@ from formcoach.progress.goals import Goal
 from formcoach.progress.summary import summarize
 from formcoach.review import build_rep_replay, build_review
 
-app = FastAPI(title="Form Coach", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Có FORMCOACH_MODEL_PATH: đọc file mô hình trước khi nhận request; file sai → không khởi động.
+    results.check_model_file(data_dir())
+    yield
+
+
+app = FastAPI(title="Form Coach", version="0.1.0", lifespan=lifespan)
 app.include_router(auth.router)
 # WebSocket tự kiểm tra cookie trước khi accept (router `protected` chỉ áp dụng cho HTTP).
 app.include_router(live.router)
@@ -93,7 +104,7 @@ def upload_session(
     if meta.capture_mode == "dataset" and not auth.is_admin(user):
         raise HTTPException(status_code=403, detail="chỉ admin được gửi hiệp Quay dữ liệu")
 
-    folder = (data_dir() / "sessions" / meta.exercise).resolve()
+    folder = (sessions_root(user) / meta.exercise).resolve()
     path = (folder / f"{meta.session_id}.json").resolve()
     # parse_session đã chặn ký tự lạ trong session_id; kiểm tra thêm lần nữa cho chắc.
     if path.parent != folder:
@@ -218,23 +229,41 @@ def rep_replay(
     frames = results.rep_frames(db, user.id, exercise, session_id, index)
     if frames is None:
         raise HTTPException(status_code=404, detail="không có rep này")
-    pose, meta = _load(exercise, session_id)
+    # DB đã xác nhận hiệp là của user; file: thư mục riêng trước, rồi thư mục chung (user từng là
+    # admin lúc gửi).
+    pose, meta = _load(exercise, session_id, [sessions_root(user), data_dir() / "sessions"])
     return build_rep_replay(pose, meta, *frames)
 
 
-def _session_path(exercise: str, session_id: str) -> Path:
-    """File của một hiệp; bài lạ, id có ký tự lạ hoặc file không có → 404."""
+def sessions_root(user: auth.User) -> Path:
+    """Nơi lưu file hiệp của người gửi (D1, tách dữ liệu theo tài khoản).
+
+    Admin → `data/sessions/` (dữ liệu train: build_dataset, Gán nhãn chỉ đọc ở đây). Người dùng
+    thường → `data/users/<user_id>/sessions/`: không bao giờ lẫn vào dữ liệu train, admin không
+    thấy, xoá dữ liệu một người = xoá một thư mục. Theo quyền admin LÚC GỬI.
+    """
+    if auth.is_admin(user):
+        return data_dir() / "sessions"
+    return data_dir() / "users" / str(user.id) / "sessions"
+
+
+def _session_path(exercise: str, session_id: str, roots: list[Path]) -> Path:
+    """File của một hiệp, tìm lần lượt trong `roots`; bài lạ, id có ký tự lạ hoặc không có → 404."""
     if exercise not in EXERCISES or not SESSION_ID_RE.match(session_id):
         raise HTTPException(status_code=404, detail="không có hiệp này")
-    path = data_dir() / "sessions" / exercise / f"{session_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"không có hiệp {session_id}")
-    return path
+    for root in roots:
+        path = root / exercise / f"{session_id}.json"
+        if path.exists():
+            return path
+    raise HTTPException(status_code=404, detail=f"không có hiệp {session_id}")
 
 
-def _load(exercise: str, session_id: str):
+def _load(exercise: str, session_id: str, roots: list[Path] | None = None):
+    """Đọc file hiệp. Mặc định chỉ thư mục chung (dữ liệu train): công cụ dữ liệu của admin."""
     try:
-        return load_session_json(_session_path(exercise, session_id))
+        return load_session_json(
+            _session_path(exercise, session_id, roots or [data_dir() / "sessions"])
+        )
     except SessionFormatError as e:
         raise HTTPException(status_code=422, detail=f"file hiệp hỏng: {e}") from None
 
@@ -309,3 +338,18 @@ def put_labels(
 # Phải gọi SAU khi khai báo route: include_router chép các route đang có tại thời điểm gọi.
 app.include_router(protected)
 app.include_router(admin)
+
+
+def mount_web(target: FastAPI, web_dir: Path) -> bool:
+    """Phục vụ web đã build (`npm run build` → web/dist) ở `/`, để server chỉ cần MỘT chương trình
+    (deploy, D1). Gắn SAU mọi route: /api/... và /docs được khớp trước. Web điều hướng bằng
+    `#hash` (phần sau # không gửi lên server) nên chỉ cần index.html ở `/`, không cần trả
+    index.html cho mọi đường dẫn lạ. Chưa build (không có index.html) → không gắn, trả False."""
+    if not (web_dir / "index.html").is_file():
+        return False
+    target.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+    return True
+
+
+# Lúc dev vẫn dùng `npm run dev` (Vite, proxy /api); lúc deploy uvicorn phục vụ luôn web.
+mount_web(app, Path(os.environ.get("FORMCOACH_WEB_DIR", "web/dist")))

@@ -72,3 +72,18 @@ export function repsByError(
     .map((error) => ({ error, reps: reps.filter((r) => r.errors.includes(error)).map((r) => r.index + 1) }))
     .filter((e) => e.reps.length > 0)
 }
+
+const MODEL_NAMES: Record<string, string> = {
+  rules: 'luật ngưỡng',
+  stump: 'ngưỡng học',
+  rf: 'random forest',
+}
+
+/** `model_name` của server → chữ cho người dùng. Mô hình đọc từ file có ngày train sau "@"
+ *  ("rf@2026-10-31" → "random forest (train 31/10/2026)"); tên lạ giữ nguyên. */
+export function modelLabel(modelName: string): string {
+  const [base, trained] = modelName.split('@')
+  const name = MODEL_NAMES[base] ?? base
+  const m = trained?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${name} (train ${m[3]}/${m[2]}/${m[1]})` : name
+}

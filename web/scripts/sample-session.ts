@@ -24,6 +24,7 @@ for (let i = 0; i < 60; i++) {
 }
 
 const session = buildSession({
+  idSuffix: 'a3f9c1', // cố định để test Python so được tên
   exercise: 'pushup',
   setErrors: ['shallow'],
   notes: 'tối, áo đen',

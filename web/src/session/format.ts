@@ -74,11 +74,21 @@ export interface LandmarkLike {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** "2026-10-20T19-05-12_pushup": theo giờ máy, chỉ gồm chữ/số/'-'/'_' (server dùng làm tên file). */
-export function makeSessionId(date: Date, exercise: string): string {
+/** "2026-10-20T19-05-12_a3f9c1_pushup": theo giờ máy + đuôi ngẫu nhiên, chỉ gồm chữ/số/'-'/'_'
+ *  (server dùng làm tên file). Hiệp cũ không có đuôi vẫn hợp lệ. */
+export function makeSessionId(date: Date, exercise: string, suffix: string = randomSuffix()): string {
   const d = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
   const t = `${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`
-  return `${d}T${t}_${exercise}`
+  return `${d}T${t}_${suffix}_${exercise}`
+}
+
+/** 6 ký tự hex ngẫu nhiên (24 bit). session_id là duy nhất trên cả server: thiếu đuôi này thì hai
+ *  người gửi hiệp cùng một giây đụng tên, người sau bị 409 mãi (gửi lại vẫn trùng). Đuôi đặt SAU
+ *  giờ để sắp theo tên file vẫn là theo thời gian. */
+export function randomSuffix(): string {
+  const bytes = new Uint8Array(3)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /** ISO 8601 theo giờ máy kèm múi giờ, vd "2026-10-20T19:05:12+07:00". */
@@ -141,10 +151,11 @@ export function buildSession(args: {
   frameSize: [number, number]
   frames: FrameRecord[]
   source: { version: string; model: string }
+  idSuffix?: string // chỉ để test có tên cố định; bỏ trống = ngẫu nhiên
 }): SessionFile {
   return {
     format_version: FORMAT_VERSION,
-    session_id: makeSessionId(args.startedAt, args.exercise),
+    session_id: makeSessionId(args.startedAt, args.exercise, args.idSuffix),
     exercise: args.exercise,
     set_errors: [...args.setErrors],
     recorded_at: localIsoString(args.startedAt),

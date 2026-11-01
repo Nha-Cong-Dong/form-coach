@@ -128,3 +128,63 @@ Mẫu:
 - **Nguyên nhân:** Ranh giới lỗi (nhất là shallow, neck_drop) không rõ ngay với mắt người gán, nên rf gần như đã chạm trần độ nhất quán của nhãn. Nghi ngờ: lần đầu nhãn bị neo vào kịch bản của hiệp nên báo nhiều lỗi hơn (chưa kiểm).
 - **Cách sửa:** Không gán thêm nhãn, không thử mô hình phức tạp hơn; thu hẹp lời hứa sản phẩm. Ghi chú: chỉ 30 rep, gán lại sau 1 ngày (còn nhớ) nên con số 0,73 có thể lạc quan.
 - **Bài học:** Đo độ nhất quán của nhãn trước khi cố đẩy điểm mô hình; điểm mô hình không thể vượt mức người gán khớp với chính mình.
+
+## 2026-10-25 — Streak và "đạt mục tiêu": chọn cách tính trước khi viết code
+- **Chuyện gì xảy ra:** Trước khi làm mục tiêu và streak (P1) phải chốt nhiều chi tiết mà README không nói: ngày của một hiệp, đếm rep nào, chưa đặt mục tiêu thì sao, hôm nay chưa tập thì streak có đứt không.
+- **Nguyên nhân:** Mỗi chi tiết đổi con số người dùng thấy; bộ phân loại chỉ đúng khoảng 74%.
+- **Cách sửa:** Bạn duyệt: ngày theo giờ điện thoại trong `recorded_at`; đạt = tổng rep ≥ mục tiêu (đếm cả rep sai, tuỳ chọn thêm tỉ lệ đúng tối thiểu); chưa đặt mục tiêu thì có tập là đạt; hôm nay chưa đạt thì chuỗi chưa đứt. Tiến độ tính lúc đọc, không lưu sẵn.
+- **Bài học:** Con số "36/50 rep" trông đơn giản nhưng ẩn nhiều quyết định; chốt bằng chữ trước khi code thì test viết được ngay.
+
+## 2026-10-27 — Coach tự mâu thuẫn: "chưa đủ sâu ở rep 6 (57°, mục tiêu ≤ 67°)"
+- **Chuyện gì xảy ra:** Tập thật hiệp 27/10 (7 rep, 3 đúng, chấm bằng rf). Câu coach báo rep 6 chưa xuống đủ sâu kèm số đo 57° và mục tiêu ≤ 67°, tức số đo đã đạt mục tiêu.
+- **Nguyên nhân:** Kết luận "lỗi" đến từ random forest (điểm `shallow` 0,53, sát ngưỡng 0,5) vốn nhìn nhiều đặc trưng; còn mục tiêu 67° là ngưỡng của luật. Câu coach ghép hai nguồn. Test không bắt được vì Session tổng hợp luôn cho lỗi và số đo khớp nhau.
+- **Cách sửa:** Bạn chọn a: chỉ in số đo của rep có số đo vượt ngưỡng luật (`rule_fires`); không vượt thì chỉ ghi tên lỗi. Thêm test đúng trường hợp mô hình báo lỗi mà số đo trong mục tiêu.
+- **Bài học:** Khi kết luận và con số đến từ hai mô hình khác nhau, đừng ghép chúng thành một câu. Dữ liệu tổng hợp "quá ngoan" không bắt được lỗi này; phải tập thật.
+
+## 2026-10-27 — Bảng số đo: viền theo mô hình mâu thuẫn với dòng "Mục tiêu"; chú giải bị chê lạc quẻ
+- **Chuyện gì xảy ra:** Cùng hiệp trên, ô "Rep 6 · 57°" có viền đậm (lỗi) ngay dưới "Mục tiêu ≤ 67°". Sau khi đổi, dòng "viền đậm = ngoài mục tiêu" bị bạn nhận xét "lạc quẻ, làm xấu trang".
+- **Nguyên nhân:** Viền đi theo kết luận của bộ phân loại, mục tiêu đi theo luật. Chú giải bằng chữ khác kiểu với chú giải bằng hình của thẻ "Từng rep".
+- **Cách sửa:** Viền theo số đo so với mục tiêu (`outsideTarget`, bạn chọn a); kết luận của mô hình vẫn ở vòng rep và thẻ "Cần sửa". Chú giải đổi sang ô mẫu "Đạt · Chưa đạt" cuối thẻ (bạn chọn B).
+- **Bài học:** Mỗi thành phần trên màn hình chỉ nên nói một điều. Khi mô hình và số đo bất đồng, hiện ra cho người dùng thấy (rồi bấm xem lại rep) tốt hơn che đi.
+
+## 2026-10-29 — Bật biến admin mà `is_admin` vẫn `false`
+- **Chuyện gì xảy ra:** Sau D0a, đặt `FORMCOACH_ADMIN_EMAILS` nhưng `/api/auth/me` vẫn trả `is_admin: false`. Lệnh kiểm tra nhanh cũng in `False`.
+- **Nguyên nhân:** Lệnh kiểm tra còn để nguyên chữ mẫu `'email-trong-/me'` nên so hai chuỗi khác nhau. Nguyên nhân ở server không xác định chắc: các khả năng là biến đặt trên dòng riêng không `export`, email khác email tài khoản, hoặc server cũ chưa tắt.
+- **Cách sửa:** Lấy đúng email từ `/me`, chạy `uvicorn` với biến trên cùng một dòng → `is_admin: true`.
+- **Bài học:** `TEN=giatri` đứng một mình không truyền cho chương trình chạy sau; phải cùng dòng hoặc `export`. Khi so sánh, in cả hai giá trị ra trước.
+
+## 2026-10-29 — Đếm đăng nhập sai không bao giờ tăng nếu quên commit trước khi trả 401
+- **Chuyện gì xảy ra:** Làm khoá đăng nhập (10 lần sai / 5 phút → khoá 15 phút). Ghi lần sai vào DB rồi trả 401 như bình thường thì bộ đếm luôn bằng 0.
+- **Nguyên nhân:** `get_db` rollback mọi thứ khi route ném lỗi, kể cả HTTPException 401, nên bản ghi lần sai bị huỷ cùng.
+- **Cách sửa:** `db.commit()` ngay trước khi ném 401. Thử xoá dòng commit: 3 test khoá thất bại, nên test bắt được lỗi này. Email chưa đăng ký cũng bị đếm và khoá (không lộ email nào có thật).
+- **Bài học:** Biết rõ transaction kết thúc thế nào khi có lỗi. Thử "phá" code để chắc test thật sự kiểm tra điều mình nghĩ.
+
+## 2026-10-29 — Hiệp Tập được điền sẵn "tốt" khi gán nhãn
+- **Chuyện gì xảy ra:** Mở hiệp Tập (không có lỗi cố ý) trong Gán nhãn thì mọi rep đã điền sẵn "tốt"; bấm Lưu vội là thành nhãn train.
+- **Nguyên nhân:** `default_labels` điền lỗi cố ý của hiệp cho mọi rep; hiệp Tập không có lỗi cố ý nên ra "tốt". "Chưa xem" và "đã xem, thấy tốt" trông giống hệt nhau (không tick ô nào).
+- **Cách sửa:** Bạn chọn A: chỉ sửa web; hiệp Tập chưa lưu nhãn có cột Duyệt (nút Tốt / ✓), Lưu khoá tới khi duyệt hết. Định dạng nhãn không đổi. Gán nhanh giữ nguyên vì đã xác nhận từng rep bằng Enter.
+- **Bài học:** Giá trị mặc định cũng là một câu trả lời; khi không có căn cứ thì trạng thái đúng là "chưa biết".
+
+## 2026-10-29 — Ẩn nút trên web không phải là bảo mật
+- **Chuyện gì xảy ra:** Sau khi ẩn công cụ dữ liệu với người thường (D0d), câu hỏi: người dùng thường làm sao tìm được `#label`?
+- **Nguyên nhân:** Toàn bộ code web được tải về trình duyệt; ai cũng đọc được đường dẫn và tự gọi API.
+- **Cách sửa:** Chặn thật ở server (403 cho người không phải admin, D0a); web chỉ ẩn nút cho gọn và báo "chỉ dành cho admin" khi vào bằng link.
+- **Bài học:** Mọi kiểm tra quyền phải ở server; kiểm tra ở web chỉ để trải nghiệm tốt hơn.
+
+## 2026-10-31 — Góc máy, quần áo và lỗi mở khuỷu tay: sản phẩm khác làm thế nào
+- **Chuyện gì xảy ra:** Bạn nêu: quay ở góc khác thì rf rất yếu; quần áo ảnh hưởng; không bắt được lỗi mở khuỷu tay (quay ngang không thấy).
+- **Nguyên nhân:** Đặc trưng tính từ toạ độ ảnh 2D phụ thuộc góc nhìn; mở khuỷu nằm trên mặt phẳng ngang.
+- **Cách sửa:** Tìm hiểu: các app push-up thường ép đặt máy một kiểu (Top Pushup, apopt: góc ngang; PushPush: phía trước); Tempo, Peloton dùng camera chuyên dụng; toạ độ 3D của MediaPipe ổn hơn nhưng chiều sâu là đoán; quần áo rộng làm lệch khớp (>10 cm trong một nghiên cứu 2024); một nghiên cứu JMIR 2026 về đếm push-up thấy góc chéo 200 cm tốt nhất (chưa đọc được toàn văn). Quyết định: giữ góc ngang, thêm tự kiểm tra góc máy ở màn Sẵn sàng, ghi giới hạn vào README; lỗi mở khuỷu (quay trước mặt, tỉ lệ khoảng cách hai khuỷu / hai vai, giả thuyết chưa kiểm chứng) để sau deploy.
+- **Bài học:** Không sản phẩm nào giải quyết mọi góc bằng một camera; giới hạn cách đặt máy và nói rõ giới hạn là cách làm phổ biến.
+
+## 2026-10-31 — Deploy cần những gì: domain, server, database
+- **Chuyện gì xảy ra:** Chưa hình dung được deploy: có domain `.id.vn` miễn phí thì có cần server không; sao không dùng DB miễn phí bên ngoài; 100–1000 người dùng thì đầy không.
+- **Nguyên nhân:** Domain chỉ là tên trỏ tới một máy; server là máy chạy `uvicorn` 24/7. DB SQLite là một file nằm trên ổ đĩa của chính server (tạo mới, trống, không tải DB local lên).
+- **Cách sửa:** Đo: một hiệp khoảng 20 KB mỗi giây quay (hiệp tổng hợp 9,2 s = 189 KB), hiệp 30 s khoảng 600 KB; 5 GB khoảng 8.300 hiệp. Ổ đầy thì không mất dữ liệu cũ nhưng không lưu thêm được. DB miễn phí (Neon 1 GB, Supabase 500 MB, tạm dừng sau 7 ngày) không bỏ được server hay ổ đĩa. Chọn Railway (Singapore, volume, tháng đầu miễn phí), giữ SQLite trên volume; backend phục vụ luôn web đã build. Railway có thông báo sự cố 21/10: cần sao lưu và giữ code không phụ thuộc Railway.
+- **Bài học:** App lớn tách dòng nhỏ (database) với file lớn (object storage, kho lạnh); với quy mô hackathon một ổ đĩa là đủ, nhưng phải biết khi nào cần đổi.
+
+## 2026-10-31 — Email admin không có thật: ai đăng ký trước sẽ thành admin
+- **Chuyện gì xảy ra:** Admin ở máy là `test@gmail.com`, một email không tồn tại. Câu hỏi: có sao không?
+- **Nguyên nhân:** App không xác thực email; quyền admin gắn với chuỗi email. Khi deploy mở đăng ký, ai đăng ký email admin trước (nhất là email dễ đoán) sẽ thành admin.
+- **Cách sửa:** Trước mắt: email admin khó đoán (tốt nhất Gmail thật), đăng ký admin ngay sau khi server lên, trước khi chia sẻ link. Lâu dài: bạn chọn đăng nhập Google (email đã được Google xác minh) thay vì xác thực email (cần dịch vụ gửi thư, dễ vào spam). Coach LLM (mentor cho $5 credit) để sau deploy, bản nhỏ, có lùi về mẫu câu.
+- **Bài học:** Phân quyền theo email chỉ an toàn khi email được xác minh.
