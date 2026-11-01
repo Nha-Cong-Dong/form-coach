@@ -2,7 +2,9 @@ from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
 
 from formcoach.coach import CoachProgress, TemplateCoach, progress_after
+from formcoach.coach.prompt import SYSTEM_PROMPT, build_coach_prompt
 from formcoach.coach.template import rep_ranges
+from formcoach.exercises import get_exercise
 from formcoach.progress.goals import Goal, SetRecord
 from formcoach.types import Rep, RepResult, Session
 
@@ -102,3 +104,36 @@ def test_progress_after_without_goal_and_naive_time() -> None:
     records = [_set(D - timedelta(1), 18, 5), _set(D, 9, 4)]
     at = datetime(2026, 10, 20, 9, 0)  # không múi giờ
     assert progress_after(records, [], at) == CoachProgress(4, None, streak=2)
+
+
+def test_prompt_carries_template_facts_and_exercise() -> None:
+    # LLM nhận đúng các dòng của mẫu câu: không có con số nào khác với cái người dùng vẫn thấy.
+    results = [_result(0, min_elbow_angle=60.0), _result(1, {"shallow"}, min_elbow_angle=80.0)]
+    session = Session("s", "pushup", results)
+    progress = CoachProgress(day_reps=20, daily_reps=50, streak=2)
+    prompt = build_coach_prompt(session, progress)
+    facts = TemplateCoach().summarize(session, progress)
+    assert prompt.user.startswith("Bài tập: pushup\n")
+    assert prompt.user.endswith(facts)
+    assert "80°" in prompt.user and "20/50 rep" in prompt.user
+
+
+def test_prompt_system_is_fixed_and_has_no_session_data() -> None:
+    # Chỉ dẫn giống hệt nhau ở mọi hiệp; số liệu chỉ nằm ở phần user.
+    a = build_coach_prompt(Session("id-aaa", "pushup", [_result(0, {"hip_sag"})]))
+    b = build_coach_prompt(Session("id-bbb", "pushup", []), CoachProgress(3, None, 1))
+    assert a.system == b.system == SYSTEM_PROMPT
+    assert a.user != b.user
+
+
+def test_prompt_does_not_send_session_id() -> None:
+    # Chỉ gửi thứ cần để viết nhận xét; mã hiệp không cần.
+    prompt = build_coach_prompt(Session("pushup_20261101_abc123", "pushup", [_result(0)]))
+    assert "abc123" not in prompt.system + prompt.user
+
+
+def test_prompt_names_every_pushup_error() -> None:
+    # Quy tắc giọng văn trong prompt ghi cứng tên hiển thị của lỗi: đổi tên ở error_display mà quên
+    # sửa prompt thì Claude không biết lỗi đó thuộc nhóm chắc hay mơ hồ.
+    for name in get_exercise("pushup").error_display.values():
+        assert f'"{name}"' in SYSTEM_PROMPT, name

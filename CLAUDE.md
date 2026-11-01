@@ -45,7 +45,7 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 ## Dữ liệu và bí mật
 
 - **Không đọc, liệt kê hay sửa `data/`** (video cá nhân). Khi cần dữ liệu thử, sinh dữ liệu tổng hợp.
-- Không đọc `.env`. API key (DeepSeek) chỉ qua biến môi trường ở server, không bao giờ đưa vào `web/`.
+- Không đọc `.env`. API key (Claude, `ANTHROPIC_API_KEY`) chỉ qua biến môi trường ở server, không bao giờ đưa vào `web/`.
 - Không commit video, keypoint, model đã train.
 
 ## Lệnh thường dùng

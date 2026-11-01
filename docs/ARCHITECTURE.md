@@ -223,8 +223,10 @@ def streak(records, goals, today) -> int: ...  # hôm nay chưa đạt thì chư
 
 CoachProgress(day_reps, daily_reps: int | None, streak)  # tiến độ trong ngày TỚI HẾT hiệp này
 def progress_after(records, goals, at: datetime) -> CoachProgress: ...  # chỉ hiệp ghi ≤ at (cùng ngày so giờ đồng hồ)
-class Coach(ABC):                           # TemplateCoach, DeepSeekCoach
+class Coach(ABC):                           # TemplateCoach; ClaudeCoach ở backend/ (K2)
     def summarize(self, session: Session, progress: CoachProgress | None = None) -> str: ...
+CoachPrompt(system: str, user: str)          # formcoach/coach/prompt.py
+def build_coach_prompt(session, progress=None) -> CoachPrompt: ...  # thuần; user = "Bài tập: …" + câu của TemplateCoach; system cố định; không gửi session_id
     # chỉ dùng số liệu trong session/progress; tên lỗi, số đo, mục tiêu lấy từ get_exercise().
     # Dòng "Công cụ hỗ trợ, không thay huấn luyện viên." do giao diện luôn hiện, không nằm trong chữ
 ```
@@ -288,7 +290,7 @@ login_failures (id, email_key, at)   -- lần đăng nhập sai (D0b); email_key
 - `auth_tokens` chỉ lưu sha256 của token; token thật ở cookie.
 - Thời gian là chuỗi ISO 8601 UTC; danh sách/dict là chuỗi JSON.
 - Tiến độ, "đã xong" và streak **tính lúc đọc** từ `sessions`/`reps`/`goals`, không lưu sẵn. Logic này là hàm thuần trong `formcoach/progress/`, test bằng dữ liệu giả.
-- Không lưu video. API key DeepSeek chỉ ở server (biến môi trường).
+- Không lưu video. API key Claude chỉ ở server (biến môi trường `ANTHROPIC_API_KEY`).
 
 ## 5. Cấu trúc thư mục dự kiến
 
@@ -299,7 +301,7 @@ formcoach/             # lõi Python, không phụ thuộc web/DB
  ├── pose/             # joints (33 tên khớp), PoseEstimator, MediaPipeEstimator (offline), load_session_json
  ├── features/         # geometry (tính góc), smoothing, FeatureExtractor, RepSegmenter, OnlineRepCounter
  ├── models/           # FormClassifier, RuleBased, LearnedThreshold, RandomForest, registry (tạo theo tên)
- ├── coach/            # Coach, TemplateCoach, DeepSeekCoach
+ ├── coach/            # Coach, TemplateCoach, build_coach_prompt (ClaudeCoach ở backend/)
  ├── labels.py         # nhãn từng rep: lưu/đọc/kiểm tra file nhãn (§2c)
  ├── review.py         # dữ liệu cho màn hình gán nhãn (hàm thuần, backend chỉ gọi)
  ├── progress/         # tính mục tiêu, tỉ lệ rep đúng, streak (hàm thuần)
@@ -374,5 +376,6 @@ Ghi theo dạng: ngày — quyết định — lý do — phương án đã lo�
 - **2026-10-20 — Bộ đếm rep đếm theo biên độ, không theo ngưỡng góc cố định.** Xuống ≥ `min_amplitude_deg` (35°) so với đỉnh gần nhất → đang xuống; lên lại ≥ 35° so với đáy → đếm rep. `top_min` chỉ còn dùng cho trạng thái chờ sẵn sàng. Rep bị cắt khi đang đẩy lên (đã lên ≥ 35°) giờ **được đếm**. — Buổi quay thử: hiệp `incomplete_lockout` có đỉnh giữa các rep chỉ 110–135° (< 140°) nên 4 rep bị gộp thành 1 rep dài 10,6 s; rep nông lại đòi ngưỡng xuống thấp hơn, hai lỗi đòi hai ngưỡng cố định ngược nhau. Sau khi đổi: 6 hiệp quay thử ra 4 rep mỗi hiệp, 3 video ra 7/7/6. — Đã loại: hạ `top_min` (rep đúng bắt đầu bị cắt sớm, nhiễu lúc giữ plank dễ tạo rep); ngưỡng riêng theo `set_errors` của hiệp (bộ đếm phải biết trước lỗi, không dùng được khi tập thật).
 - **2026-10-20 — Ranh giới rep theo độ ổn định gần đỉnh (`top_tolerance_deg` 10°, `top_settle_s` 0,5 s).** Rep kết thúc ở khung đầu tiên mà 0,5 s tới khuỷu không tăng thêm quá 10°; bắt đầu ở khung cuối cùng mà 0,5 s trước đó khuỷu chưa cao hơn nó quá 10°. Thời gian nghỉ ở đỉnh không thuộc rep nào; rep không còn nối sát nhau. — Lấy đỉnh tuyệt đối thì lúc giữ plank chờ và lúc tay duỗi thêm khi đứng dậy bị tính vào rep 1 và rep cuối (rep 1 dài 10,2 s; góc thân rep cuối tụt ~133°, dễ bị luật bắt nhầm lỗi hông). — Đã loại: "khung đầu/cuối trong 10° dưới đỉnh" (đỉnh bị tay duỗi lúc đứng dậy đẩy lên 179° thì rep vẫn bị kéo thêm ~1,5 s); cắt ở lúc cắt qua ngưỡng cố định (mất đoạn đầu rep, không hợp với đếm theo biên độ).
 - **2026-10-17 — Coach dùng DeepSeek API, dự phòng bằng `TemplateCoach`.** — Nhận xét tự nhiên, chi phí thấp; chỉ gửi số liệu, không gửi hình ảnh. Cần kiểm tra docs API khi làm (chưa xác minh độ tương thích với thư viện `openai`). — Đã loại: chỉ mẫu câu; model local.
+- **2026-11-01 — Coach LLM đổi sang Claude Haiku 5.5 (`claude-haiku-5-5`), thay DeepSeek.** — Mentor chỉ cấp key Claude. Tách đôi: soạn prompt là hàm thuần ở `formcoach/coach/prompt.py` (test bằng Session tổng hợp), gọi API ở `backend/` (mạng, key, timeout, lỗi → `TemplateCoach`). Số liệu gửi đi = câu của `TemplateCoach` để chỉ một chỗ quyết định con số nào được nói. — Đã loại: đặt cả `ClaudeCoach` trong `formcoach/` (lõi dính mạng và key); đặt cả trong `backend/` (phần thuần lẫn với code gọi mạng).
 - **2026-10-31 — Mô hình cho server là file train sẵn (D1, bạn chọn cách 1).** Train ở máy có `data/` (`python -m formcoach train`), lưu pickle kèm `ModelInfo`, tải file lên server (không commit, `*.pkl` đã trong `.gitignore`); server đọc bằng `load_model`. Đọc kiểm tra cùng bản scikit-learn (requirements ghim `1.9.1`), sai thì báo lỗi rõ, không âm thầm dùng luật. Không thêm thư viện (pickle có sẵn). — Server không có `data/` (dữ liệu cá nhân không commit, không đưa lên server); mô hình server dùng chính là mô hình đã đánh giá ở máy. — Đã loại: tải keypoint + nhãn lên để server tự train (keypoint cá nhân trên server; mô hình đổi mà không qua đánh giá); chỉ dùng luật trên server (macro-F1 0,72 so với 0,84); `joblib` (không cần nén, pickle đủ).
 - **2026-10-31 — Tách file hiệp theo tài khoản (nhận xét mentor tuần 3, bạn duyệt a).** Admin gửi → `data/sessions/` (dữ liệu train, Gán nhãn, `build_dataset` chỉ đọc ở đây); người dùng thường → `data/users/<user_id>/sessions/`. Xem lại rep: DB xác nhận chủ hiệp, file tìm ở thư mục riêng trước rồi thư mục chung. Không di chuyển dữ liệu cũ (của admin). — Hiệp Tập của người lạ không được lẫn vào dữ liệu train; xoá dữ liệu một người = xoá một thư mục. — Đã loại: một thư mục chung + lọc khi train (dễ quên lọc ở một chỗ); thư mục theo user cho cả admin (phải sửa `build_dataset`, mọi công cụ đánh giá). Đánh đổi: dữ liệu người khác chưa dùng được để train (cần bước chuyển + đồng ý).

@@ -68,7 +68,7 @@ Model nhìn vài trăm dòng như vậy và tự tìm ngưỡng/quy luật (kể
 - **CV:** pose estimation, hình học khung xương
 - **OOP:** mô hình hoá domain, Strategy, State, thêm bài tập mới mà ít sửa code cũ
 - **Web:** FastAPI, WebSocket, database, đăng nhập, deploy; React (vibe code, không đi sâu)
-- **LLM:** diễn giải kết quả định lượng thành phản hồi (DeepSeek API)
+- **LLM:** diễn giải kết quả định lượng thành phản hồi (Claude Haiku 5.5 qua Anthropic API)
 - **Làm dự án:** giới hạn phạm vi, tự tạo và gán nhãn dữ liệu
 
 ---
@@ -85,7 +85,7 @@ Model nhìn vài trăm dòng như vậy và tự tìm ngưỡng/quy luật (kể
 - **Backend FastAPI:** nhận keypoint, trả kết quả, lưu lịch sử vào database, đăng nhập (email + mật khẩu ở tuần 3, thêm Google ở tuần 4)
 - **Đếm rep realtime** qua WebSocket
 - **Mục tiêu:** số rep mỗi ngày, tỉ lệ rep đúng kỹ thuật, streak, đồ thị tiến bộ
-- **Coach LLM** (DeepSeek), dự phòng bằng mẫu câu khi API lỗi
+- **Coach LLM** (Claude Haiku 5.5), dự phòng bằng mẫu câu khi API lỗi
 - Deploy, dùng được trên điện thoại (PWA)
 
 ### ➕ Mở rộng (chọn khi lõi xong)
@@ -118,7 +118,7 @@ Trình duyệt ──► [1 Pose]       MediaPipe JS: các khớp mỗi khung h�
 Server      ──► [2 Features]   góc khớp, vận tốc, làm mượt tín hiệu
             ──► [3 Segment]    cắt thành từng rep bằng máy trạng thái (realtime: từng khung)
             ──► [4 Classify]   luật / random forest → nhãn từng rep
-            ──► [5 Coach]      tổng hợp cả buổi, diễn giải (DeepSeek)
+            ──► [5 Coach]      tổng hợp cả buổi, diễn giải (Claude Haiku)
             ──► [6 Lưu]        database: buổi tập, rep, mục tiêu, streak
 Trình duyệt ◄── kết quả, nhận xét, dashboard
 ```
@@ -190,7 +190,7 @@ Macro-F1 (4 lỗi chính) **0,72**; tỉ lệ rep đoán đúng toàn bộ tập
 - **Một người, một điều kiện:** một người tập, cởi trần, quay ngang hông, một chỗ trong nhà. Kết quả không nói gì về người khác, góc máy khác hay quần áo khác.
 - **Dữ liệu nhỏ:** 167 rep; mỗi lỗi chỉ có 24–50 rep có nhãn. Khoảng tin cậy 95% của một tỉ lệ như recall 0,79 (19/24) rộng khoảng ±0,16, nên chênh lệch dưới ~0,15 giữa hai lỗi hoặc hai mô hình chưa có ý nghĩa. Chỉ có 5 lần chia.
 - **5 buổi nhưng chỉ 2 ngày** (21/10 hai buổi, 23/10 ba buổi). Các buổi cùng ngày có thể không độc lập hoàn toàn dù mỗi buổi đặt lại máy; so sánh theo ngày chỉ có 2 lần chia.
-- **Nhãn nhiễu ở lỗi nhẹ:** một người gán bằng mắt; khuỷu 65° so với 75°, hông thấp 2 cm so với 4 cm vượt khả năng phân biệt của mắt. Độ nhất quán của người gán chưa được đo. Nhãn v2 gán bằng hai ảnh tĩnh (đáy, đỉnh) nên không đánh giá được lỗi "suốt rep"; ảnh "đỉnh" là khung cuối rep còn số đo lấy giá trị lớn nhất trong 0,5 s sau đó. Nhãn v2 và v3 được sửa sau khi đã xem kết quả v1 (vì vậy báo cả ba bản). Điểm của mọi mô hình không thể vượt độ nhất quán của chính nhãn.
+- **Nhãn nhiễu ở lỗi nhẹ:** một người gán bằng mắt; khuỷu 65° so với 75°, hông thấp 2 cm so với 4 cm vượt khả năng phân biệt của mắt. Độ nhất quán của người gán được đo sau, ở tuần 3 (gán lại mù 30 rep, khớp toàn bộ tập lỗi 0,73; xem hạn chế ở §8). Nhãn v2 gán bằng hai ảnh tĩnh (đáy, đỉnh) nên không đánh giá được lỗi "suốt rep"; ảnh "đỉnh" là khung cuối rep còn số đo lấy giá trị lớn nhất trong 0,5 s sau đó. Nhãn v2 và v3 được sửa sau khi đã xem kết quả v1 (vì vậy báo cả ba bản). Điểm của mọi mô hình không thể vượt độ nhất quán của chính nhãn.
 - **Ngưỡng và rò rỉ nhẹ:** ngưỡng chọn từ buổi quay thử (loại khỏi chấm điểm) rồi giữ cố định. Riêng `hip_sag`, hiệp quay thử được quay cùng ngày với buổi dataset đầu tiên.
 - **Rep bị bỏ sót chưa đo được:** chỉ đo được rep bộ đếm cắt thừa.
 - **`neck_drop` còn là thử nghiệm:** vị trí tai khi quay ngang kém ổn định; không tính vào macro-F1.
@@ -209,7 +209,7 @@ Cần ràng buộc để không bịa chi tiết ngoài dữ liệu, và ghi rõ
 
 | Cách | Ghi chú |
 |---|---|
-| **DeepSeek API** | Cách chính. API key chỉ nằm ở server, đọc từ biến môi trường, không bao giờ đưa vào frontend |
+| **Claude Haiku 5.5 (Anthropic API)** | Cách chính. API key chỉ nằm ở server, đọc từ biến môi trường, không bao giờ đưa vào frontend |
 | **Mẫu câu (template)** | Dự phòng khi API lỗi hoặc hết hạn mức. Không AI, chắc chắn đúng |
 
 Tất cả nằm sau interface `Coach`, nên đổi qua lại không sửa phần khác.
@@ -288,7 +288,7 @@ RepSegmenter                      – máy trạng thái cắt rep cả hiệp (
 OnlineRepCounter                  – cùng máy trạng thái, nhận từng khung (realtime)
 FormClassifier (abstract)         ← RuleBased, RandomForest
 Rep / Session                     – dữ liệu một rep, một buổi tập
-Coach (abstract)                  ← TemplateCoach, DeepSeekCoach
+Coach (abstract)                  ← TemplateCoach, ClaudeCoach
 Pipeline                          – ghép các bước
 backend/                          – FastAPI: API, WebSocket, database, đăng nhập
 web/                              – React: các màn hình ở mục 5
@@ -305,7 +305,7 @@ Thêm bài tập mới chỉ cần thêm một lớp `Exercise`. Đổi mô hìn
 | **1** | Pose offline, tính góc, đồ thị, đếm rep push-up | Trang quay (camera + MediaPipe JS → JSON) | Đếm rep đúng; quay được dữ liệu bằng app |
 | **2** | Đọc JSON từ trang quay, baseline luật | Gán nhãn trong app; **quay dataset nhiều buổi** | Baseline + dataset có nhãn |
 | **3** | Random forest, đánh giá theo buổi, đếm rep online | FastAPI + DB + đăng nhập, WebSocket realtime, trang kết quả | Bảng so sánh luật vs RF; app chạy local đủ luồng |
-| **4** | Coach DeepSeek + mẫu câu | Dashboard mục tiêu/streak/đồ thị, PWA, đăng nhập Google, **deploy** | Sản phẩm demo được |
+| **4** | Coach LLM (Claude Haiku) + mẫu câu | Dashboard mục tiêu/streak/đồ thị, PWA, đăng nhập Google, **deploy** | Sản phẩm demo được |
 
 ### Đăng ký trước: so sánh luật với random forest (tuần 3)
 
@@ -357,6 +357,10 @@ Ghi ngày 2026-10-24, **trước khi chạy random forest lần đầu**, để 
 - **Các phân tích thăm dò làm sau khi đã thấy kết quả:** độ quan trọng đặc trưng, so sánh theo ngày và phép thử lỗi cố ý không phải kiểm định đăng ký trước. Nhóm "nhãn khác lỗi cố ý" chỉ có 45 rep. Nhãn ban đầu của mỗi hiệp lấy từ lỗi cố ý rồi mới sửa tay, nên nhãn trùng kịch bản (122 rep) có thể chứa rep chưa được xem lại kỹ.
 - **Độ quan trọng đặc trưng chỉ để mô tả:** mức quan trọng theo độ giảm tạp chất (impurity) của rừng, không chứng minh đặc trưng đó gây ra lỗi.
 - **Không có bằng chứng cho người dùng khác.** Mọi kết luận vẫn chỉ cho một người, một điều kiện quay; random forest học đặc thù của người và chỗ đặt máy có thể kém hơn luật khi gặp người dùng mới.
+- **Nhãn chỉ nhất quán với chính nó ở mức ngang random forest (gán lại mù).** Ngày 24/10, mình gán lại mù 30 rep lấy ngẫu nhiên từ tập chấm điểm (seed 0), trên một màn không hiện nhãn cũ, hiệp hay số đo (`evaluation.relabel_consistency`). Khớp toàn bộ tập lỗi (4 lỗi chính) giữa hai lần gán là **0,73**, ngang exact match của random forest (0,74). Cohen's kappa từng lỗi: `shallow` 0,53; `incomplete_lockout` 0,76; `hip_sag` 0,67; `hip_high` 0,79; `neck_drop` (thử nghiệm) 0,52. Nghĩa là random forest gần như đã chạm trần đặt ra bởi chính độ nhiễu của nhãn: điểm cao hơn nữa trên tập này sẽ không cho biết mô hình tốt hơn, mà chỉ cho thấy nó khớp với một lần gán cụ thể. Hai lỗi có kappa thấp nhất (`shallow`, `neck_drop`) cũng là hai lỗi mà kết quả mô hình mong manh nhất ở trên.
+  - **Con số 0,73 có thể lạc quan:** chỉ 30 rep, nên mỗi lỗi có rất ít rep mắc lỗi trong mẫu và kappa dao động mạnh; gán lại chỉ sau 1 ngày, khi mình còn nhớ phần nào; vẫn cùng một người gán (đo độ nhất quán với chính mình, chưa đo độ đồng thuận giữa hai người).
+  - **Lần gán mù báo ít lỗi hơn lần đầu.** Giả thuyết: lần đầu nhãn bị neo vào kịch bản của hiệp (biết hiệp này cố ý làm lỗi gì nên dễ thấy lỗi đó). Nếu đúng thì nhãn v3 thiên về kịch bản, và phép thử "rừng học kịch bản" ở trên cũng bị ảnh hưởng. Chưa kiểm chứng.
+  - **Hệ quả cho sản phẩm:** mình không gán thêm nhãn và không thử mô hình phức tạp hơn, mà thu hẹp lời hứa của app: trang kết quả hiện số đo (góc khuỷu đáy/đỉnh so với mục tiêu) bên cạnh kết luận của mô hình, và cho xem lại rep bằng người que, để người dùng tự đối chiếu khi hai bên khác nhau. Nhãn v3 không được sửa theo kết quả gán lại.
 
 ### Checklist
 - [x] **Ngày 1:** MediaPipe chạy trên một clip push-up, xem pose có ổn không (rủi ro cao nhất)
@@ -430,7 +434,7 @@ Ghi ngày 2026-10-24, **trước khi chạy random forest lần đầu**, để 
 - [ ] Baseline luật, random forest, có số liệu so sánh (F1 từng lỗi, ma trận 2×2) kèm hạn chế
 - [ ] Kiến trúc OOP: thêm bài tập mới không phải sửa pipeline
 - [ ] Có test cho đếm rep, tính góc, tính mục tiêu/streak
-- [ ] Web app deploy: đăng nhập, quay, kết quả, coach DeepSeek, mục tiêu, streak, đồ thị
+- [ ] Web app deploy: đăng nhập, quay, kết quả, coach LLM, mục tiêu, streak, đồ thị
 - [ ] README có hướng dẫn chạy, ảnh/video demo, kết quả, phần hạn chế
 - [ ] (Mở rộng) squat
 - [ ] (Mở rộng) thí nghiệm domain shift
