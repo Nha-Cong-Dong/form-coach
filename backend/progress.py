@@ -15,7 +15,8 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from backend import results
-from formcoach.coach import TemplateCoach, progress_after
+from backend.coach_llm import coach_text
+from formcoach.coach import progress_after
 from formcoach.progress.goals import DayProgress, Goal, SetRecord, daily_progress, goal_on, streak
 from formcoach.types import Session
 
@@ -114,9 +115,12 @@ def coach_json(
 ) -> dict[str, Any]:
     """Nhận xét của coach cho một hiệp đã lưu, tính lúc đọc (không lưu chữ vào DB).
 
-    Tiến độ chỉ tính tới hết hiệp này; mục tiêu là mục tiêu hiện có cho ngày đó.
+    Tiến độ chỉ tính tới hết hiệp này; mục tiêu là mục tiêu hiện có cho ngày đó. Có
+    `FORMCOACH_LLM_API_KEY` + `FORMCOACH_LLM_BASE_URL` thì Claude viết (`source = "claude"`),
+    lỗi hoặc thiếu cấu hình thì mẫu câu (`"template"`); xem `backend/coach_llm.py`.
     """
     records = set_records(db, user_id, session.exercise)
     goals = load_goals(db, user_id, session.exercise)
     at = progress_after(records, goals, datetime.fromisoformat(recorded_at))
-    return {"text": TemplateCoach().summarize(session, at), "source": "template"}
+    text, source = coach_text(session, at)
+    return {"text": text, "source": source}

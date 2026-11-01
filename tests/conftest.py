@@ -24,3 +24,14 @@ def make_video(tmp_path: Path) -> Callable[..., Path]:
         return path
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def no_real_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test không bao giờ gọi Claude thật, kể cả khi terminal đang có key của cổng LLM."""
+    from backend.coach_llm import llm_coach
+
+    monkeypatch.delenv("FORMCOACH_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("FORMCOACH_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("FORMCOACH_LLM_MODEL", raising=False)
+    llm_coach.cache_clear()

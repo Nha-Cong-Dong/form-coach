@@ -68,7 +68,7 @@ Model nhìn vài trăm dòng như vậy và tự tìm ngưỡng/quy luật (kể
 - **CV:** pose estimation, hình học khung xương
 - **OOP:** mô hình hoá domain, Strategy, State, thêm bài tập mới mà ít sửa code cũ
 - **Web:** FastAPI, WebSocket, database, đăng nhập, deploy; React (vibe code, không đi sâu)
-- **LLM:** diễn giải kết quả định lượng thành phản hồi (Claude Haiku 5.5 qua Anthropic API)
+- **LLM:** diễn giải kết quả định lượng thành phản hồi (Claude Haiku 5.5 qua cổng OpenAI-compatible của ban tổ chức)
 - **Làm dự án:** giới hạn phạm vi, tự tạo và gán nhãn dữ liệu
 
 ---
@@ -209,7 +209,7 @@ Cần ràng buộc để không bịa chi tiết ngoài dữ liệu, và ghi rõ
 
 | Cách | Ghi chú |
 |---|---|
-| **Claude Haiku 5.5 (Anthropic API)** | Cách chính. API key chỉ nằm ở server, đọc từ biến môi trường, không bao giờ đưa vào frontend |
+| **Claude Haiku 5.5** (qua cổng của ban tổ chức, định dạng OpenAI) | Cách chính. API key chỉ nằm ở server, đọc từ biến môi trường, không bao giờ đưa vào frontend. Key hết hạn 01:47 ngày 10/11/2026 (giờ VN), sau đó coach tự dùng mẫu câu |
 | **Mẫu câu (template)** | Dự phòng khi API lỗi hoặc hết hạn mức. Không AI, chắc chắn đúng |
 
 Tất cả nằm sau interface `Coach`, nên đổi qua lại không sửa phần khác.

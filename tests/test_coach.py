@@ -2,9 +2,9 @@ from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
 
 from formcoach.coach import CoachProgress, TemplateCoach, progress_after
-from formcoach.coach.prompt import SYSTEM_PROMPT, build_coach_prompt
+from formcoach.coach.prompt import EXERCISE_NAMES, SYSTEM_PROMPT, build_coach_prompt
 from formcoach.coach.template import rep_ranges
-from formcoach.exercises import get_exercise
+from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.progress.goals import Goal, SetRecord
 from formcoach.types import Rep, RepResult, Session
 
@@ -113,7 +113,7 @@ def test_prompt_carries_template_facts_and_exercise() -> None:
     progress = CoachProgress(day_reps=20, daily_reps=50, streak=2)
     prompt = build_coach_prompt(session, progress)
     facts = TemplateCoach().summarize(session, progress)
-    assert prompt.user.startswith("Bài tập: pushup\n")
+    assert prompt.user.startswith("Bài tập: chống đẩy (push-up)\n")
     assert prompt.user.endswith(facts)
     assert "80°" in prompt.user and "20/50 rep" in prompt.user
 
@@ -137,3 +137,9 @@ def test_prompt_names_every_pushup_error() -> None:
     # sửa prompt thì Claude không biết lỗi đó thuộc nhóm chắc hay mơ hồ.
     for name in get_exercise("pushup").error_display.values():
         assert f'"{name}"' in SYSTEM_PROMPT, name
+
+
+def test_every_exercise_has_a_name_for_the_prompt() -> None:
+    # Thêm bài mới (vd squat) mà quên tên tiếng Việt thì LLM sẽ viết nguyên mã vào câu.
+    for name in EXERCISES:
+        assert name in EXERCISE_NAMES, name

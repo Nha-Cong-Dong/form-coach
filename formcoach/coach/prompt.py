@@ -29,7 +29,8 @@ Quy tắc:
 2. Số liệu: chỉ dùng con số có trong dữ liệu, giữ nguyên cách viết. Không thêm số rep, góc, \
 ngày hay phần trăm nào khác. Lỗi nào không kèm số đo thì không tự thêm số đo cho lỗi đó.
 3. Trọng tâm: nếu có lỗi, nói về lỗi gặp ở nhiều rep nhất, kèm một gợi ý sửa ngắn về kỹ thuật \
-chung (ví dụ siết bụng, hạ ngực thấp hơn). Không liệt kê hết mọi lỗi.
+chung cho chính lỗi đó (ví dụ siết bụng, hạ ngực thấp hơn). Không liệt kê hết mọi lỗi, và không \
+gợi ý sửa cho lỗi không có trong dữ liệu.
 4. Giọng theo độ tin cậy:
    - "Hông võng", "Hông nhô cao": app nhận ra khá chắc, nhận xét rõ ràng.
    - "Chưa xuống đủ sâu", "Chưa duỗi hết tay", "Cổ gục hoặc rướn": ranh giới mơ hồ hơn, \
@@ -43,6 +44,11 @@ câu "Công cụ hỗ trợ, không thay huấn luyện viên" (giao diện đã
    - Tất cả rep đều đúng: khen và khích lệ giữ phong độ."""
 
 
+# Tên bài gửi cho LLM: gửi mã ("pushup") thì nó viết lại nguyên mã vào câu ("Hiệp pushup này",
+# thử thật 2026-11-01). Bài chưa có tên ở đây thì gửi mã.
+EXERCISE_NAMES = {"pushup": "chống đẩy (push-up)"}
+
+
 @dataclass(frozen=True)
 class CoachPrompt:
     """Hai phần gửi cho LLM: chỉ dẫn cố định (`system`) và số liệu của hiệp (`user`)."""
@@ -54,5 +60,6 @@ class CoachPrompt:
 def build_coach_prompt(session: Session, progress: CoachProgress | None = None) -> CoachPrompt:
     """Prompt cho một hiệp: số liệu lấy từ `TemplateCoach`; không gửi session_id, hình, keypoint."""
     facts = TemplateCoach().summarize(session, progress)
-    user = f"Bài tập: {session.exercise}\nSố liệu hiệp vừa tập:\n{facts}"
+    name = EXERCISE_NAMES.get(session.exercise, session.exercise)
+    user = f"Bài tập: {name}\nSố liệu hiệp vừa tập:\n{facts}"
     return CoachPrompt(system=SYSTEM_PROMPT, user=user)

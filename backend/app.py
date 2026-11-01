@@ -29,7 +29,7 @@ from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend import auth, live, progress, results
+from backend import auth, coach_llm, live, progress, results
 from backend.db import get_db
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
@@ -49,6 +49,7 @@ from formcoach.review import build_rep_replay, build_review
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Có FORMCOACH_MODEL_PATH: đọc file mô hình trước khi nhận request; file sai → không khởi động.
     results.check_model_file(data_dir())
+    coach_llm.log_coach_in_use()
     yield
 
 
