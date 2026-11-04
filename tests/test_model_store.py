@@ -113,3 +113,10 @@ def test_cli_train_refuses_to_save_rules_fallback(tmp_path: Path, monkeypatch) -
     with pytest.raises(SystemExit):
         main(["train", "--data", str(tmp_path), "--out", str(out)])
     assert not out.exists()
+
+
+def test_load_model_bytes_garbage_names_source() -> None:
+    from formcoach.models.store import load_model_bytes
+
+    with pytest.raises(ModelFileError, match="trong DB"):
+        load_model_bytes(b"rac", "pushup", "trong DB")

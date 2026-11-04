@@ -53,7 +53,8 @@ Mình làm dự án này để học qua vibe code. Vì vậy:
 ```bash
 conda activate formcoach
 pip install -r requirements.txt
-pytest                   # chạy test (test_web_format cần Node ≥ 22.18 trong PATH, không có thì tự bỏ qua)
+docker start formcoach-pg   # Postgres ở máy (tạo lần đầu: docs/plans/postgres-neon.md); app đọc FORMCOACH_DATABASE_URL
+pytest                   # chạy test (test DB cần container formcoach-pg, test_web_format cần Node ≥ 22.18; thiếu thì tự bỏ qua)
 ruff check .             # lint
 ruff format .            # format
 
@@ -63,6 +64,7 @@ python -m formcoach analyze data/videos/<clip>.mp4
 
 # công cụ trong tools/: chạy dạng module từ gốc repo (python tools/x.py không thấy package formcoach)
 python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
+python -m tools.upload_model models/pushup-rf.pkl       # tải mô hình lên DB (FORMCOACH_DATABASE_URL); deploy: đặt URL Neon
 
 uvicorn backend.app:app --port 8000      # backend; xem/thử API ở http://127.0.0.1:8000/docs
 

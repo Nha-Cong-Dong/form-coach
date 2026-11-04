@@ -8,3 +8,5 @@ uvicorn==0.54.0       # server chạy app FastAPI
 websockets==17.2      # uvicorn cần để chạy WebSocket thật (/api/live, đếm rep trực tiếp); không có thì kết nối WS bị từ chối
 scikit-learn==1.9.1   # random forest cho bước so sánh luật vs mô hình (tuần 3); RF nhận NaN trực tiếp
 openai==3.42.0        # coach (K2): gọi Claude Haiku 5.5 qua cổng của ban tổ chức (định dạng OpenAI); có sẵn timeout, thử lại, lớp lỗi
+psycopg[binary]==3.3.8  # driver Postgres (DB ở Neon khi deploy); [binary] kèm sẵn libpq, không cần cài Postgres vào máy
+psycopg-pool==3.3.3     # giữ sẵn vài kết nối: mở mới tới Neon mỗi request tốn bắt tay TLS

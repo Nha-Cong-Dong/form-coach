@@ -1,10 +1,53 @@
 """Fixture dùng chung cho các test."""
 
-from collections.abc import Callable
+import os
+import uuid
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import numpy as np
 import pytest
+
+# Postgres cho test (docs/plans/postgres-neon.md: container Docker formcoach-pg ở máy). Đổi bằng
+# FORMCOACH_TEST_DATABASE_URL. KHÔNG dùng FORMCOACH_DATABASE_URL: test tạo/xoá bảng, không được
+# đụng DB thật (kể cả khi terminal đã `source .env`).
+TEST_DATABASE_URL = os.environ.get(
+    "FORMCOACH_TEST_DATABASE_URL", "postgresql://formcoach:formcoach@127.0.0.1:5432/formcoach"
+)
+_pg_unavailable: str | None = None  # lý do bỏ qua, nhớ lại để không thử kết nối lại mỗi test
+
+
+@pytest.fixture
+def pg_database(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    """Một DB sạch cho mỗi test: schema Postgres riêng (test_<ngẫu nhiên>), xoá khi test xong.
+
+    Schema = một "thư mục" bảng trong cùng DB; `search_path` trong địa chỉ kết nối bảo Postgres
+    tạo/tìm bảng trong schema đó. Nhanh hơn tạo cả database mới cho mỗi test.
+    Chưa bật Postgres → test bỏ qua (skip) kèm lý do, như test web khi thiếu Node.
+    """
+    global _pg_unavailable
+    import psycopg
+    from psycopg.conninfo import make_conninfo
+
+    from backend.db import close_pool
+
+    if _pg_unavailable:
+        pytest.skip(_pg_unavailable)
+    try:
+        admin = psycopg.connect(TEST_DATABASE_URL, autocommit=True, connect_timeout=3)
+    except psycopg.OperationalError as e:
+        _pg_unavailable = f"không kết nối được Postgres cho test ({TEST_DATABASE_URL}): {e}"
+        pytest.skip(_pg_unavailable)
+    schema = f"test_{uuid.uuid4().hex[:12]}"
+    admin.execute(f'CREATE SCHEMA "{schema}"')
+    url = make_conninfo(TEST_DATABASE_URL, options=f"-c search_path={schema}")
+    monkeypatch.setenv("FORMCOACH_DATABASE_URL", url)
+    try:
+        yield url
+    finally:
+        close_pool()
+        admin.execute(f'DROP SCHEMA "{schema}" CASCADE')
+        admin.close()
 
 
 @pytest.fixture

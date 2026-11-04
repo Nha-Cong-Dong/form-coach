@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -25,12 +24,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import numpy as np
+import psycopg
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend import auth, coach_llm, live, progress, results
-from backend.db import get_db
+from backend.db import Connection, close_pool, get_db, open_pool
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
 from formcoach.pipeline import analyze, classify_session
@@ -47,10 +47,16 @@ from formcoach.review import build_rep_replay, build_review
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Có FORMCOACH_MODEL_PATH: đọc file mô hình trước khi nhận request; file sai → không khởi động.
-    results.check_model_file(data_dir())
-    coach_llm.log_coach_in_use()
-    yield
+    # Mở pool + tạo bảng trước khi nhận request: sai FORMCOACH_DATABASE_URL → không khởi động.
+    open_pool()
+    try:
+        # Đọc mô hình (file FORMCOACH_MODEL_PATH hoặc bảng `models`, cần DB) trước khi nhận
+        # request; mô hình sai → không khởi động.
+        results.check_model_file(data_dir())
+        coach_llm.log_coach_in_use()
+        yield
+    finally:
+        close_pool()
 
 
 app = FastAPI(title="Form Coach", version="0.1.0", lifespan=lifespan)
@@ -61,7 +67,7 @@ app.include_router(live.router)
 protected = APIRouter(dependencies=[Depends(auth.current_user)])
 # Công cụ dữ liệu: thấy hiệp của mọi người và ghi nhãn train, nên chỉ admin.
 admin = APIRouter(dependencies=[Depends(auth.admin_user)])
-Db = Annotated[sqlite3.Connection, Depends(get_db)]
+Db = Annotated[Connection, Depends(get_db)]
 CurrentUser = Annotated[auth.User, Depends(auth.current_user)]
 
 
@@ -90,11 +96,13 @@ def upload_session(
     user: CurrentUser,
     payload: dict[str, Any] = Body(...),  # noqa: B008
 ) -> dict[str, Any]:
-    """Kiểm tra file quay theo ARCHITECTURE §2b, phân loại từng rep, lưu file + kết quả.
+    """Kiểm tra file quay theo ARCHITECTURE §2b, phân loại từng rep, lưu kết quả + keypoint.
 
-    File lưu nguyên văn (dữ liệu huấn luyện); kết quả vào DB gắn với người tải lên. Thứ tự: phân
-    loại và ghi DB (chưa commit) → ghi file → commit, để lỗi ở bước nào cũng không để lại kết
-    quả mà không có file. 422: sai định dạng (nói rõ sai ở đâu). 409: session_id đã tồn tại.
+    Mọi hiệp: kết quả và keypoint gốc (nén) vào DB, gắn với người tải lên (xem lại rep đọc ở
+    đây; server miễn phí không giữ file). Hiệp của admin ghi THÊM file nguyên văn vào
+    `data/sessions/` (dữ liệu huấn luyện ở máy). Thứ tự: phân loại và ghi DB (chưa commit) → ghi
+    file (admin) → commit, để lỗi ở bước nào cũng không để lại nửa chừng.
+    422: sai định dạng (nói rõ sai ở đâu). 409: session_id đã tồn tại.
     """
     try:
         pose, meta = parse_session(payload)
@@ -105,12 +113,8 @@ def upload_session(
     if meta.capture_mode == "dataset" and not auth.is_admin(user):
         raise HTTPException(status_code=403, detail="chỉ admin được gửi hiệp Quay dữ liệu")
 
-    folder = (sessions_root(user) / meta.exercise).resolve()
-    path = (folder / f"{meta.session_id}.json").resolve()
-    # parse_session đã chặn ký tự lạ trong session_id; kiểm tra thêm lần nữa cho chắc.
-    if path.parent != folder:
-        raise HTTPException(status_code=422, detail="session_id không hợp lệ")
-    if path.exists():
+    path = training_file(user, meta.exercise, meta.session_id)
+    if path is not None and path.exists():
         raise HTTPException(status_code=409, detail=f"session {meta.session_id} đã tồn tại")
 
     t = meta.timestamps_ms
@@ -120,14 +124,15 @@ def upload_session(
     classifier, model_name = results.get_classifier(exercise, data_dir())
     session = classify_session(pose, exercise, classifier, meta.session_id)
     try:
-        results.store_result(db, user.id, meta, session, model_name, n_frames, duration_s)
-    except sqlite3.IntegrityError:  # đã có kết quả (file bị xoá tay): như trùng file
+        results.store_result(db, user.id, meta, session, model_name, n_frames, duration_s, payload)
+    except psycopg.errors.UniqueViolation:  # UNIQUE(exercise, session_id): đã gửi hiệp này
         raise HTTPException(
             status_code=409, detail=f"session {meta.session_id} đã tồn tại"
         ) from None
 
-    folder.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    if path is not None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     db.commit()
 
     return {
@@ -224,28 +229,37 @@ def rep_replay(
 ) -> dict[str, Any]:
     """Người que của một rep (thêm 0,3 s mỗi bên) để phát lại ở trang kết quả.
 
-    Rep lấy theo kết quả đã lưu của chính user (khung đầu/cuối trong DB), keypoint đọc từ file
-    hiệp. Hiệp người khác, rep không có → 404. Không có video: chỉ khung xương.
+    Rep lấy theo kết quả đã lưu của chính user (khung đầu/cuối trong DB), keypoint đọc từ DB.
+    Hiệp người khác, rep không có → 404. Không có video: chỉ khung xương.
     """
     frames = results.rep_frames(db, user.id, exercise, session_id, index)
     if frames is None:
         raise HTTPException(status_code=404, detail="không có rep này")
-    # DB đã xác nhận hiệp là của user; file: thư mục riêng trước, rồi thư mục chung (user từng là
-    # admin lúc gửi).
-    pose, meta = _load(exercise, session_id, [sessions_root(user), data_dir() / "sessions"])
+    stored = results.load_payload(db, user.id, exercise, session_id)
+    if stored is not None:
+        pose, meta = parse_session(stored)
+    else:
+        # Hiệp gửi trước khi keypoint vào DB (P2): còn file. DB đã xác nhận hiệp là của user;
+        # tìm thư mục riêng cũ (data/users/<id>/) trước, rồi thư mục chung (user là admin).
+        roots = [data_dir() / "users" / str(user.id) / "sessions", data_dir() / "sessions"]
+        pose, meta = _load(exercise, session_id, roots)
     return build_rep_replay(pose, meta, *frames)
 
 
-def sessions_root(user: auth.User) -> Path:
-    """Nơi lưu file hiệp của người gửi (D1, tách dữ liệu theo tài khoản).
+def training_file(user: auth.User, exercise: str, session_id: str) -> Path | None:
+    """File dữ liệu train cho hiệp admin gửi: `data/sessions/<bài>/<id>.json`; người thường → None.
 
-    Admin → `data/sessions/` (dữ liệu train: build_dataset, Gán nhãn chỉ đọc ở đây). Người dùng
-    thường → `data/users/<user_id>/sessions/`: không bao giờ lẫn vào dữ liệu train, admin không
-    thấy, xoá dữ liệu một người = xoá một thư mục. Theo quyền admin LÚC GỬI.
+    Chỉ hiệp của admin thành dữ liệu train (build_dataset, Gán nhãn đọc ở đây), theo quyền admin
+    LÚC GỬI. Hiệp của người thường chỉ ở DB: không bao giờ lẫn vào dữ liệu train.
     """
-    if auth.is_admin(user):
-        return data_dir() / "sessions"
-    return data_dir() / "users" / str(user.id) / "sessions"
+    if not auth.is_admin(user):
+        return None
+    folder = (data_dir() / "sessions" / exercise).resolve()
+    path = (folder / f"{session_id}.json").resolve()
+    # parse_session đã chặn ký tự lạ trong session_id; kiểm tra thêm lần nữa cho chắc.
+    if path.parent != folder:
+        raise HTTPException(status_code=422, detail="session_id không hợp lệ")
+    return path
 
 
 def _session_path(exercise: str, session_id: str, roots: list[Path]) -> Path:

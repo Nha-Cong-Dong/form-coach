@@ -65,7 +65,7 @@ def test_parse_keypoints() -> None:
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str) -> TestClient:
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
     monkeypatch.setenv("FORMCOACH_COOKIE_SECURE", "0")

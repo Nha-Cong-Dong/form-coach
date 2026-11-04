@@ -54,10 +54,20 @@ def load_model(path: Path, exercise: str) -> tuple[FormClassifier, ModelInfo]:
     """Đọc file do `save_model` ghi. Mọi sai lệch → ModelFileError nói rõ sai ở đâu."""
     path = Path(path)
     try:
-        with path.open("rb") as f:
-            payload: Any = pickle.load(f)
+        data = path.read_bytes()
     except FileNotFoundError:
         raise ModelFileError(f"không thấy file mô hình {path}") from None
+    return load_model_bytes(data, exercise, str(path))
+
+
+def load_model_bytes(
+    data: bytes, exercise: str, source: str = "mô hình"
+) -> tuple[FormClassifier, ModelInfo]:
+    """Như `load_model` nhưng từ nội dung file (vd lưu trong DB khi deploy, P3). `source` chỉ để
+    câu báo lỗi nói rõ mô hình lấy từ đâu. Cùng các bước kiểm tra, cùng cảnh báo an toàn pickle."""
+    path = source
+    try:
+        payload: Any = pickle.loads(data)
     except Exception as e:  # noqa: BLE001 - file hỏng / không phải pickle: báo chung một lỗi
         raise ModelFileError(f"không đọc được file mô hình {path}: {e}") from None
 

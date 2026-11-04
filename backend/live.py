@@ -24,7 +24,7 @@ import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.auth import COOKIE_NAME, user_for_token
-from backend.db import connect, db_path
+from backend.db import connection
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.features.online import OnlineRepCounter
 from formcoach.pose.joints import MEDIAPIPE_JOINTS
@@ -115,11 +115,8 @@ class LiveSession:
 @router.websocket("/api/live")
 async def live(websocket: WebSocket) -> None:
     """Đếm rep trực tiếp. Chỉ người đã đăng nhập (cookie phiên, kiểm tra trước khi accept)."""
-    conn = connect(db_path())
-    try:
+    with connection() as conn:
         user = user_for_token(conn, websocket.cookies.get(COOKIE_NAME))
-    finally:
-        conn.close()
     if user is None:
         await websocket.close(code=UNAUTHORIZED)
         return

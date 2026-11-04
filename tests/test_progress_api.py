@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
-from backend.db import connect, db_path
+from backend.db import connect
 from tests.synthetic import train_session
 
 PW = "mat-khau-dai"
@@ -16,7 +16,7 @@ TODAY = datetime.now(UTC).date()
 
 
 @pytest.fixture
-def make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str):
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
     monkeypatch.setenv("FORMCOACH_COOKIE_SECURE", "0")
@@ -56,8 +56,10 @@ def test_goal_roundtrip_and_same_day_overwrites(make_client) -> None:
     goal = client.get("/api/goals").json()["goal"]
     assert goal == {"daily_reps": 40, "min_good_ratio": 0.7, "from_date": TODAY.isoformat()}
 
-    conn = connect(db_path())
-    assert conn.execute("SELECT COUNT(*) FROM goals").fetchone()[0] == 1  # ghi đè, không thêm
+    conn = connect()
+    assert (
+        conn.execute("SELECT COUNT(*) AS n FROM goals").fetchone()["n"] == 1
+    )  # ghi đè, không thêm
     conn.close()
 
 
