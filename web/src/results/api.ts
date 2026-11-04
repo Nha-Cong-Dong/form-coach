@@ -41,7 +41,7 @@ export interface SessionResult {
   coach?: CoachText // server dựng câu (TemplateCoach); web chỉ hiển thị
 }
 
-/** Nhận xét của coach; các dòng cách nhau bằng "\n". `source`: "template" (sau này "deepseek"). */
+/** Nhận xét của coach; các dòng cách nhau bằng "\n". `source`: "template" (sau này "claude"). */
 export interface CoachText {
   text: string
   source: string

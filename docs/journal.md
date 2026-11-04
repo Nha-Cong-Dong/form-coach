@@ -188,3 +188,9 @@ Mẫu:
 - **Nguyên nhân:** App không xác thực email; quyền admin gắn với chuỗi email. Khi deploy mở đăng ký, ai đăng ký email admin trước (nhất là email dễ đoán) sẽ thành admin.
 - **Cách sửa:** Trước mắt: email admin khó đoán (tốt nhất Gmail thật), đăng ký admin ngay sau khi server lên, trước khi chia sẻ link. Lâu dài: bạn chọn đăng nhập Google (email đã được Google xác minh) thay vì xác thực email (cần dịch vụ gửi thư, dễ vào spam). Coach LLM (mentor cho $5 credit) để sau deploy, bản nhỏ, có lùi về mẫu câu.
 - **Bài học:** Phân quyền theo email chỉ an toàn khi email được xác minh.
+
+## 2026-11-01 — Key coach LLM bị 401: key của cổng trung gian, không phải key Anthropic
+- **Chuyện gì xảy ra:** Code coach K2 đầu tiên dùng SDK `anthropic`, gửi key thẳng tới `api.anthropic.com`. Cả 5 hiệp thử bị `401 invalid x-api-key` (app tự lùi về mẫu câu). `curl` trực tiếp cũng 401. Key bắt đầu `sk-7VJ…`, dài 25 ký tự; key Anthropic thật bắt đầu `sk-ant-api`, dài khoảng 100 ký tự.
+- **Nguyên nhân:** Key mentor cấp là key của cổng `proptit.dekthe.dev` (ban tổ chức giữ key Anthropic thật, chia mỗi người $5, 100 request/phút, hết hạn 01:47 ngày 10/11). Docs của cổng chỉ cam kết định dạng OpenAI (`/v1/chat/completions`, `Authorization: Bearer`). Lỗi phụ: sửa `.env` nhưng chưa `source` lại nên terminal không thấy biến.
+- **Cách sửa:** Thử bằng `curl`: cổng chạy được cả `/v1/messages` (không có trong docs) lẫn `/v1/chat/completions`. Bạn chọn đường có trong docs: đổi sang SDK `openai`, biến `FORMCOACH_LLM_API_KEY` + `FORMCOACH_LLM_BASE_URL` (+ `FORMCOACH_LLM_MODEL` tuỳ chọn). Thử lại 5 hiệp: 5/5 do Claude viết, không bịa số, 257–916 token ra. Sửa thêm prompt: gửi "chống đẩy (push-up)" thay mã `pushup`, chỉ gợi ý cho lỗi có trong dữ liệu.
+- **Bài học:** Trước khi tích hợp một API, đọc docs của chính nơi cấp key (địa chỉ, định dạng, cách xác thực), đừng đoán theo tên mô hình.
