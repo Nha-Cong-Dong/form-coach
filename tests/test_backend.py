@@ -7,12 +7,14 @@ from fastapi.testclient import TestClient
 
 from backend.app import app
 from backend.auth import User, current_user
-from backend.db import connect, db_path
+from backend.db import connect
 from tests.synthetic import make_session, three_rep_session
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str
+) -> Iterator[TestClient]:
     # Mọi file ghi vào thư mục tạm của test, không đụng data/ thật.
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     # Luật: không cần dữ liệu đã gán nhãn hay scikit-learn (mô hình học test ở test_train.py).
@@ -20,15 +22,14 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
     # File này test công cụ dữ liệu (danh sách hiệp, nhãn): user giả là admin. Quyền: test_auth.py.
     monkeypatch.setenv("FORMCOACH_ADMIN_EMAILS", "test@example.com")
     # Giả vờ đã đăng nhập: test ở đây kiểm tra endpoint, phần đăng nhập test ở test_auth.py.
-    # User 1 phải có trong DB vì kết quả tải lên được lưu kèm user_id (khoá ngoại).
-    conn = connect(db_path())
-    with conn:
-        conn.execute(
-            "INSERT INTO users (id, email, password_hash, created_at) VALUES (1, ?, 'x', ?)",
+    # User phải có trong DB vì kết quả tải lên được lưu kèm user_id (khoá ngoại).
+    with connect() as conn:
+        user_id = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (%s, 'x', %s)"
+            " RETURNING id",
             ("test@example.com", "2026-10-24T00:00:00+00:00"),
-        )
-    conn.close()
-    app.dependency_overrides[current_user] = lambda: User(id=1, email="test@example.com")
+        ).fetchone()["id"]
+    app.dependency_overrides[current_user] = lambda: User(id=user_id, email="test@example.com")
     yield TestClient(app)
     app.dependency_overrides.clear()
 

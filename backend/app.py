@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -25,12 +24,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import numpy as np
+import psycopg
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend import auth, coach_llm, live, progress, results
-from backend.db import get_db
+from backend.db import Connection, close_pool, get_db, open_pool
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
 from formcoach.pipeline import analyze, classify_session
@@ -50,7 +50,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Có FORMCOACH_MODEL_PATH: đọc file mô hình trước khi nhận request; file sai → không khởi động.
     results.check_model_file(data_dir())
     coach_llm.log_coach_in_use()
+    # Mở pool + tạo bảng trước khi nhận request: sai FORMCOACH_DATABASE_URL → không khởi động.
+    open_pool()
     yield
+    close_pool()
 
 
 app = FastAPI(title="Form Coach", version="0.1.0", lifespan=lifespan)
@@ -61,7 +64,7 @@ app.include_router(live.router)
 protected = APIRouter(dependencies=[Depends(auth.current_user)])
 # Công cụ dữ liệu: thấy hiệp của mọi người và ghi nhãn train, nên chỉ admin.
 admin = APIRouter(dependencies=[Depends(auth.admin_user)])
-Db = Annotated[sqlite3.Connection, Depends(get_db)]
+Db = Annotated[Connection, Depends(get_db)]
 CurrentUser = Annotated[auth.User, Depends(auth.current_user)]
 
 
@@ -121,7 +124,7 @@ def upload_session(
     session = classify_session(pose, exercise, classifier, meta.session_id)
     try:
         results.store_result(db, user.id, meta, session, model_name, n_frames, duration_s)
-    except sqlite3.IntegrityError:  # đã có kết quả (file bị xoá tay): như trùng file
+    except psycopg.errors.UniqueViolation:  # đã có kết quả (file bị xoá tay): như trùng file
         raise HTTPException(
             status_code=409, detail=f"session {meta.session_id} đã tồn tại"
         ) from None

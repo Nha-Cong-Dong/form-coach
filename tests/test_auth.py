@@ -9,14 +9,14 @@ from fastapi.testclient import TestClient
 from backend import auth
 from backend.app import app
 from backend.auth import COOKIE_NAME, LOGIN_LOCKOUT, LOGIN_WINDOW, lockout_end
-from backend.db import connect, db_path
+from backend.db import connect
 from tests.synthetic import make_session, train_session
 
 PW = "mat-khau-dai"
 
 
 @pytest.fixture
-def anon_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def anon_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str) -> TestClient:
     """Client chưa đăng nhập, không override `current_user`; DB và data trong thư mục tạm."""
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
@@ -147,7 +147,7 @@ def test_logout_without_login_is_ok(anon_client: TestClient) -> None:
 
 def test_expired_token_is_401(anon_client: TestClient) -> None:
     _register(anon_client)
-    conn = connect(db_path())
+    conn = connect()
     with conn:
         conn.execute("UPDATE auth_tokens SET expires_at = '2000-01-01T00:00:00+00:00'")
     conn.close()
@@ -157,7 +157,7 @@ def test_expired_token_is_401(anon_client: TestClient) -> None:
 def test_db_stores_token_hash_not_token(anon_client: TestClient) -> None:
     _register(anon_client)
     token = anon_client.cookies[COOKIE_NAME]
-    conn = connect(db_path())
+    conn = connect()
     stored = [r["token_hash"] for r in conn.execute("SELECT token_hash FROM auth_tokens")]
     conn.close()
     assert stored == [hashlib.sha256(token.encode()).hexdigest()]
@@ -183,13 +183,13 @@ def test_huge_password_is_422_without_hashing(anon_client: TestClient, route: st
 
 def test_login_removes_expired_tokens(anon_client: TestClient) -> None:
     _register(anon_client)
-    conn = connect(db_path())
+    conn = connect()
     with conn:
         conn.execute("UPDATE auth_tokens SET expires_at = '2000-01-01T00:00:00+00:00'")
     conn.close()
     anon_client.cookies.clear()
     assert _login(anon_client).status_code == 200
-    conn = connect(db_path())
+    conn = connect()
     rows = conn.execute("SELECT expires_at FROM auth_tokens").fetchall()
     conn.close()
     assert len(rows) == 1 and not rows[0]["expires_at"].startswith("2000")
@@ -359,7 +359,7 @@ def test_old_failures_are_cleaned_up(anon_client: TestClient, clock) -> None:
     clock[0] += LOGIN_WINDOW + LOGIN_LOCKOUT + timedelta(seconds=1)
     _login(anon_client, "khac@example.com", "x")  # chỉ dọn bản ghi của email đang đăng nhập
     _login(anon_client, password="sai-mat-khau")
-    conn = connect(db_path())
-    keys = [r[0] for r in conn.execute("SELECT email_key FROM login_failures")]
+    conn = connect()
+    keys = [r["email_key"] for r in conn.execute("SELECT email_key FROM login_failures")]
     conn.close()
     assert sorted(keys) == ["an@example.com", "khac@example.com"]

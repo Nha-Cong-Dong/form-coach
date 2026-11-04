@@ -15,7 +15,7 @@ ADMIN = "admin@example.com"
 
 
 @pytest.fixture
-def data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str) -> Path:
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
     monkeypatch.setenv("FORMCOACH_COOKIE_SECURE", "0")

@@ -6,14 +6,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
-from backend.db import connect, db_path
+from backend.db import connect
 from tests.synthetic import train_session
 
 PW = "mat-khau-dai"
 
 
 @pytest.fixture
-def make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def make_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str):
     """Tạo client đã đăng nhập bằng một email (mỗi client một cookie riêng)."""
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
@@ -54,9 +54,9 @@ def test_result_is_stored_and_read_back(make_client) -> None:
     assert result["summary"] == uploaded["summary"]
     assert result["model_name"] == "rules" and result["duration_s"] == uploaded["duration_s"]
 
-    conn = connect(db_path())
-    n_sessions = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
-    n_reps = conn.execute("SELECT COUNT(*) FROM reps").fetchone()[0]
+    conn = connect()
+    n_sessions = conn.execute("SELECT COUNT(*) AS n FROM sessions").fetchone()["n"]
+    n_reps = conn.execute("SELECT COUNT(*) AS n FROM reps").fetchone()["n"]
     conn.close()
     assert (n_sessions, n_reps) == (1, 3)
 
@@ -86,8 +86,8 @@ def test_duplicate_upload_is_409_and_not_stored_twice(make_client) -> None:
     payload = train_session()
     assert client.post("/api/sessions", json=payload).status_code == 201
     assert client.post("/api/sessions", json=payload).status_code == 409
-    conn = connect(db_path())
-    assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1
+    conn = connect()
+    assert conn.execute("SELECT COUNT(*) AS n FROM sessions").fetchone()["n"] == 1
     conn.close()
 
 

@@ -10,12 +10,12 @@ chỉ chấp nhận ngày lệch ≤ 1 ngày so với ngày UTC của server (m�
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import UTC, date, datetime
 from typing import Any
 
 from backend import results
 from backend.coach_llm import coach_text
+from backend.db import Connection
 from formcoach.coach import progress_after
 from formcoach.progress.goals import DayProgress, Goal, SetRecord, daily_progress, goal_on, streak
 from formcoach.types import Session
@@ -28,7 +28,7 @@ def plausible_today(day: date) -> bool:
     return abs((day - datetime.now(UTC).date()).days) <= 1
 
 
-def set_records(db: sqlite3.Connection, user_id: int, exercise: str) -> list[SetRecord]:
+def set_records(db: Connection, user_id: int, exercise: str) -> list[SetRecord]:
     """Mọi hiệp của user cho một bài (dùng lại truy vấn lịch sử của trang kết quả)."""
     return [
         SetRecord(datetime.fromisoformat(r["recorded_at"]), r["n_reps"], r["n_good"])
@@ -37,10 +37,10 @@ def set_records(db: sqlite3.Connection, user_id: int, exercise: str) -> list[Set
     ]
 
 
-def load_goals(db: sqlite3.Connection, user_id: int, exercise: str) -> list[Goal]:
+def load_goals(db: Connection, user_id: int, exercise: str) -> list[Goal]:
     rows = db.execute(
         "SELECT daily_reps, min_good_ratio, from_date FROM goals"
-        " WHERE user_id = ? AND exercise = ? ORDER BY from_date",
+        " WHERE user_id = %s AND exercise = %s ORDER BY from_date",
         (user_id, exercise),
     ).fetchall()
     return [
@@ -48,11 +48,11 @@ def load_goals(db: sqlite3.Connection, user_id: int, exercise: str) -> list[Goal
     ]
 
 
-def save_goal(db: sqlite3.Connection, user_id: int, exercise: str, goal: Goal) -> None:
+def save_goal(db: Connection, user_id: int, exercise: str, goal: Goal) -> None:
     """Thêm mục tiêu mới; đã có mục tiêu cùng ngày thì ghi đè (route commit)."""
     db.execute(
         "INSERT INTO goals (user_id, exercise, daily_reps, min_good_ratio, from_date, created_at)"
-        " VALUES (?, ?, ?, ?, ?, ?)"
+        " VALUES (%s, %s, %s, %s, %s, %s)"
         " ON CONFLICT (user_id, exercise, from_date) DO UPDATE SET"
         " daily_reps = excluded.daily_reps, min_good_ratio = excluded.min_good_ratio,"
         " created_at = excluded.created_at",
@@ -110,9 +110,7 @@ def progress_json(
     }
 
 
-def coach_json(
-    db: sqlite3.Connection, user_id: int, session: Session, recorded_at: str
-) -> dict[str, Any]:
+def coach_json(db: Connection, user_id: int, session: Session, recorded_at: str) -> dict[str, Any]:
     """Nhận xét của coach cho một hiệp đã lưu, tính lúc đọc (không lưu chữ vào DB).
 
     Tiến độ chỉ tính tới hết hiệp này; mục tiêu là mục tiêu hiện có cho ngày đó. Có

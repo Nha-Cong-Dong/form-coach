@@ -23,16 +23,16 @@ import hashlib
 import math
 import os
 import secrets
-import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
 from typing import Annotated, Any
 
+import psycopg
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from backend.db import get_db
+from backend.db import Connection, get_db
 from backend.security import hash_password, verify_password
 
 COOKIE_NAME = "formcoach_session"
@@ -49,7 +49,7 @@ LOGIN_WINDOW = timedelta(minutes=5)
 LOGIN_LOCKOUT = timedelta(minutes=15)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-Db = Annotated[sqlite3.Connection, Depends(get_db)]
+Db = Annotated[Connection, Depends(get_db)]
 
 
 @dataclass(frozen=True)
@@ -95,17 +95,18 @@ def _cookie_secure() -> bool:
     return os.environ.get("FORMCOACH_COOKIE_SECURE", "1") != "0"
 
 
-def _start_session(db: sqlite3.Connection, response: Response, user_id: int) -> None:
+def _start_session(db: Connection, response: Response, user_id: int) -> None:
     """Dọn token hết hạn của user, tạo token mới, lưu hash vào DB, commit, rồi mới đặt cookie."""
     token = secrets.token_urlsafe(32)
     now = _now()
     # Mọi mốc thời gian đều do _now().isoformat() ghi (cùng định dạng UTC) nên so chuỗi là đúng.
     db.execute(
-        "DELETE FROM auth_tokens WHERE user_id = ? AND expires_at <= ?",
+        "DELETE FROM auth_tokens WHERE user_id = %s AND expires_at <= %s",
         (user_id, now.isoformat()),
     )
     db.execute(
-        "INSERT INTO auth_tokens (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO auth_tokens (token_hash, user_id, created_at, expires_at)"
+        " VALUES (%s, %s, %s, %s)",
         (_hash_token(token), user_id, now.isoformat(), (now + TOKEN_TTL).isoformat()),
     )
     db.commit()
@@ -135,15 +136,15 @@ def lockout_end(failures: list[datetime]) -> datetime | None:
     return end
 
 
-def _login_locked_for(db: sqlite3.Connection, email_key: str, now: datetime) -> timedelta | None:
+def _login_locked_for(db: Connection, email_key: str, now: datetime) -> timedelta | None:
     """Còn bị khoá bao lâu (None = không khoá). Dọn luôn lần sai đã quá cũ của email này."""
     oldest = now - LOGIN_WINDOW - LOGIN_LOCKOUT
     db.execute(
-        "DELETE FROM login_failures WHERE email_key = ? AND at < ?",
+        "DELETE FROM login_failures WHERE email_key = %s AND at < %s",
         (email_key, oldest.isoformat()),
     )
     rows = db.execute(
-        "SELECT at FROM login_failures WHERE email_key = ? ORDER BY at", (email_key,)
+        "SELECT at FROM login_failures WHERE email_key = %s ORDER BY at", (email_key,)
     ).fetchall()
     end = lockout_end([datetime.fromisoformat(r["at"]) for r in rows])
     return end - now if end is not None and end > now else None
@@ -153,14 +154,14 @@ def _register_allowed() -> bool:
     return os.environ.get("FORMCOACH_ALLOW_REGISTER") == "1"
 
 
-def user_for_token(db: sqlite3.Connection, token: str | None) -> User | None:
+def user_for_token(db: Connection, token: str | None) -> User | None:
     """Người dùng của token trong cookie; không có / lạ / hết hạn → None. Dùng chung cho
     `current_user` (HTTP) và WebSocket (/api/live), để hai nơi kiểm tra y như nhau."""
     if not token:
         return None
     row = db.execute(
         "SELECT u.id, u.email, t.expires_at FROM auth_tokens t"
-        " JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?",
+        " JOIN users u ON u.id = t.user_id WHERE t.token_hash = %s",
         (_hash_token(token),),
     ).fetchone()
     # So thời gian bằng datetime, không so chuỗi, để không phụ thuộc định dạng chuỗi ISO.
@@ -216,13 +217,13 @@ def register(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
             status_code=422, detail=f"mật khẩu cần ít nhất {MIN_PASSWORD_LENGTH} ký tự"
         )
     try:
-        cur = db.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+        row = db.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (%s, %s, %s) RETURNING id",
             (body.email, hash_password(body.password), _now().isoformat()),
-        )
-    except sqlite3.IntegrityError:  # chỉ mục lower(email): trùng không phân biệt hoa thường
+        ).fetchone()
+    except psycopg.errors.UniqueViolation:  # chỉ mục lower(email): trùng không phân biệt hoa thường
         raise HTTPException(status_code=409, detail="email đã được đăng ký") from None
-    user_id = int(cur.lastrowid)
+    user_id = int(row["id"])
     _start_session(db, response, user_id)
     return {"id": user_id, "email": body.email, "is_admin": is_admin(User(user_id, body.email))}
 
@@ -246,18 +247,19 @@ def login(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
             headers={"Retry-After": str(seconds)},
         )
     row = db.execute(
-        "SELECT id, email, password_hash FROM users WHERE lower(email) = lower(?)",
+        "SELECT id, email, password_hash FROM users WHERE lower(email) = lower(%s)",
         (body.email,),
     ).fetchone()
     stored = row["password_hash"] if row else _dummy_hash()
     if not verify_password(body.password, stored) or row is None:
         db.execute(
-            "INSERT INTO login_failures (email_key, at) VALUES (?, ?)", (email_key, now.isoformat())
+            "INSERT INTO login_failures (email_key, at) VALUES (%s, %s)",
+            (email_key, now.isoformat()),
         )
         # Commit trước khi ném 401: get_db rollback mọi thứ khi route lỗi, kể cả lần sai này.
         db.commit()
         raise HTTPException(status_code=401, detail="email hoặc mật khẩu không đúng")
-    db.execute("DELETE FROM login_failures WHERE email_key = ?", (email_key,))
+    db.execute("DELETE FROM login_failures WHERE email_key = %s", (email_key,))
     _start_session(db, response, row["id"])
     # Như /me: web biết ngay có hiện công cụ dữ liệu không, không phải hỏi thêm.
     return {
@@ -275,7 +277,7 @@ def logout(
 ) -> dict[str, Any]:
     """Xoá token khỏi DB và xoá cookie. Gọi khi chưa đăng nhập cũng không lỗi."""
     if token:
-        db.execute("DELETE FROM auth_tokens WHERE token_hash = ?", (_hash_token(token),))
+        db.execute("DELETE FROM auth_tokens WHERE token_hash = %s", (_hash_token(token),))
         db.commit()
     response.delete_cookie(
         COOKIE_NAME, path="/", secure=_cookie_secure(), httponly=True, samesite="lax"

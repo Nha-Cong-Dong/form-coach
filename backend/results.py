@@ -18,12 +18,12 @@ import json
 import logging
 import math
 import os
-import sqlite3
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from backend.db import Connection
 from formcoach.dataset import build_dataset
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.exercises.base import Exercise
@@ -149,7 +149,7 @@ def measures_json(exercise: Exercise) -> list[dict[str, Any]]:
 
 
 def store_result(
-    db: sqlite3.Connection,
+    db: Connection,
     user_id: int,
     meta: SessionMeta,
     session: Session,
@@ -158,9 +158,10 @@ def store_result(
     duration_s: float,
 ) -> None:
     """Ghi một hiệp + các rep vào DB (chưa commit: route commit sau khi đã ghi file)."""
-    cur = db.execute(
+    row = db.execute(
         "INSERT INTO sessions (user_id, exercise, session_id, recorded_at, set_errors, source,"
-        " model_name, n_frames, duration_s, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " model_name, n_frames, duration_s, created_at)"
+        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
         (
             user_id,
             session.exercise,
@@ -173,11 +174,11 @@ def store_result(
             duration_s,
             datetime.now(UTC).isoformat(),
         ),
-    )
-    session_pk = cur.lastrowid
-    db.executemany(
+    ).fetchone()
+    session_pk = row["id"]
+    db.cursor().executemany(
         "INSERT INTO reps (session_pk, idx, start_frame, end_frame, features_json,"
-        " predicted_errors, scores_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        " predicted_errors, scores_json) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         [
             (
                 session_pk,
@@ -194,14 +195,14 @@ def store_result(
 
 
 def load_result(
-    db: sqlite3.Connection, user_id: int, exercise: str, session_id: str
+    db: Connection, user_id: int, exercise: str, session_id: str
 ) -> tuple[dict[str, Any], Session] | None:
     """(JSON kết quả, Session) một hiệp của chính user; không có (hoặc của người khác) → None.
 
     Trả kèm `Session` để route dựng nhận xét coach (ở backend/progress.py) mà không đọc lại DB.
     """
     row = db.execute(
-        "SELECT * FROM sessions WHERE user_id = ? AND exercise = ? AND session_id = ?",
+        "SELECT * FROM sessions WHERE user_id = %s AND exercise = %s AND session_id = %s",
         (user_id, exercise, session_id),
     ).fetchone()
     if row is None:
@@ -214,7 +215,7 @@ def load_result(
             json.loads(r["scores_json"]) or None,
         )
         for r in db.execute(
-            "SELECT * FROM reps WHERE session_pk = ? ORDER BY idx", (row["id"],)
+            "SELECT * FROM reps WHERE session_pk = %s ORDER BY idx", (row["id"],)
         ).fetchall()
     ]
     session = Session(session_id, exercise, results)
@@ -233,25 +234,25 @@ def load_result(
 
 
 def rep_frames(
-    db: sqlite3.Connection, user_id: int, exercise: str, session_id: str, index: int
+    db: Connection, user_id: int, exercise: str, session_id: str, index: int
 ) -> tuple[int, int] | None:
     """(khung đầu, khung cuối) của rep đã lưu, chỉ khi hiệp là của user; không có → None."""
     row = db.execute(
         "SELECT r.start_frame, r.end_frame FROM reps r JOIN sessions s ON s.id = r.session_pk"
-        " WHERE s.user_id = ? AND s.exercise = ? AND s.session_id = ? AND r.idx = ?",
+        " WHERE s.user_id = %s AND s.exercise = %s AND s.session_id = %s AND r.idx = %s",
         (user_id, exercise, session_id, index),
     ).fetchone()
     return None if row is None else (row["start_frame"], row["end_frame"])
 
 
-def list_results(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
+def list_results(db: Connection, user_id: int) -> list[dict[str, Any]]:
     """Lịch sử của user, mới nhất trước. Rep tốt = `predicted_errors` là danh sách rỗng."""
     rows = db.execute(
         "SELECT s.exercise, s.session_id, s.recorded_at, s.duration_s, s.model_name,"
         " COUNT(r.id) AS n_reps,"
         " COALESCE(SUM(CASE WHEN r.predicted_errors = '[]' THEN 1 ELSE 0 END), 0) AS n_good"
         " FROM sessions s LEFT JOIN reps r ON r.session_pk = s.id"
-        " WHERE s.user_id = ? GROUP BY s.id ORDER BY s.recorded_at DESC, s.id DESC",
+        " WHERE s.user_id = %s GROUP BY s.id ORDER BY s.recorded_at DESC, s.id DESC",
         (user_id,),
     ).fetchall()
     return [dict(r) for r in rows]

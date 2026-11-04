@@ -40,7 +40,7 @@ def _model_file(path: Path, **info: object) -> Path:
 
 
 @pytest.fixture
-def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pg_database: str) -> Path:
     monkeypatch.setenv("FORMCOACH_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
     monkeypatch.setenv("FORMCOACH_COOKIE_SECURE", "0")
