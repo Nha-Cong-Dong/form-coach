@@ -269,8 +269,8 @@ data/
  │    └── {exercise}/{session_id}.json   # hiệp của admin (dữ liệu train): keypoint + tập lỗi cố ý
  ├── labels/
  │    └── {exercise}/{session_id}.json   # nhãn từng rep: ranh giới, valid, tập lỗi, ghi chú
- └── users/{user_id}/sessions/{exercise}/{session_id}.json   # hiệp của người dùng thường: riêng
-                                                              # từng tài khoản, không dùng để train
+ └── users/{user_id}/sessions/...   # (cũ, trước khi chuyển Postgres) hiệp của người dùng thường;
+                                    # giờ hiệp của mọi người lưu keypoint ở DB (bảng session_payloads)
 ```
 Bảng dữ liệu để train (mỗi dòng một rep: đặc trưng + nhãn) được xuất ra từ các file trên, không sửa tay.
 `data/` không đưa lên git. Video có mặt và không gian riêng tư, không chia sẻ công khai, không lưu trên server.

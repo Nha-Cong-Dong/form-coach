@@ -55,6 +55,15 @@ CREATE TABLE IF NOT EXISTS reps (
     UNIQUE (session_pk, idx)
 );
 
+-- Keypoint gốc của một hiệp (nguyên JSON điện thoại gửi, nén gzip), để xem lại rep. Ở DB, không ở
+-- file: server miễn phí (Render Free) mất mọi file khi restart. Nén vì Neon Free chỉ 1 GB (đo
+-- 2026-11-05: hiệp 60 s = 0,41 MB gzip, 0,63 MB nếu để JSONB). Hiệp của admin vẫn ghi THÊM file
+-- data/sessions/ (dữ liệu train ở máy, build_dataset đọc file).
+CREATE TABLE IF NOT EXISTS session_payloads (
+    session_pk BIGINT PRIMARY KEY REFERENCES sessions (id) ON DELETE CASCADE,
+    payload_gz BYTEA NOT NULL
+);
+
 -- Mục tiêu rep mỗi ngày (tuần 4). Giữ cả lịch sử: mục tiêu áp dụng từ from_date tới khi có mục
 -- tiêu mới hơn, nên đổi mục tiêu không chấm lại ngày cũ. Tiến độ/streak tính lúc đọc
 -- (formcoach/progress/goals.py), không lưu cờ "đã đạt". Đặt lại trong cùng ngày thì ghi đè.

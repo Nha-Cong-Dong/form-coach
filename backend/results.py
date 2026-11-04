@@ -14,6 +14,7 @@ Bộ phân loại, hai cách:
 
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 import math
@@ -156,8 +157,13 @@ def store_result(
     model_name: str,
     n_frames: int,
     duration_s: float,
+    payload: dict[str, Any],
 ) -> None:
-    """Ghi một hiệp + các rep vào DB (chưa commit: route commit sau khi đã ghi file)."""
+    """Ghi một hiệp + các rep + keypoint gốc (`payload`, nén gzip) vào DB.
+
+    Chưa commit: route commit sau khi đã ghi file (hiệp của admin), để lỗi ở bước nào cũng không
+    để lại nửa chừng.
+    """
     row = db.execute(
         "INSERT INTO sessions (user_id, exercise, session_id, recorded_at, set_errors, source,"
         " model_name, n_frames, duration_s, created_at)"
@@ -192,6 +198,34 @@ def store_result(
             for r in session.results
         ],
     )
+    db.execute(
+        "INSERT INTO session_payloads (session_pk, payload_gz) VALUES (%s, %s)",
+        (session_pk, _compress(payload)),
+    )
+
+
+def _compress(payload: dict[str, Any]) -> bytes:
+    """JSON → gzip. `compresslevel=6` (mặc định của lệnh gzip): nhỏ gần bằng mức 9, nhanh hơn
+    nhiều; hiệp 60 s ~1,6 MB JSON → ~0,4 MB."""
+    return gzip.compress(json.dumps(payload, ensure_ascii=False).encode("utf-8"), compresslevel=6)
+
+
+def load_payload(
+    db: Connection, user_id: int, exercise: str, session_id: str
+) -> dict[str, Any] | None:
+    """Keypoint gốc của một hiệp của chính user (giải nén); không có trong DB → None.
+
+    None cả khi hiệp có kết quả nhưng chưa có keypoint trong DB (gửi trước bước P2): route tìm
+    file như cũ.
+    """
+    row = db.execute(
+        "SELECT p.payload_gz FROM session_payloads p JOIN sessions s ON s.id = p.session_pk"
+        " WHERE s.user_id = %s AND s.exercise = %s AND s.session_id = %s",
+        (user_id, exercise, session_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return json.loads(gzip.decompress(row["payload_gz"]))
 
 
 def load_result(
