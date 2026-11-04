@@ -96,3 +96,54 @@ def test_without_model_path_startup_does_not_train(env: Path, monkeypatch) -> No
     monkeypatch.delenv("FORMCOACH_MODEL_PATH", raising=False)
     with TestClient(app) as client:
         assert client.get("/api/exercises/pushup").status_code == 200
+
+
+# --- P3: mô hình trong DB (bảng models), deploy không có file lâu dài ---
+
+
+def _upload(path: Path) -> None:
+    from backend.db import connect
+    from tools.upload_model import upload
+
+    with connect() as conn:
+        upload(conn, path, "pushup")
+
+
+def test_upload_uses_model_from_db(env: Path, monkeypatch, caplog) -> None:
+    monkeypatch.delenv("FORMCOACH_MODEL_PATH", raising=False)
+    _upload(_model_file(env / "m.pkl"))
+    (env / "m.pkl").unlink()  # như Render: không còn file nào, chỉ có DB
+    with caplog.at_level("INFO", logger="uvicorn.error"), TestClient(app) as client:
+        client.post(
+            "/api/auth/register", json={"email": "an@example.com", "password": "mat-khau-dai"}
+        )
+        r = client.post("/api/sessions", json=train_session())
+    assert r.status_code == 201
+    assert r.json()["model_name"] == "rf@2026-10-31"  # không train từ data/ (env chặn)
+    assert "rf, train 2026-10-31T05:00:00+00:00, 20 rep" in caplog.text
+    assert "bảng models trong DB" in caplog.text
+
+
+def test_bad_model_in_db_stops_startup(env: Path, monkeypatch) -> None:
+    from backend.db import connect
+
+    monkeypatch.delenv("FORMCOACH_MODEL_PATH", raising=False)
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO models (exercise, data, model_name, trained_at, uploaded_at)"
+            " VALUES ('pushup', %s, 'rf', 'x', 'x')",
+            (b"khong phai pickle",),
+        )
+    with pytest.raises(ModelFileError, match="bảng models"), TestClient(app):
+        pass
+
+
+def test_model_path_wins_over_db(env: Path, monkeypatch) -> None:
+    _upload(_model_file(env / "cu.pkl", trained_at="2026-10-20T05:00:00+00:00"))
+    monkeypatch.setenv("FORMCOACH_MODEL_PATH", str(_model_file(env / "moi.pkl")))
+    with TestClient(app) as client:
+        client.post(
+            "/api/auth/register", json={"email": "an@example.com", "password": "mat-khau-dai"}
+        )
+        r = client.post("/api/sessions", json=train_session())
+    assert r.json()["model_name"] == "rf@2026-10-31"

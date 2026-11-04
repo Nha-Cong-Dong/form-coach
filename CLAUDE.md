@@ -64,6 +64,7 @@ python -m formcoach analyze data/videos/<clip>.mp4
 
 # công cụ trong tools/: chạy dạng module từ gốc repo (python tools/x.py không thấy package formcoach)
 python -m tools.probe_mediapipe data/videos/<clip>.mp4   # kiểm tra nhanh pose
+python -m tools.upload_model models/pushup-rf.pkl       # tải mô hình lên DB (FORMCOACH_DATABASE_URL); deploy: đặt URL Neon
 
 uvicorn backend.app:app --port 8000      # backend; xem/thử API ở http://127.0.0.1:8000/docs
 

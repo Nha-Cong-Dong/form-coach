@@ -64,6 +64,19 @@ CREATE TABLE IF NOT EXISTS session_payloads (
     payload_gz BYTEA NOT NULL
 );
 
+-- Mô hình đã train (P3): nguyên nội dung file .pkl do `python -m formcoach train` lưu, tải lên bằng
+-- `python -m tools.upload_model`. Một mô hình mỗi bài tập, tải lại thì ghi đè (sessions.model_name
+-- vẫn ghi bản nào đã chấm hiệp nào). Server đọc lúc khởi động khi không đặt FORMCOACH_MODEL_PATH.
+-- AN TOÀN: đọc pickle là chạy mã trong đó; ai ghi được bảng này thì chạy được mã trên server, nên
+-- connection string của DB là bí mật như API key.
+CREATE TABLE IF NOT EXISTS models (
+    exercise    TEXT PRIMARY KEY,
+    data        BYTEA NOT NULL,
+    model_name  TEXT NOT NULL,  -- trích từ file, để xem bằng SQL không cần mở pickle
+    trained_at  TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL
+);
+
 -- Mục tiêu rep mỗi ngày (tuần 4). Giữ cả lịch sử: mục tiêu áp dụng từ from_date tới khi có mục
 -- tiêu mới hơn, nên đổi mục tiêu không chấm lại ngày cũ. Tiến độ/streak tính lúc đọc
 -- (formcoach/progress/goals.py), không lưu cờ "đã đạt". Đặt lại trong cùng ngày thì ghi đè.

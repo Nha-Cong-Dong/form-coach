@@ -47,13 +47,16 @@ from formcoach.review import build_rep_replay, build_review
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Có FORMCOACH_MODEL_PATH: đọc file mô hình trước khi nhận request; file sai → không khởi động.
-    results.check_model_file(data_dir())
-    coach_llm.log_coach_in_use()
     # Mở pool + tạo bảng trước khi nhận request: sai FORMCOACH_DATABASE_URL → không khởi động.
     open_pool()
-    yield
-    close_pool()
+    try:
+        # Đọc mô hình (file FORMCOACH_MODEL_PATH hoặc bảng `models`, cần DB) trước khi nhận
+        # request; mô hình sai → không khởi động.
+        results.check_model_file(data_dir())
+        coach_llm.log_coach_in_use()
+        yield
+    finally:
+        close_pool()
 
 
 app = FastAPI(title="Form Coach", version="0.1.0", lifespan=lifespan)

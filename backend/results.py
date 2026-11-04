@@ -3,13 +3,16 @@
 Mọi truy vấn kết quả nằm ở đây (cùng `db.py`, `auth.py`) để đổi DB chỉ sửa trong `backend/`.
 Kết quả luôn gắn `user_id`: người khác hỏi hiệp không phải của mình → không thấy (404).
 
-Bộ phân loại, hai cách:
-- `FORMCOACH_MODEL_PATH` (deploy, D1): đọc file do `python -m formcoach train` lưu; không đọc
+Bộ phân loại, ba cách theo thứ tự ưu tiên:
+- `FORMCOACH_MODEL_PATH` (D1): đọc file do `python -m formcoach train` lưu; không đọc
   `data/`, không train, bỏ qua `FORMCOACH_MODEL`. File hỏng / sai bản scikit-learn → lỗi ngay lúc
   khởi động (`check_model_file`). Hiện chỉ có push-up nên một file; thêm bài thì một file mỗi bài.
-- Không đặt (máy có `data/`): theo `FORMCOACH_MODEL` (`rules` | `stump` | `rf`, mặc định `rf`),
-  huấn luyện LẦN ĐẦU cần tới từ dữ liệu đã gán nhãn rồi giữ trong bộ nhớ. Nhãn mới gán sau đó chỉ
-  được dùng khi khởi động lại. Không huấn luyện được (không có `data/`) → lùi về luật.
+- Bảng `models` trong DB (P3, deploy Render Free: không có file lâu dài): cùng nội dung file, tải
+  lên bằng `python -m tools.upload_model`. Cùng kiểm tra, sai thì server không khởi động. Tải mô
+  hình mới khi server đang chạy → dùng từ lần khởi động sau.
+- Không có cả hai (máy có `data/`): theo `FORMCOACH_MODEL` (`rules` | `stump` | `rf`, mặc định
+  `rf`), huấn luyện LẦN ĐẦU cần tới từ dữ liệu đã gán nhãn rồi giữ trong bộ nhớ. Nhãn mới gán
+  sau đó chỉ được dùng khi khởi động lại. Không huấn luyện được (không có `data/`) → lùi về luật.
 """
 
 from __future__ import annotations
@@ -24,12 +27,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from backend.db import Connection
+from backend.db import Connection, connection, database_url
 from formcoach.dataset import build_dataset
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.exercises.base import Exercise
 from formcoach.models.base import FormClassifier
-from formcoach.models.store import ModelInfo, load_model
+from formcoach.models.store import ModelInfo, load_model, load_model_bytes
 from formcoach.models.train import train_classifier
 from formcoach.pose.session_json import SessionMeta
 from formcoach.progress.summary import summarize
@@ -37,8 +40,9 @@ from formcoach.types import Rep, RepResult, Session
 
 DEFAULT_MODEL = "rf"
 
-_cache: dict[tuple[str, str, str], tuple[FormClassifier, str]] = {}
-_file_info: dict[str, ModelInfo] = {}  # bài tập → thông tin file mô hình đã nạp
+# Giá trị None: đã hỏi DB, bài này không có mô hình trong bảng `models` (không hỏi lại mỗi hiệp).
+_cache: dict[tuple[str, str, str], tuple[FormClassifier, str] | None] = {}
+_file_info: dict[str, ModelInfo] = {}  # bài tập → thông tin mô hình đã nạp (file hoặc DB)
 # Logger mà uvicorn hiển thị ("INFO: ..."); logger riêng của module không in INFO khi chạy uvicorn.
 _startup_log = logging.getLogger("uvicorn.error")
 _lock = threading.Lock()  # hai request đầu tiên cùng lúc: chỉ huấn luyện một lần
@@ -56,6 +60,17 @@ def get_classifier(exercise: Exercise, data_dir: Path) -> tuple[FormClassifier, 
                 _cache[file_key] = (classifier, versioned_name(info))
                 _file_info[exercise.name] = info
             return _cache[file_key]
+    # Khoá theo địa chỉ DB: mỗi DB (mỗi test một schema) có bảng `models` riêng.
+    db_key = ("db:" + database_url(), exercise.name, "")
+    with _lock:
+        if db_key not in _cache:
+            found = _model_from_db(exercise.name)
+            _cache[db_key] = None if found is None else (found[0], versioned_name(found[1]))
+            if found is not None:
+                _file_info[exercise.name] = found[1]
+        stored = _cache[db_key]
+    if stored is not None:
+        return stored
     name = os.environ.get("FORMCOACH_MODEL", DEFAULT_MODEL)
     key = (name, exercise.name, str(data_dir))
     with _lock:
@@ -63,6 +78,15 @@ def get_classifier(exercise: Exercise, data_dir: Path) -> tuple[FormClassifier, 
             dataset = None if name == "rules" else build_dataset(data_dir, exercise.name)
             _cache[key] = train_classifier(name, exercise, dataset)
         return _cache[key]
+
+
+def _model_from_db(exercise: str) -> tuple[FormClassifier, ModelInfo] | None:
+    """Mô hình đã tải lên bảng `models`; chưa có → None; có mà hỏng/sai bản → ModelFileError."""
+    with connection() as conn:
+        row = conn.execute("SELECT data FROM models WHERE exercise = %s", (exercise,)).fetchone()
+    if row is None:
+        return None
+    return load_model_bytes(row["data"], exercise, f"trong DB (bảng models, bài {exercise})")
 
 
 def versioned_name(info: ModelInfo) -> str:
@@ -73,31 +97,32 @@ def versioned_name(info: ModelInfo) -> str:
 
 
 def check_model_file(data_dir: Path) -> None:
-    """Gọi lúc khởi động server: có FORMCOACH_MODEL_PATH thì đọc file ngay cho mọi bài tập, để file
-    sai làm server KHÔNG lên (thấy ngay khi deploy) thay vì 500 ở hiệp đầu tiên của người dùng.
-    Không đặt biến thì không đọc gì (không train lúc khởi động: server lên chậm). Cả hai trường hợp
-    đều in ra mô hình sẽ dùng (nhận xét mentor: báo rõ app đang dùng mô hình nào)."""
+    """Gọi lúc khởi động server (sau khi mở DB): đọc ngay mô hình từ FORMCOACH_MODEL_PATH hoặc bảng
+    `models` cho mọi bài tập, để mô hình sai làm server KHÔNG lên (thấy ngay khi deploy) thay vì
+    500 ở hiệp đầu tiên của người dùng. Không có mô hình sẵn thì không train lúc khởi động (server
+    lên chậm). Mọi trường hợp đều in ra mô hình sẽ dùng (nhận xét mentor: báo rõ mô hình nào)."""
     path = os.environ.get("FORMCOACH_MODEL_PATH")
-    if not path:
-        name = os.environ.get("FORMCOACH_MODEL", DEFAULT_MODEL)
-        _startup_log.info(
-            "Mô hình: chưa nạp; train %r từ %s ở lần chấm đầu tiên (không có rep đã gán nhãn"
-            " thì dùng luật).",
-            name,
-            data_dir,
-        )
-        return
     for ex in EXERCISES:
+        if not path and _model_from_db(ex) is None:
+            name = os.environ.get("FORMCOACH_MODEL", DEFAULT_MODEL)
+            _startup_log.info(
+                "Mô hình %s: chưa nạp; train %r từ %s ở lần chấm đầu tiên (không có rep đã gán"
+                " nhãn thì dùng luật).",
+                ex,
+                name,
+                data_dir,
+            )
+            continue
         get_classifier(get_exercise(ex), data_dir)
         info = _file_info[ex]
         _startup_log.info(
-            "Mô hình %s: %s, train %s, %d rep, scikit-learn %s (file %s).",
+            "Mô hình %s: %s, train %s, %d rep, scikit-learn %s (%s).",
             ex,
             info.model_name,
             info.trained_at,
             info.n_reps,
             info.sklearn_version,
-            path,
+            f"file {path}" if path else "bảng models trong DB",
         )
 
 
