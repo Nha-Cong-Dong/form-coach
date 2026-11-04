@@ -1813,9 +1813,11 @@ main .train-panel h1 {
   }
 }
 
+/* Nút viền (DESIGN.md), không phải nút chữ: chữ xám không viền trông như chú thích, người dùng
+   không nhận ra bấm được. */
 .goal-edit {
   align-self: flex-start;
-  padding: 0;
+  margin-top: 4px;
 }
 
 .stat-title {

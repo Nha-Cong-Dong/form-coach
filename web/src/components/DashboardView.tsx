@@ -96,7 +96,7 @@ export default function DashboardView() {
               <span className="label">Rep hôm nay</span>
               <span className="headline">{goalHeadline(day.n_reps, goal, day.met)}</span>
               {!editing && (
-                <button type="button" className="text-button goal-edit" onClick={() => setEditing(true)}>
+                <button type="button" className="secondary-button goal-edit" onClick={() => setEditing(true)}>
                   {goal ? 'Đổi mục tiêu' : 'Đặt mục tiêu'}
                 </button>
               )}
