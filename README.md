@@ -1,12 +1,58 @@
 # 🏋️ Form Coach: AI phân tích kỹ thuật tập luyện qua camera
 
-> **Trạng thái:** xong tuần 1 (đếm rep push-up + trang quay trên điện thoại) và tuần 2 (dataset 5 buổi có nhãn + baseline luật chấm bằng kiểm định chéo theo buổi, macro-F1 0,72); sắp sang tuần 3 (random forest, luồng app).
+> **Trạng thái (05/11/2026):** **đã deploy**, dùng thử tại **https://form-coach-3r5n.onrender.com**. Xong tuần 1–3 (đếm rep, dataset 5 buổi có nhãn, luật so với random forest chấm theo buổi, luồng app đăng nhập → tập → kết quả) và phần chính tuần 4 (coach Claude Haiku + mẫu câu dự phòng, dashboard mục tiêu/streak/đồ thị, lịch sử, deploy Render + Postgres Neon). Chưa làm: kiểm tra góc máy ở màn Sẵn sàng, đăng nhập Google, PWA, squat.
 
 > **Mục tiêu chính:** học qua vibe code. Hiểu được thứ AI viết ra quan trọng hơn tốc độ.
 
 > **Thời gian:** 3–4 tuần, ra web app deploy được.
 
 > **Tài liệu liên quan:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/labeling-criteria.md`](docs/labeling-criteria.md) · [`docs/journal.md`](docs/journal.md)
+
+---
+
+## Demo và cách chạy
+
+### Dùng thử (không cần cài gì)
+Mở **https://form-coach-3r5n.onrender.com** trên điện thoại → **Tạo tài khoản** → **Quay → Tập** → cho phép camera.
+- Đặt điện thoại **nằm ngang, sát sàn, quay từ bên hông**, cả người nằm trong khung.
+- Server miễn phí **ngủ sau 15 phút** không ai vào: lần mở đầu chờ khoảng 1 phút.
+- Coach do Claude Haiku viết tới hết ngày 09/11/2026 (key của ban tổ chức hết hạn 01:47 ngày 10/11), sau đó tự dùng mẫu câu.
+- Video **không rời điện thoại**: server chỉ nhận toạ độ các khớp và lưu kết quả.
+
+### Chạy ở máy
+Cần: conda, Docker (cho Postgres), Node 24 (qua nvm).
+```bash
+# 1. Python (env conda tên formcoach, Python 3.12)
+conda create -n formcoach python=3.12 && conda activate formcoach
+pip install -r requirements-dev.txt        # gồm requirements.txt + pytest, ruff
+
+# 2. Postgres ở máy (chạy một lần; sau đó chỉ cần `docker start formcoach-pg`)
+docker run -d --name formcoach-pg --restart unless-stopped \
+  -e POSTGRES_USER=formcoach -e POSTGRES_PASSWORD=formcoach -e POSTGRES_DB=formcoach \
+  -p 127.0.0.1:5432:5432 -v formcoach-pg:/var/lib/postgresql/data postgres:17
+
+# 3. Biến môi trường: chép mẫu rồi điền (FORMCOACH_DATABASE_URL đã trỏ sẵn vào container trên;
+#    bật FORMCOACH_ALLOW_REGISTER=1 để tạo tài khoản; key LLM có thể để trống → coach mẫu câu)
+cp .env_example .env
+set -a; source .env; set +a
+
+# 4. Backend (terminal 1)
+uvicorn backend.app:app --port 8000
+
+# 5. Web (terminal 2)
+cd web && npm install && npm run dev
+```
+- Máy tính: mở `https://localhost:5173`. Điện thoại (cùng wifi): `https://<IP-laptop>:5173`, chấp nhận chứng chỉ tự ký một lần. Camera trên điện thoại cần HTTPS, Vite lo phần này và chuyển `/api` sang uvicorn.
+- Chỉ chạy `npm run dev` trên mạng tin cậy: dev server mở ra mạng LAN.
+- Test: `pytest` (test DB cần container `formcoach-pg` đang chạy; thiếu thì các test đó tự bỏ qua). Lint: `ruff check .`.
+- Mô hình: `python -m formcoach train` (cần dữ liệu đã gán nhãn trong `data/`) lưu `models/pushup-rf.pkl`; `python -m tools.upload_model models/pushup-rf.pkl` đưa vào DB để server dùng. Không có mô hình, server tự train từ `data/` ở lần chấm đầu, không có dữ liệu thì dùng luật.
+
+### Deploy (Render Free + Neon)
+Một Docker image (`Dockerfile`: build web bằng Node, chạy uvicorn phục vụ cả trang lẫn API) trên **Render Free**, dữ liệu ở **Postgres Neon Free**, cùng vùng Singapore. Render Free không có ổ lưu lâu dài, nên mọi thứ cần giữ (tài khoản, kết quả, keypoint từng hiệp, file mô hình) nằm trong Postgres ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §4, [journal 05/11](docs/journal.md)).
+1. **Neon:** tạo project vùng AWS Singapore → **Connect** → tắt *Connection pooling* (app có pool riêng) → chép chuỗi kết nối. Chuỗi này chứa mật khẩu DB: chỉ dán vào Render và terminal.
+2. **Mô hình lên Neon** (ở máy): `FORMCOACH_DATABASE_URL='<chuỗi Neon>' python -m tools.upload_model models/pushup-rf.pkl`.
+3. **Render:** New → Web Service → repo này, Language **Docker**, Region **Singapore**, gói **Free**, Health Check Path `/api/auth/options`. Biến môi trường: `FORMCOACH_DATABASE_URL`, `FORMCOACH_ALLOW_REGISTER=1`, `FORMCOACH_ADMIN_EMAILS`, `FORMCOACH_LLM_API_KEY`, `FORMCOACH_LLM_BASE_URL`. Không đặt `FORMCOACH_COOKIE_SECURE` (mặc định cookie chỉ qua HTTPS) và `PORT` (Render tự đặt).
+4. Log khởi động phải có `Mô hình pushup: rf, ... (bảng models trong DB)` và `Coach: LLM ...`. Mỗi lần push lên nhánh `main` mà Render theo dõi, Render tự build lại.
 
 ---
 
@@ -372,8 +418,12 @@ Ghi ngày 2026-10-24, **trước khi chạy random forest lần đầu**, để 
 - [x] Tuần 2: gán nhãn trong app, file nhãn theo từng hiệp
 - [x] Tuần 3: chia train/test theo buổi, không theo rep
 - [x] Tuần 3: bảng precision/recall/F1 và ma trận 2×2 cho từng lỗi, so với baseline luật
-- [ ] Tuần 3: app chạy local đủ luồng: đăng nhập → quay → kết quả
-- [ ] Tuần 4: coach, mục tiêu, streak, đồ thị, deploy, README, demo
+- [x] Tuần 3: app chạy local đủ luồng: đăng nhập → quay → kết quả
+- [x] Tuần 4: coach Claude Haiku (dự phòng mẫu câu), mục tiêu, streak, đồ thị, lịch sử
+- [x] Tuần 4: deploy (Render Free + Postgres Neon), dùng được trên điện thoại qua HTTPS
+- [x] Tuần 4: README phần cách chạy và deploy
+- [ ] Tuần 4: ảnh/video demo trong README, phần hạn chế của bản deploy
+- [ ] Tuần 4 (nếu còn giờ): đăng nhập Google, PWA
 
 ---
 
@@ -429,12 +479,12 @@ Ghi ngày 2026-10-24, **trước khi chạy random forest lần đầu**, để 
 
 ## 12. Điều kiện hoàn thành (Definition of Done)
 
-- [ ] Push-up qua camera trình duyệt → khung xương, số rep đúng (realtime và hết hiệp)
-- [ ] Dataset tự quay bằng app, có nhãn, chia theo buổi
-- [ ] Baseline luật, random forest, có số liệu so sánh (F1 từng lỗi, ma trận 2×2) kèm hạn chế
+- [x] Push-up qua camera trình duyệt → khung xương, số rep đúng (realtime và hết hiệp)
+- [x] Dataset tự quay bằng app, có nhãn, chia theo buổi
+- [x] Baseline luật, random forest, có số liệu so sánh (F1 từng lỗi, ma trận 2×2) kèm hạn chế
 - [ ] Kiến trúc OOP: thêm bài tập mới không phải sửa pipeline
-- [ ] Có test cho đếm rep, tính góc, tính mục tiêu/streak
-- [ ] Web app deploy: đăng nhập, quay, kết quả, coach LLM, mục tiêu, streak, đồ thị
+- [x] Có test cho đếm rep, tính góc, tính mục tiêu/streak
+- [x] Web app deploy: đăng nhập, quay, kết quả, coach LLM, mục tiêu, streak, đồ thị
 - [ ] README có hướng dẫn chạy, ảnh/video demo, kết quả, phần hạn chế
 - [ ] (Mở rộng) squat
 - [ ] (Mở rộng) thí nghiệm domain shift
@@ -459,4 +509,10 @@ Ghi ngày 2026-10-24, **trước khi chạy random forest lần đầu**, để 
 - [x] Tuần 1: pose offline, đếm rep, trang quay, backend nhận file, lệnh `python -m formcoach analyze`
 - [x] Lập plan tuần 2 (plan mode): gán nhãn, đặc trưng lỗi, baseline luật, quay dataset
 - [x] Tuần 2: gán nhãn, đặc trưng lỗi, baseline luật, dataset 5 buổi, kiểm định chéo theo buổi (macro-F1 0,72)
-- [ ] Lập plan tuần 3 (plan mode): ngưỡng học trên tập train + random forest, luồng app
+- [x] Lập plan tuần 3 (plan mode): ngưỡng học trên tập train + random forest, luồng app
+- [x] Tuần 3: random forest so với luật (chấm theo buổi), backend FastAPI + DB + đăng nhập, đếm rep realtime, trang kết quả + xem lại rep
+- [x] Tuần 4: dashboard mục tiêu/streak/đồ thị, lịch sử, coach Claude Haiku, deploy Render + Neon (chuyển SQLite sang Postgres), README cách chạy
+- [ ] Ảnh/video demo, phần hạn chế của bản deploy
+- [ ] Kiểm tra góc máy ở màn Sẵn sàng (cần quay thí nghiệm trước)
+- [ ] (Nếu còn giờ) đăng nhập Google, PWA
+- [ ] (Mở rộng) squat
