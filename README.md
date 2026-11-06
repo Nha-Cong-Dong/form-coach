@@ -54,6 +54,13 @@ Một Docker image (`Dockerfile`: build web bằng Node, chạy uvicorn phục v
 3. **Render:** New → Web Service → repo này, Language **Docker**, Region **Singapore**, gói **Free**, Health Check Path `/api/auth/options`. Biến môi trường: `FORMCOACH_DATABASE_URL`, `FORMCOACH_ALLOW_REGISTER=1`, `FORMCOACH_ADMIN_EMAILS`, `FORMCOACH_LLM_API_KEY`, `FORMCOACH_LLM_BASE_URL`. Không đặt `FORMCOACH_COOKIE_SECURE` (mặc định cookie chỉ qua HTTPS) và `PORT` (Render tự đặt).
 4. Log khởi động phải có `Mô hình pushup: rf, ... (bảng models trong DB)` và `Coach: LLM ...`. Mỗi lần push lên nhánh `main` mà Render theo dõi, Render tự build lại.
 
+### Hạn chế của bản deploy
+- **Lần mở đầu chậm.** Render Free cho server ngủ sau 15 phút không có ai truy cập; lần mở tiếp theo phải chờ khoảng 1 phút để server khởi động lại.
+- **Coach chỉ dùng LLM tới 01:47 ngày 10/11/2026**, khi key của ban tổ chức hết hạn. Sau đó app tự dùng mẫu câu: vẫn đúng số liệu nhưng câu chữ cứng hơn.
+- **Dung lượng DB có hạn.** Neon Free có 1 GB. Keypoint mỗi hiệp được nén gzip, khoảng 0,4 MB cho một phút tập, nên DB chứa được khoảng 2.500 phút tập của tất cả người dùng cộng lại.
+- **Không thu dữ liệu train trên bản deploy.** File của hiệp "Quay dữ liệu" và nhãn mà admin gán vẫn ghi ra ổ đĩa, mà Render Free không có ổ lưu lâu dài nên chúng mất mỗi khi server khởi động lại. Vì vậy dữ liệu train vẫn được quay và gán nhãn ở máy, rồi tải mô hình đã train lên DB.
+- **Chưa giới hạn tài nguyên mỗi người.** Ai có link cũng tạo được tài khoản, và chưa có giới hạn số hiệp hay độ dài hiệp mỗi người. Một người dùng có thể làm đầy DB; đủ cho bản demo, chưa đủ để mở rộng rãi.
+
 ---
 
 ## 1. Tổng quan

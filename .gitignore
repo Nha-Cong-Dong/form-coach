@@ -45,3 +45,7 @@ assets/
 
 # Kế hoạch làm việc (theo dõi cá nhân)
 docs/plans/
+
+# Ghi chú bàn giao cho agent khác (cá nhân)
+HANDOFF.md
+AGENTS.md
