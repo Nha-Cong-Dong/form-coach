@@ -1,4 +1,4 @@
-"""Đăng ký, đăng nhập, đăng xuất bằng email + mật khẩu; dependency `current_user`.
+"""Đăng ký, đăng nhập, đăng xuất bằng email + mật khẩu hoặc Google; dependency `current_user`.
 
 Phiên đăng nhập là một token ngẫu nhiên gửi trong cookie HttpOnly (JavaScript không đọc được,
 nên mã độc chèn vào trang cũng không lấy được). DB chỉ lưu sha256 của token. Mỗi request tra
@@ -9,6 +9,8 @@ Biến môi trường:
   hình thì người lạ cũng không tự tạo tài khoản được.
 - `FORMCOACH_ADMIN_EMAILS=a@x.com,b@y.com`: tài khoản admin (dùng công cụ dữ liệu: danh sách
   hiệp, gán nhãn, Quay dữ liệu). So không phân biệt hoa thường. Mặc định trống = không ai là admin.
+- `FORMCOACH_GOOGLE_CLIENT_ID`: bật đăng nhập Google (backend/google_login.py). Tài khoản Google
+  mới được tạo kể cả khi `FORMCOACH_ALLOW_REGISTER` tắt (chống spam: tài khoản mới chỉ qua Google).
 - `FORMCOACH_COOKIE_SECURE=0`: cho cookie đi qua HTTP thường. Mặc định cookie có cờ `Secure`
   (chỉ gửi qua HTTPS), để deploy mà quên cấu hình cũng an toàn. Dev vẫn chạy vì trình duyệt vào
   Vite qua HTTPS (và localhost được coi là an toàn); test chạy qua http nên đặt 0.
@@ -32,6 +34,7 @@ import psycopg
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from backend import google_login
 from backend.db import Connection, get_db
 from backend.security import hash_password, verify_password
 
@@ -62,6 +65,11 @@ class Credentials(BaseModel):
     # Quá dài → FastAPI trả 422 trước khi vào route (không chạy scrypt).
     email: str = Field(max_length=MAX_EMAIL_LENGTH)
     password: str = Field(max_length=MAX_PASSWORD_LENGTH)
+
+
+class GoogleCredential(BaseModel):
+    # ID token nút Google trả về (trường `credential` của Google Identity Services).
+    credential: str = Field(max_length=google_login.MAX_TOKEN_LENGTH)
 
 
 def _now() -> datetime:
@@ -202,8 +210,9 @@ def admin_user(user: Annotated[User, Depends(current_user)]) -> User:
 
 @router.get("/options")
 def options() -> dict[str, Any]:
-    """Cấu hình màn đăng nhập (không cần đăng nhập): web ẩn nút "Tạo tài khoản" khi tắt đăng ký."""
-    return {"allow_register": _register_allowed()}
+    """Cấu hình màn đăng nhập (không cần đăng nhập): web ẩn nút "Tạo tài khoản" khi tắt đăng ký,
+    và chỉ vẽ nút Google khi có `google_client_id` (không phải bí mật)."""
+    return {"allow_register": _register_allowed(), "google_client_id": google_login.client_id()}
 
 
 @router.post("/register", status_code=201)
@@ -250,8 +259,11 @@ def login(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
         "SELECT id, email, password_hash FROM users WHERE lower(email) = lower(%s)",
         (body.email,),
     ).fetchone()
-    stored = row["password_hash"] if row else _dummy_hash()
-    if not verify_password(body.password, stored) or row is None:
+    # Tài khoản chỉ dùng Google (password_hash NULL) → như email không có: vẫn băm để thời gian trả
+    # lời giống nhau, cùng thông báo 401 (không lộ email nào đăng ký bằng Google).
+    has_password = row is not None and row["password_hash"] is not None
+    stored = row["password_hash"] if has_password else _dummy_hash()
+    if not verify_password(body.password, stored) or not has_password:
         db.execute(
             "INSERT INTO login_failures (email_key, at) VALUES (%s, %s)",
             (email_key, now.isoformat()),
@@ -267,6 +279,58 @@ def login(body: Credentials, response: Response, db: Db) -> dict[str, Any]:
         "email": row["email"],
         "is_admin": is_admin(User(row["id"], row["email"])),
     }
+
+
+def _user_json(user_id: int, email: str) -> dict[str, Any]:
+    return {"id": user_id, "email": email, "is_admin": is_admin(User(user_id, email))}
+
+
+@router.post("/google")
+def google(body: GoogleCredential, response: Response, db: Db) -> dict[str, Any]:
+    """Đăng nhập (hoặc tạo tài khoản) bằng ID token của Google.
+
+    Tìm theo `google_sub`; chưa có thì gộp vào tài khoản cùng email (Google đã xác minh email đó,
+    ARCHITECTURE §7 2026-10-24); chưa có nữa thì tạo tài khoản mới không mật khẩu.
+    404: chưa cấu hình Client ID. 401: token sai. 403: email Google chưa xác minh.
+    409: email đã gắn với một tài khoản Google khác.
+    """
+    audience = google_login.client_id()
+    if audience is None:
+        raise HTTPException(status_code=404, detail="đăng nhập Google chưa bật")
+    try:
+        identity = google_login.verify_id_token(body.credential, audience)
+    except google_login.GoogleTokenError:
+        raise HTTPException(status_code=401, detail="đăng nhập Google không hợp lệ") from None
+    if not identity.email_verified:
+        raise HTTPException(status_code=403, detail="email Google chưa được xác minh")
+
+    row = db.execute(
+        "SELECT id, email FROM users WHERE google_sub = %s", (identity.sub,)
+    ).fetchone()
+    if row is None:
+        row = db.execute(
+            "SELECT id, email, google_sub FROM users WHERE lower(email) = lower(%s)",
+            (identity.email,),
+        ).fetchone()
+        if row is not None:
+            if row["google_sub"] is not None:  # email này đã gắn với tài khoản Google khác
+                raise HTTPException(
+                    status_code=409, detail="email đã gắn với một tài khoản Google khác"
+                )
+            db.execute("UPDATE users SET google_sub = %s WHERE id = %s", (identity.sub, row["id"]))
+        else:
+            try:
+                row = db.execute(
+                    "INSERT INTO users (email, password_hash, google_sub, created_at)"
+                    " VALUES (%s, NULL, %s, %s) RETURNING id, email",
+                    (identity.email, identity.sub, _now().isoformat()),
+                ).fetchone()
+            except psycopg.errors.UniqueViolation:  # hai lần bấm cùng lúc: thử lại là được
+                raise HTTPException(
+                    status_code=409, detail="tài khoản vừa được tạo, thử lại"
+                ) from None
+    _start_session(db, response, row["id"])
+    return _user_json(row["id"], row["email"])
 
 
 @router.post("/logout")

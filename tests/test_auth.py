@@ -45,10 +45,12 @@ def test_register_logs_in_immediately(anon_client: TestClient) -> None:
 
 
 def test_options_report_register_switch(anon_client: TestClient, monkeypatch) -> None:
-    # Mở không cần đăng nhập, theo đúng biến môi trường.
-    assert anon_client.get("/api/auth/options").json() == {"allow_register": True}
+    # Mở không cần đăng nhập, theo đúng biến môi trường. Nút Google: test_google_login.py.
+    monkeypatch.delenv("FORMCOACH_GOOGLE_CLIENT_ID", raising=False)
+    off = {"allow_register": False, "google_client_id": None}
+    assert anon_client.get("/api/auth/options").json() == {**off, "allow_register": True}
     monkeypatch.delenv("FORMCOACH_ALLOW_REGISTER")
-    assert anon_client.get("/api/auth/options").json() == {"allow_register": False}
+    assert anon_client.get("/api/auth/options").json() == off
 
 
 def test_register_disabled_by_default(anon_client: TestClient, monkeypatch) -> None:
