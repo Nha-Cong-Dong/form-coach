@@ -20,6 +20,10 @@ for (let i = 0; i < 60; i++) {
   const pose = visible
     ? JOINT_NAMES.map((_, j) => ({ x: 0.3 + j * 0.01, y: 0.5, visibility: 0.9 }))
     : undefined
+  if (pose && i === 5) {
+    pose[0].x = -0.25 // khớp ra ngoài khung: toạ độ âm phải giữ nguyên
+    pose[1].y = 9 // quá ±3,2767: kẹp lại
+  }
   recorder.add(ts, toKeypoints(pose))
 }
 
@@ -35,4 +39,4 @@ const session = buildSession({
   source: { version: '1.1.1', model: 'pose_landmarker_full' },
 })
 writeFileSync(out, JSON.stringify(session))
-console.log(`ghi ${session.frames.length} khung vào ${out}`)
+console.log(`ghi ${session.t_ms.length} khung vào ${out}`)

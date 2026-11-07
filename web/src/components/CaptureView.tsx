@@ -3,7 +3,7 @@
 // khung và gửi đi; server kiểm tra và lưu. Gửi và danh sách "chưa gửi": session/upload.ts.
 import { useEffect, useRef, useState } from 'react'
 import { MEDIAPIPE_VERSION, MODEL_NAME } from '../pose/landmarker'
-import { FrameRecorder, buildSession, toKeypoints } from '../session/format'
+import { FrameRecorder, MAX_SESSION_MS, buildSession, toKeypoints } from '../session/format'
 import { useSessionUpload } from '../session/upload'
 import CameraPose from './CameraPose'
 import type { PoseFrame } from './CameraPose'
@@ -52,6 +52,10 @@ export default function CaptureView() {
     const recorder = recorderRef.current
     if (!recordingRef.current || !recorder) return
     recorder.add(f.ts, toKeypoints(f.landmarks))
+    if (recorder.durationMs >= MAX_SESSION_MS) {
+      finish() // đủ 30 phút: tự dừng và gửi (server không nhận hiệp dài hơn)
+      return
+    }
     if (f.ts - lastCountUpdate.current > 250) {
       lastCountUpdate.current = f.ts
       setCounts({ frames: recorder.count, seen: recorder.seenCount })
@@ -70,10 +74,10 @@ export default function CaptureView() {
   function finish() {
     recordingRef.current = false
     setRecording(false)
-    const frames = recorderRef.current?.take() ?? []
+    const frames = recorderRef.current?.take()
     recorderRef.current = null
-    setCounts({ frames: frames.length, seen: frames.filter((f) => f.kp !== null).length })
-    if (frames.length < 2) {
+    setCounts({ frames: frames?.t_ms.length ?? 0, seen: frames?.seen ?? 0 })
+    if (!frames || frames.t_ms.length < 2) {
       setMessage({ kind: 'error', text: 'Chưa ghi được khung nào. Camera đã chạy chưa?' })
       return
     }

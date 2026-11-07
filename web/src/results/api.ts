@@ -8,6 +8,9 @@ export interface ResultRep {
   errors: string[]
   scores: Record<string, number> | null
   measures: Record<string, number | null> // số đo hiện cho người dùng (vd min_elbow_angle)
+  // Keypoint của rep có được lưu (xem lại được) không: server chỉ lưu 10 phút đầu mỗi hiệp và 30 phút
+  // mỗi 24 giờ (backend/limits.py). Kết quả cũ không có trường này = xem lại được.
+  replayable?: boolean
 }
 
 /** Số đo hiện ở trang kết quả; mục tiêu = phía ngược với luật của lỗi (lỗi khi giá trị <op> ngưỡng). */
@@ -35,6 +38,7 @@ export interface SessionResult {
   model_name: string
   n_frames: number
   duration_s: number
+  replay_s?: number | null // số giây keypoint đã lưu; null / không có = lưu đủ cả hiệp
   reps: ResultRep[]
   summary: ResultSummary
   measures: Measure[]

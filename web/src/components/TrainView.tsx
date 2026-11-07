@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MEDIAPIPE_VERSION, MODEL_NAME } from '../pose/landmarker'
 import { formatDuration } from '../results/format'
-import { FrameRecorder, buildSession, toKeypoints } from '../session/format'
+import { FrameRecorder, MAX_SESSION_MS, buildSession, toKeypoints } from '../session/format'
 import { useSessionUpload } from '../session/upload'
 import { FULL_BODY_RATIO, RollingRatio, bodyVisible } from '../train/body'
 import { FpsMeter, MAX_SEND_FPS, SendThrottle, encodeFrame, liveUrl, parseServerMessage } from '../train/live'
@@ -123,6 +123,10 @@ export default function TrainView() {
     const recorder = recorderRef.current
     if (!recorder) return
     recorder.add(f.ts, toKeypoints(f.landmarks))
+    if (recorder.durationMs >= MAX_SESSION_MS) {
+      finish() // đủ 30 phút: tự dừng và gửi (server không nhận hiệp dài hơn)
+      return
+    }
     const ws = wsRef.current
     if (ws?.readyState === WebSocket.OPEN && throttleRef.current.shouldSend(f.ts)) {
       ws.send(encodeFrame(f.ts, f.landmarks))
@@ -152,13 +156,13 @@ export default function TrainView() {
   }
 
   function finish() {
-    const frames = recorderRef.current?.take() ?? []
+    const frames = recorderRef.current?.take()
     recorderRef.current = null
     closeLive()
     setLive({ status: 'off', reps: null })
     // Về Chuẩn bị: camera tắt (CameraPose gỡ ra) trong lúc xem kết quả.
     setStage('prep')
-    if (frames.length < 2) {
+    if (!frames || frames.t_ms.length < 2) {
       setMessage({ kind: 'error', text: 'Chưa ghi được khung nào. Camera đã chạy chưa?' })
       return
     }

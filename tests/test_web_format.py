@@ -4,6 +4,7 @@ Gọi `node web/scripts/sample-session.ts` (Node ≥ 22.18 chạy thẳng TypeSc
 phù hợp thì bỏ qua, vì phần Python vẫn được test riêng ở test_session_json.py.
 """
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -33,9 +34,16 @@ def test_typescript_session_passes_python_validation(tmp_path: Path) -> None:
     out = tmp_path / "from_ts.json"
     subprocess.run([NODE, str(SCRIPT), str(out)], check=True, capture_output=True)
 
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["format_version"] == 2 and "frames" not in data  # trang quay ghi v2 (§2b)
     pose, meta = load_session_json(out)  # sai định dạng là SessionFormatError ở đây
 
     assert pose.keypoints.shape == (60, 33, 3)
+    # Giá trị đi qua int16 (TypeScript) → numpy (Python) đúng tới 4 chữ số.
+    expected = np.stack([0.3 + np.arange(33) * 0.01, np.full(33, 0.5), np.full(33, 0.9)], axis=1)
+    np.testing.assert_allclose(pose.keypoints[0], expected, atol=1e-9)
+    assert pose.keypoints[5, 0, 0] == pytest.approx(-0.25)
+    assert pose.keypoints[5, 1, 1] == pytest.approx(3.2767)
     assert np.isnan(pose.keypoints[20]).all()  # khung không thấy người
     assert pose.frame_size == (1280, 720)
     assert meta.session_id == "2026-10-20T19-05-12_a3f9c1_pushup"  # giờ + đuôi ngẫu nhiên

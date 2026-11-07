@@ -17,7 +17,7 @@ export default function UnsentList({ unsent, uploading, onRetry }: Props) {
       <ul>
         {unsent.map(({ session, error }) => (
           <li key={session.session_id}>
-            <b>{session.session_id}</b> ({session.frames.length} khung): {error}{' '}
+            <b>{session.session_id}</b> ({session.t_ms.length} khung): {error}{' '}
             <button onClick={() => onRetry(session)} disabled={uploading > 0}>
               Gửi lại
             </button>{' '}

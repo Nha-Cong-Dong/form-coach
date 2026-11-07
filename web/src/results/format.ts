@@ -87,3 +87,23 @@ export function modelLabel(modelName: string): string {
   const m = trained?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   return m ? `${name} (train ${m[3]}/${m[2]}/${m[1]})` : name
 }
+
+/** Rep xem lại được không: server chỉ lưu keypoint 10 phút đầu mỗi hiệp và 30 phút mỗi 24 giờ
+ *  (backend/limits.py). Kết quả cũ không có `replayable` = xem lại được. */
+export function canReplay(rep: { replayable?: boolean }): boolean {
+  return rep.replayable !== false
+}
+
+/** Dòng hướng dẫn trên lưới rep: nói rõ phần nào không xem lại được và vì sao. */
+export function replayHint(result: {
+  replay_s?: number | null
+  reps: { index: number; replayable?: boolean }[]
+}): string {
+  const base = 'Bấm vào một rep để xem lại bằng người que.'
+  const missing = result.reps.filter((r) => !canReplay(r)).map((r) => r.index + 1)
+  if (missing.length === 0) return base
+  if (!result.replay_s) {
+    return 'Hiệp này không lưu để xem lại: mỗi người lưu tối đa 30 phút trong 24 giờ.'
+  }
+  return `${base} Chỉ lưu ${formatDuration(result.replay_s)} đầu hiệp, rep ${repRanges(missing)} không xem lại được.`
+}

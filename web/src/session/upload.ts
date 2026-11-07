@@ -3,7 +3,7 @@
 // Một hiệp đã tập thì không quay lại được, nên hiệp gửi thất bại KHÔNG bao giờ bị bỏ âm thầm:
 // nó nằm trong danh sách "chờ gửi" (kể cả khi quay hiệp mới) cho tới khi gửi được hoặc tải về.
 import { useEffect, useState } from 'react'
-import { failure } from '../http'
+import { errorDetail, failure } from '../http'
 import { resultHash } from '../results/api'
 import type { SessionFile } from './format'
 
@@ -66,6 +66,11 @@ export function useSessionUpload() {
       if (r.status === 409) {
         // Đã có trên server (vd lần gửi trước thành công nhưng mất phản hồi): coi như đã lưu.
         setMessage({ kind: 'ok', text: `${session.session_id} đã có trên server từ trước.` })
+      } else if (r.status === 413) {
+        // Quá giới hạn (hiệp > 30 phút / > 20 MB, backend/limits.py): gửi lại vẫn bị từ chối, nên
+        // KHÔNG đưa vào danh sách chờ gửi (sẽ giữ trang và hỏi trước khi đóng mãi).
+        const detail = (await errorDetail(r)) || 'hiệp quá dài hoặc quá lớn'
+        setMessage({ kind: 'error', text: `Server không nhận hiệp này: ${detail}.` })
       } else if (!r.ok) {
         throw await failure(r) // đọc `detail` chung với các màn khác (http.ts)
       } else {
