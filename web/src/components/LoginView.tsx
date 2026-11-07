@@ -2,20 +2,22 @@
 // máy tính (rộng ≥ 900px): thêm tấm giới thiệu nền tối bên trái.
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { AuthError, submitCredentials } from '../auth/api'
+import { AuthError, submitCredentials, submitGoogle } from '../auth/api'
 import type { AuthMode, User } from '../auth/api'
 import { MIN_PASSWORD_LENGTH, hasErrors, validateCredentials } from '../auth/validate'
 import type { FieldErrors } from '../auth/validate'
+import GoogleButton from './GoogleButton'
 import ThemeToggle from './ThemeToggle'
 
 interface Props {
   allowRegister: boolean // server tắt đăng ký (GET /api/auth/options) thì chỉ có đăng nhập
+  googleClientId: string | null // có thì hiện nút "Tiếp tục với Google" (tạo tài khoản qua Google)
   onLoggedIn: (user: User) => void
   // Phiên hết hạn giữa chừng: vẽ đè lên app (các màn bên dưới vẫn giữ nguyên), kèm lời giải thích.
   overlay?: boolean
 }
 
-export default function LoginView({ allowRegister, onLoggedIn, overlay = false }: Props) {
+export default function LoginView({ allowRegister, googleClientId, onLoggedIn, overlay = false }: Props) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,6 +47,19 @@ export default function LoginView({ allowRegister, onLoggedIn, overlay = false }
     } catch (err) {
       if (err instanceof AuthError && err.field) setServerField({ [err.field]: err.message })
       else setFormError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+
+  // Google đã xác nhận danh tính (popup) → server kiểm token, tạo hoặc tìm tài khoản, đặt cookie.
+  const googleLogin = async (credential: string) => {
+    setServerField({})
+    setFormError(null)
+    setBusy(true)
+    try {
+      onLoggedIn(await submitGoogle(credential))
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : String(err))
       setBusy(false)
     }
   }
@@ -152,6 +167,15 @@ export default function LoginView({ allowRegister, onLoggedIn, overlay = false }
                 </svg>
                 {formError}
               </div>
+            )}
+
+            {googleClientId && (
+              <>
+                <GoogleButton clientId={googleClientId} onCredential={googleLogin} />
+                <div className="login-divider">
+                  <span>hoặc dùng email</span>
+                </div>
+              </>
             )}
 
             <div className="field">

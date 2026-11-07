@@ -732,11 +732,41 @@ main > .form-alert {
   gap: 16px;
 }
 
+/* Nút Google (G2): Google tự vẽ trong iframe; khung giữ chỗ cao 44 để form không nhảy khi nút
+   tải xong. Không tô màu được (quy định của Google). */
+.google-button {
+  min-height: var(--size-touch);
+  display: flex;
+  justify-content: center;
+  /* Trang tối đặt color-scheme: dark (theme.css), còn trang trong iframe của Google là sáng. Hai
+     bên lệch nhau thì trình duyệt phủ nền trắng đục sau iframe (ô trắng quanh nút ở chế độ tối).
+     Đặt sáng ở khung này cho khớp iframe → nền iframe trong suốt; màu nút do `theme` của Google. */
+  color-scheme: light;
+}
+
+/* "hoặc dùng email": hai đường kẻ `line` hai bên chữ `ink2`. */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-ink2);
+  font-size: var(--text-label);
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-line);
+}
+
 .login-card-title {
   margin: 0;
   font-size: var(--text-headline);
   font-weight: 700;
   letter-spacing: -0.02em;
+  text-align: center; /* thẳng hàng với nút Google (chữ căn giữa) ngay bên dưới */
 }
 
 .segmented {

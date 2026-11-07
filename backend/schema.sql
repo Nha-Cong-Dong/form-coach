@@ -12,8 +12,9 @@
 CREATE TABLE IF NOT EXISTS users (
     id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email         TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at    TEXT NOT NULL
+    password_hash TEXT,           -- NULL = tài khoản chỉ đăng nhập bằng Google
+    created_at    TEXT NOT NULL,
+    google_sub    TEXT            -- mã người dùng Google (claim `sub`); NULL = chưa gắn Google
 );
 
 -- Phiên đăng nhập: chỉ lưu sha256 của token, token thật nằm trong cookie của trình duyệt.
@@ -112,3 +113,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS replay_frames INTEGER;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS replay_s DOUBLE PRECISION;
 CREATE INDEX IF NOT EXISTS idx_sessions_user_created ON sessions (user_id, created_at);
+
+-- Đăng nhập Google (G1, 2026-11-07). DB đã có (Neon, máy) tạo bảng users trước khi có Google:
+-- thêm cột và bỏ NOT NULL ở đây (chạy lại nhiều lần không sao).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT;
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users (google_sub);
