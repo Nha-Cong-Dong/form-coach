@@ -5,12 +5,14 @@ import RepReplay from './RepReplay'
 import { fetchExercise, fetchResult } from '../results/api'
 import type { ExerciseInfo, SessionResult } from '../results/api'
 import {
+  canReplay,
   formatDuration,
   formatRecordedAt,
   measureText,
   modelLabel,
   outsideTarget,
   repRanges,
+  replayHint,
   repsByError,
   targetText,
 } from '../results/format'
@@ -143,7 +145,7 @@ export default function ResultView({ exercise, sessionId }: Props) {
       {n_reps > 0 && (
         <section className="card">
           <h2>Từng rep</h2>
-          <p className="label measure-target">Bấm vào một rep để xem lại bằng người que.</p>
+          <p className="label measure-target">{replayHint(result)}</p>
           <ol className="rep-grid">
             {result.reps.map((rep) => {
               const ok = rep.errors.length === 0
@@ -152,7 +154,8 @@ export default function ResultView({ exercise, sessionId }: Props) {
                   <button
                     type="button"
                     className={ok ? 'rep-dot ok' : 'rep-dot fix'}
-                    aria-label={`Rep ${rep.index + 1}, ${ok ? 'đúng' : rep.errors.map(name).join(', ')}. Xem lại`}
+                    aria-label={`Rep ${rep.index + 1}, ${ok ? 'đúng' : rep.errors.map(name).join(', ')}${canReplay(rep) ? '. Xem lại' : ''}`}
+                    disabled={!canReplay(rep)}
                     onClick={() => setReplay(rep.index)}
                   >
                     {rep.index + 1}
@@ -195,7 +198,8 @@ export default function ResultView({ exercise, sessionId }: Props) {
                     <button
                       type="button"
                       className={outside ? 'measure measure-fix' : 'measure measure-ok'}
-                      aria-label={`Rep ${rep.index + 1}: ${m.label.toLowerCase()} ${value}${outside ? ', ngoài mục tiêu' : ''}. Xem lại`}
+                      aria-label={`Rep ${rep.index + 1}: ${m.label.toLowerCase()} ${value}${outside ? ', ngoài mục tiêu' : ''}${canReplay(rep) ? '. Xem lại' : ''}`}
+                      disabled={!canReplay(rep)}
                       onClick={() => setReplay(rep.index)}
                     >
                       <span className="measure-rep">Rep {rep.index + 1}</span>

@@ -2122,3 +2122,14 @@ button.cal-day {
     display: none;
   }
 }
+
+/* Rep không lưu keypoint (giới hạn lưu, backend/limits.py): vẫn hiện kết quả, chỉ không bấm được. */
+button.rep-dot:disabled,
+button.measure:disabled {
+  cursor: default;
+}
+
+/* Trình duyệt tô xám chữ nút bị tắt: số đo vẫn là kết quả thật, giữ màu như ô bấm được. */
+button.measure:disabled {
+  color: var(--color-ink);
+}

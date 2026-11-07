@@ -3,6 +3,7 @@
 // Chạy: node web/scripts/check-result-format.ts   (Node ≥ 22.18 chạy thẳng .ts)
 import assert from 'node:assert/strict'
 import {
+  canReplay,
   frameAt,
   formatDuration,
   formatRecordedAt,
@@ -10,6 +11,7 @@ import {
   modelLabel,
   outsideTarget,
   repRanges,
+  replayHint,
   repsByError,
   targetText,
 } from '../src/results/format.ts'
@@ -76,5 +78,20 @@ assert.deepEqual(repsByError(reps, ['shallow', 'incomplete_lockout', 'hip_sag'])
   { error: 'shallow', reps: [3] },
   { error: 'hip_sag', reps: [2, 3] },
 ])
+
+// canReplay / replayHint: giới hạn lưu keypoint (backend/limits.py); kết quả cũ không có trường
+assert.equal(canReplay({}), true)
+assert.equal(canReplay({ replayable: true }), true)
+assert.equal(canReplay({ replayable: false }), false)
+const rep3 = (flags: (boolean | undefined)[]) => flags.map((replayable, index) => ({ index, replayable }))
+assert.equal(replayHint({ reps: rep3([undefined, undefined]) }), 'Bấm vào một rep để xem lại bằng người que.')
+assert.equal(
+  replayHint({ replay_s: 600, reps: rep3([true, true, false, false]) }),
+  'Bấm vào một rep để xem lại bằng người que. Chỉ lưu 10:00 đầu hiệp, rep 3–4 không xem lại được.',
+)
+assert.equal(
+  replayHint({ replay_s: 0, reps: rep3([false, false]) }),
+  'Hiệp này không lưu để xem lại: mỗi người lưu tối đa 30 phút trong 24 giờ.',
+)
 
 console.log('check-result-format: ok')

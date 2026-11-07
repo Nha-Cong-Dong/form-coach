@@ -136,8 +136,11 @@ def _from_json(text: str) -> dict[str, float]:
     return {k: (float("nan") if v is None else v) for k, v in json.loads(text).items()}
 
 
-def rep_json(result: RepResult, exercise: Exercise) -> dict[str, Any]:
-    """Một rep cho web: lỗi đoán được, điểm, và số đo hiện cho người dùng (`measure_display`)."""
+def rep_json(
+    result: RepResult, exercise: Exercise, replay_frames: int | None = None
+) -> dict[str, Any]:
+    """Một rep cho web: lỗi đoán được, điểm, số đo hiện cho người dùng (`measure_display`), và
+    `replayable`: keypoint của rep có được lưu không (`replay_frames` None = lưu đủ cả hiệp)."""
     rep = result.rep
     shown = _finite({f: rep.features.get(f, float("nan")) for f in exercise.measure_display})
     return {
@@ -147,6 +150,7 @@ def rep_json(result: RepResult, exercise: Exercise) -> dict[str, Any]:
         "errors": sorted(result.errors),
         "scores": result.scores,
         "measures": shown,
+        "replayable": replay_frames is None or rep.end_frame < replay_frames,
     }
 
 
@@ -182,17 +186,22 @@ def store_result(
     model_name: str,
     n_frames: int,
     duration_s: float,
-    payload: dict[str, Any],
+    payload: dict[str, Any] | None,
+    replay_frames: int,
+    replay_s: float,
 ) -> None:
     """Ghi một hiệp + các rep + keypoint gốc (`payload`, nén gzip) vào DB.
+
+    `payload` là phần keypoint được phép lưu (đã cắt theo backend/limits.py), None = không lưu;
+    `replay_frames` / `replay_s` = số khung / số giây của phần đó (0 khi không lưu).
 
     Chưa commit: route commit sau khi đã ghi file (hiệp của admin), để lỗi ở bước nào cũng không
     để lại nửa chừng.
     """
     row = db.execute(
         "INSERT INTO sessions (user_id, exercise, session_id, recorded_at, set_errors, source,"
-        " model_name, n_frames, duration_s, created_at)"
-        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+        " model_name, n_frames, duration_s, created_at, replay_frames, replay_s)"
+        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
         (
             user_id,
             session.exercise,
@@ -204,6 +213,8 @@ def store_result(
             n_frames,
             duration_s,
             datetime.now(UTC).isoformat(),
+            replay_frames,
+            replay_s,
         ),
     ).fetchone()
     session_pk = row["id"]
@@ -223,10 +234,11 @@ def store_result(
             for r in session.results
         ],
     )
-    db.execute(
-        "INSERT INTO session_payloads (session_pk, payload_gz) VALUES (%s, %s)",
-        (session_pk, _compress(payload)),
-    )
+    if payload is not None:
+        db.execute(
+            "INSERT INTO session_payloads (session_pk, payload_gz) VALUES (%s, %s)",
+            (session_pk, _compress(payload)),
+        )
 
 
 def _compress(payload: dict[str, Any]) -> bytes:
@@ -286,7 +298,8 @@ def load_result(
         "model_name": row["model_name"],
         "n_frames": row["n_frames"],
         "duration_s": row["duration_s"],
-        "reps": [rep_json(r, ex) for r in results],
+        "replay_s": row["replay_s"],
+        "reps": [rep_json(r, ex, row["replay_frames"]) for r in results],
         "summary": summarize(session, ex.error_labels),
         "measures": measures_json(ex),
     }, session
@@ -294,14 +307,18 @@ def load_result(
 
 def rep_frames(
     db: Connection, user_id: int, exercise: str, session_id: str, index: int
-) -> tuple[int, int] | None:
-    """(khung đầu, khung cuối) của rep đã lưu, chỉ khi hiệp là của user; không có → None."""
+) -> tuple[int, int, int | None] | None:
+    """(khung đầu, khung cuối, `replay_frames` của hiệp) của rep đã lưu, chỉ khi hiệp là của user;
+    không có → None. `replay_frames` None = keypoint lưu đủ (hiệp cũ)."""
     row = db.execute(
-        "SELECT r.start_frame, r.end_frame FROM reps r JOIN sessions s ON s.id = r.session_pk"
+        "SELECT r.start_frame, r.end_frame, s.replay_frames"
+        " FROM reps r JOIN sessions s ON s.id = r.session_pk"
         " WHERE s.user_id = %s AND s.exercise = %s AND s.session_id = %s AND r.idx = %s",
         (user_id, exercise, session_id, index),
     ).fetchone()
-    return None if row is None else (row["start_frame"], row["end_frame"])
+    if row is None:
+        return None
+    return row["start_frame"], row["end_frame"], row["replay_frames"]
 
 
 def list_results(db: Connection, user_id: int) -> list[dict[str, Any]]:

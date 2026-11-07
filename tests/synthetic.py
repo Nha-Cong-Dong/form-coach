@@ -68,3 +68,16 @@ def train_session() -> dict:
     data = three_rep_session()
     data["capture_mode"] = "train"
     return data
+
+
+def to_v2(data: dict) -> dict:
+    """File v1 (`frames`) → cùng hiệp dạng v2 (`t_ms` + `kp_i16`), như trang quay mới ghi."""
+    from formcoach.pose.session_json import encode_kp_i16
+
+    out = {k: v for k, v in data.items() if k != "frames"}
+    nan_frame = np.full((33, 3), np.nan)
+    kp = np.stack([nan_frame if f["kp"] is None else np.asarray(f["kp"]) for f in data["frames"]])
+    out["format_version"] = 2
+    out["t_ms"] = [f["t_ms"] for f in data["frames"]]
+    out["kp_i16"] = encode_kp_i16(kp)
+    return out

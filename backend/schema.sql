@@ -104,3 +104,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
 CREATE INDEX IF NOT EXISTS idx_login_failures_email ON login_failures (email_key, at);
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+
+-- Giới hạn lưu keypoint (backend/limits.py, 2026-11-07). Thêm cột sau: ADD COLUMN IF NOT EXISTS để
+-- DB đã có (Neon) tự cập nhật lúc server mở pool. Hiệp cũ để NULL = keypoint lưu đủ cả hiệp.
+-- replay_frames: số khung đầu có keypoint trong session_payloads (0 = không lưu);
+-- replay_s: số giây keypoint đã lưu, cộng lại để tính giới hạn 24 giờ.
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS replay_frames INTEGER;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS replay_s DOUBLE PRECISION;
+CREATE INDEX IF NOT EXISTS idx_sessions_user_created ON sessions (user_id, created_at);

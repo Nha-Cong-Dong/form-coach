@@ -1,8 +1,19 @@
-// Định dạng file keypoint mà trang quay gửi về server (docs/ARCHITECTURE.md §2b, format_version 1).
+// Định dạng file keypoint mà trang quay gửi về server (docs/ARCHITECTURE.md §2b, format_version 2).
 // Phía Python kiểm tra bằng formcoach/pose/session_json.py: sai một trường là bị từ chối (422).
 // File này không import gì, nên chạy được trực tiếp bằng `node` (dùng để kiểm tra chéo với Python).
+//
+// v2: keypoint cả hiệp là MỘT khối int16 (base64), không phải list lồng nhau như v1: server đọc
+// bằng numpy, không tạo hàng triệu object (v1 làm server hết RAM với hiệp > ~10 phút). Ghi thẳng
+// vào khối này ngay lúc quay nên điện thoại cũng không giữ hàng triệu mảng nhỏ.
 
-export const FORMAT_VERSION = 1
+export const FORMAT_VERSION = 2
+// Giá trị int16 = round(v × KP_SCALE) (đúng 4 chữ số như v1); cả khung = KP_MISSING: không thấy người.
+export const KP_SCALE = 10000
+export const KP_MISSING = -32768
+const KP_MAX = 32767 // kẹp toạ độ quá ±3,28 lần khung (vô nghĩa) để vừa int16
+// Mỗi hiệp tối đa 30 phút: server từ chối hiệp dài hơn (backend/limits.py MAX_SESSION_S), nên
+// trang quay tự dừng ở mốc này thay vì để người tập mất cả hiệp.
+export const MAX_SESSION_MS = 30 * 60 * 1000
 
 // 33 khớp MediaPipe theo đúng thứ tự index (giống formcoach/pose/joints.py).
 // Server so khớp danh sách này từng phần tử, lệch là báo lỗi ngay ở lần gửi đầu.
@@ -45,9 +56,11 @@ export const JOINT_NAMES = [
 /** [x, y, visibility]; x, y chuẩn hoá 0–1 theo chiều rộng / chiều cao khung. */
 export type Keypoint = [number, number, number]
 
-export interface FrameRecord {
-  t_ms: number // ms kể từ lúc bấm Bắt đầu, tăng ngặt
-  kp: Keypoint[] | null // null = khung không thấy người
+/** Các khung đã ghi của một hiệp, dạng đóng gói (FrameRecorder.take()). */
+export interface RecordedFrames {
+  t_ms: number[] // ms kể từ khung đầu, tăng ngặt
+  kp: Uint8Array // int16 little-endian, [khung][33 khớp][x, y, visibility]
+  seen: number // số khung thấy người
 }
 
 export interface SessionFile {
@@ -62,7 +75,8 @@ export interface SessionFile {
   source: { pose: string; version: string; model: string }
   frame_size: [number, number]
   joint_names: string[]
-  frames: FrameRecord[]
+  t_ms: number[]
+  kp_i16: string // base64 của RecordedFrames.kp
 }
 
 /** Landmark tối thiểu cần dùng (khớp với NormalizedLandmark của MediaPipe). */
@@ -109,35 +123,78 @@ export function toKeypoints(pose: LandmarkLike[] | undefined): Keypoint[] | null
   return pose.map((l) => [round(l.x, 4), round(l.y, 4), round(l.visibility, 4)])
 }
 
+const VALUES_PER_FRAME = JOINT_NAMES.length * 3
+const BYTES_PER_FRAME = VALUES_PER_FRAME * 2
+
+const toInt16 = (v: number) => Math.max(-KP_MAX, Math.min(KP_MAX, Math.round(v * KP_SCALE)))
+
 /**
- * Ghi khung cho một hiệp: giữ t_ms tăng ngặt (làm tròn 0,1 ms có thể làm hai khung sát nhau trùng giá trị).
+ * Ghi khung cho một hiệp, đóng gói ngay vào khối int16 (định dạng v2). Giữ t_ms tăng ngặt (làm
+ * tròn 0,1 ms có thể làm hai khung sát nhau trùng giá trị).
  */
 export class FrameRecorder {
-  private frames: FrameRecord[] = []
+  private times: number[] = []
+  private bytes = new Uint8Array(BYTES_PER_FRAME * 1024) // nới gấp đôi khi đầy
+  private seen = 0
   private startTs: number | null = null
 
   add(ts: number, kp: Keypoint[] | null): void {
     if (this.startTs === null) this.startTs = ts
     let t = round(ts - this.startTs, 1)
-    const last = this.frames.at(-1)
-    if (last && t <= last.t_ms) t = round(last.t_ms + 0.1, 1)
-    this.frames.push({ t_ms: t, kp })
+    const last = this.times.at(-1)
+    if (last !== undefined && t <= last) t = round(last + 0.1, 1)
+    const offset = this.times.length * BYTES_PER_FRAME
+    if (offset + BYTES_PER_FRAME > this.bytes.length) {
+      const bigger = new Uint8Array(this.bytes.length * 2)
+      bigger.set(this.bytes)
+      this.bytes = bigger
+    }
+    // DataView ghi rõ little-endian (định dạng quy định), không phụ thuộc máy.
+    const view = new DataView(this.bytes.buffer, offset, BYTES_PER_FRAME)
+    for (let i = 0; i < VALUES_PER_FRAME; i++) {
+      const value = kp === null ? KP_MISSING : toInt16(kp[Math.floor(i / 3)][i % 3])
+      view.setInt16(i * 2, value, true)
+    }
+    if (kp !== null) this.seen += 1
+    this.times.push(t)
   }
 
   get count(): number {
-    return this.frames.length
+    return this.times.length
   }
 
   get seenCount(): number {
-    return this.frames.filter((f) => f.kp !== null).length
+    return this.seen
   }
 
-  take(): FrameRecord[] {
-    const out = this.frames
-    this.frames = []
+  /** ms từ khung đầu tới khung cuối (0 khi chưa có khung). */
+  get durationMs(): number {
+    return this.times.at(-1) ?? 0
+  }
+
+  take(): RecordedFrames {
+    const out = {
+      t_ms: this.times,
+      kp: this.bytes.slice(0, this.times.length * BYTES_PER_FRAME),
+      seen: this.seen,
+    }
+    this.times = []
+    this.bytes = new Uint8Array(BYTES_PER_FRAME * 1024)
+    this.seen = 0
     this.startTs = null
     return out
   }
+}
+
+/** Byte → base64. Từng khúc 32 KB: String.fromCharCode(...mảng lớn) tràn stack. Không dùng
+ *  Uint8Array.toBase64 vì điện thoại cũ chưa có. */
+export function toBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
 }
 
 export type CaptureMode = 'dataset' | 'train'
@@ -149,7 +206,7 @@ export function buildSession(args: {
   captureMode: CaptureMode
   startedAt: Date
   frameSize: [number, number]
-  frames: FrameRecord[]
+  frames: RecordedFrames
   source: { version: string; model: string }
   idSuffix?: string // chỉ để test có tên cố định; bỏ trống = ngẫu nhiên
 }): SessionFile {
@@ -164,6 +221,7 @@ export function buildSession(args: {
     source: { pose: 'mediapipe-js', version: args.source.version, model: args.source.model },
     frame_size: args.frameSize,
     joint_names: [...JOINT_NAMES],
-    frames: args.frames,
+    t_ms: args.frames.t_ms,
+    kp_i16: toBase64(args.frames.kp),
   }
 }
