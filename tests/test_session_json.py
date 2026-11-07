@@ -137,7 +137,9 @@ def broken(**changes) -> dict:
     [
         ([], "JSON object"),
         (broken(frames=...), "thiếu trường: frames"),
-        (broken(format_version=2), "format_version"),
+        (broken(format_version=3), "format_version"),
+        (broken(format_version=True), "format_version"),
+        (broken(format_version=...), "thiếu trường: format_version"),
         (broken(session_id="../../etc/passwd"), "session_id"),
         (broken(session_id="a/b"), "session_id"),
         (broken(session_id=""), "session_id"),

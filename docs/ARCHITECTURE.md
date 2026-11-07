@@ -80,7 +80,7 @@ Quy ước:
 - **Nhãn multi-label:** mỗi rep có một tập lỗi (`frozenset[str]`), tập rỗng là `good`. "good" không phải một lỗi nên không nằm trong danh sách lỗi.
 - **Rep không hợp lệ:** rep do bộ đếm cắt nhầm được đánh dấu `valid = false` lúc gán nhãn (nhãn thật, nằm trong file nhãn §2c / DB sau này, không nằm trong `Rep`). Loại khỏi train, dùng để đo độ chính xác của bộ đếm.
 
-### 2b. File keypoint từ trang quay (`format_version` 1)
+### 2b. File keypoint từ trang quay (`format_version` 1 và 2)
 
 Đây là ranh giới giữa `web/` và Python. Trang quay xuất file này; `formcoach/pose/session_json.py` đọc thành `PoseSequence` + `SessionMeta` (`parse_session(dict)` / `load_session_json(path)`). Backend nhận cùng định dạng qua API.
 
@@ -110,12 +110,36 @@ Phía web, định dạng nằm ở `web/src/session/format.ts` (kiểu TypeScri
 - `set_errors` = tập lỗi cố ý của cả hiệp, chọn trước khi quay (`[]` = hiệp tập đúng). Mọi rep của hiệp nhận tập này làm nhãn ban đầu, sửa từng rep sau trong màn hình gán nhãn.
 
 Quy tắc kiểm tra (sai thì `SessionFormatError` nói rõ trường / khung / khớp nào sai):
-- Đủ mọi trường ở trên; `format_version == 1`.
+- Đủ mọi trường ở trên; `format_version` là 1 hoặc 2 (v2: `t_ms` + `kp_i16` thay `frames`).
 - `session_id` chỉ gồm `[A-Za-z0-9_-]`, 1–100 ký tự (được dùng làm tên file, chặn `../`). Web đặt `<ngày>T<giờ>_<6 hex ngẫu nhiên>_<bài>` (vd `2026-10-31T08-37-32_a3f9c1_pushup`, từ 2026-10-31): `session_id` duy nhất trên cả server, thiếu đuôi thì hai người gửi cùng giây đụng tên (409 mãi). Hiệp cũ không đuôi vẫn hợp lệ; server không tách chuỗi này (mọi thứ dùng `recorded_at`).
 - `exercise` có trong `formcoach.exercises.EXERCISES`; `set_errors` là danh sách không trùng, mỗi phần tử thuộc `error_labels` của bài đó.
 - `recorded_at` dạng ISO 8601; `source` là object có giá trị chuỗi; `notes` (nếu có) là chuỗi ≤ 1000 ký tự.
 - `frame_size` = `[width, height]` số nguyên dương; `joint_names` đúng 33 tên MediaPipe theo thứ tự.
 - `frames` ≥ 2 khung; `t_ms` là số không âm, **tăng ngặt**; `kp` là `null` hoặc 33 × `[x, y, visibility]` số hữu hạn (không nhận `true/false`).
+
+#### `format_version` 2: keypoint dạng nhị phân (bạn duyệt 2026-11-07)
+
+Lý do: server đọc v1 bằng `json.loads` thành hàng triệu object Python (mỗi số một object, mỗi khớp một list), tốn RAM gấp ~12 lần cỡ file. Đo bằng hiệp tổng hợp: 10 phút (14 MB JSON) đẩy RAM đỉnh lên ~340 MB, 20 phút ~530 MB, vượt 512 MB của Render Free. v2 đóng gói keypoint thành một khối byte, numpy đọc thẳng (`np.frombuffer`), không tạo object nào.
+
+Mọi trường giống v1 (cùng quy tắc kiểm tra), trừ `frames` được thay bằng hai trường:
+```json
+{
+  "format_version": 2,
+  "...": "session_id, exercise, set_errors, recorded_at, notes, capture_mode, source, frame_size, joint_names như v1",
+  "t_ms": [0, 33.4, 66.9],
+  "kp_i16": "AAAQJwEAgD4YJ4c+..."
+}
+```
+- `t_ms`: danh sách thời gian từng khung (ms), cùng quy tắc v1: ≥ 2 khung, số không âm, tăng ngặt.
+- `kp_i16`: base64 (chuẩn RFC 4648, có `=` đệm) của mảng `int16` **little-endian**, thứ tự `[khung][khớp][x, y, visibility]`, nên dài đúng `len(t_ms) × 33 × 3 × 2` byte.
+  - Mỗi giá trị = `round(v × 10000)`: cùng độ chính xác 4 chữ số mà v1 đang làm tròn. Đọc lại: `v = số / 10000`.
+  - Dùng `int16` có dấu (−32767…32767, tức −3,2767…3,2767) vì MediaPipe cho x, y âm hoặc > 1 khi khớp ra ngoài khung. Web kẹp giá trị vào khoảng này (khớp cách khung hơn 3 lần bề rộng thì toạ độ không còn ý nghĩa).
+  - Khung không thấy người (`kp: null` của v1): **cả 99 giá trị của khung** bằng −32768. Đọc vào thành hàng NaN như v1. Chỉ một phần khung bằng −32768 → lỗi.
+- Kiểm tra thêm: `kp_i16` là chuỗi base64 hợp lệ, độ dài khớp `len(t_ms)`; đọc ra mọi giá trị đều hữu hạn (tự nhiên với số nguyên).
+- Python: `FORMAT_VERSIONS = (1, 2)`; `encode_kp_i16(keypoints) -> str` dựng `kp_i16` từ mảng (T, 33, 3) (hàng NaN → `KP_MISSING`, kẹp ±`KP_LIMIT`), dùng cho test và khi server cắt keypoint. Đo lại bằng hiệp tổng hợp (luồng như `POST /api/sessions`): 10 phút 4,9 MB JSON, RAM đỉnh ~190 MB (v1: ~340 MB); 30 phút ~265 MB; 60 phút 29,6 MB JSON, ~375 MB (v1: ~1,2 GB).
+- `parse_session` đọc **cả v1 và v2**, trả cùng `PoseSequence` + `SessionMeta`: mọi bước sau (cắt rep, chấm, xem lại, gán nhãn, train, `analyze`) không đổi. File và hiệp v1 cũ (trong `data/` và DB) đọc được mãi. Web chỉ ghi v2.
+- Server lưu keypoint (DB, file train của admin) đúng định dạng nhận được. Hiệp dài hơn 10 phút chỉ lưu keypoint 10 phút đầu (cắt `t_ms` và `kp_i16` cùng chỗ); xem giới hạn ở §4.
+- Đã loại: nén gzip trên điện thoại (giảm mạng, không giảm RAM vì server vẫn `json.loads` cùng cây object); mảng số phẳng trong JSON (chỉ giảm ~một nửa); gửi byte thô bằng multipart (đỡ 33% của base64 nhưng phức tạp hơn, chưa cần); `uint16` với 0–1 (mất toạ độ âm hoặc > 1).
 
 **`t_ms` không đều (bản hiện tại):** `fps = 1000 / trung vị(khoảng cách t_ms)`, giữ nguyên các khung như đã ghi; `t_ms` gốc giữ trong `SessionMeta.timestamps_ms`. Chọn trung vị vì trình duyệt thỉnh thoảng khựng (vài trăm ms không có khung): trung bình bị kéo tụt, trung vị thì không. **Không lấy mẫu lại** (chốt 2026-10-20 bằng số đo thật trên điện thoại: trung vị 82,7 ms ≈ 12 fps, lệch chuẩn 17%, lớn nhất 108 ms, 0 lần khựng). `python -m formcoach analyze <file>.json` in dòng "Khoảng cách khung" để theo dõi; nếu lệch chuẩn > 20% trung vị hoặc có khoảng trống > 3× trung vị thì xem lại quyết định này.
 

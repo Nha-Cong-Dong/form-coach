@@ -4,6 +4,10 @@
 nên mọi trường đều được kiểm tra; sai thì báo `SessionFormatError` nói rõ sai ở đâu,
 thay vì để lỗi khó hiểu nổ ra ở bước sau.
 
+Hai phiên bản: v1 (`frames`: mỗi khung một object, đọc được bằng mắt) và v2 (`t_ms` + `kp_i16`:
+keypoint dạng int16 base64, numpy đọc thẳng, đỡ RAM ~12 lần cỡ file của v1). Cả hai ra cùng
+`PoseSequence` + `SessionMeta`.
+
 `t_ms` của camera trình duyệt không đều nhau. Bản hiện tại chỉ yêu cầu `t_ms` tăng ngặt và
 đặt fps = 1000 / trung vị khoảng cách khung; có cần lấy mẫu lại về fps cố định hay không
 sẽ quyết định ở bước 10 khi đo độ dao động thật (xem ARCHITECTURE).
@@ -11,6 +15,8 @@ sẽ quyết định ở bước 10 khi đo độ dao động thật (xem ARCHIT
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import math
 import re
@@ -25,7 +31,11 @@ from formcoach.exercises import EXERCISES
 from formcoach.pose.joints import MEDIAPIPE_JOINTS
 from formcoach.types import PoseSequence
 
-FORMAT_VERSION = 1
+FORMAT_VERSIONS = (1, 2)  # đọc được cả hai (ARCHITECTURE §2b)
+# v2: giá trị int16 = round(v × KP_SCALE); cả khung bằng KP_MISSING = không thấy người.
+KP_SCALE = 10_000
+KP_MISSING = -32768
+KP_LIMIT = 32767 / KP_SCALE  # |v| lớn nhất lưu được (~3,28 lần khung)
 # Chỉ chữ, số, '_' và '-': session_id được dùng làm tên file, chặn '../' hay '/'.
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 REQUIRED_KEYS = (
@@ -37,8 +47,9 @@ REQUIRED_KEYS = (
     "source",
     "frame_size",
     "joint_names",
-    "frames",
 )
+# Trường keypoint riêng của từng phiên bản.
+FRAME_KEYS = {1: ("frames",), 2: ("t_ms", "kp_i16")}
 MAX_NOTES_LEN = 1000  # ghi chú tuỳ chọn (D4): vài câu về điều kiện quay, không phải văn bản dài
 # Hiệp quay từ đâu: "dataset" = Quay dữ liệu (có lỗi cố ý `set_errors`, công cụ thu dataset);
 # "train" = chế độ Tập của app (không có kịch bản lỗi, `set_errors` rỗng KHÔNG có nghĩa "cố ý
@@ -69,7 +80,15 @@ def _is_number(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
+def _check_t_ms(t_ms: np.ndarray) -> None:
+    steps = np.diff(t_ms)
+    if (steps <= 0).any():
+        bad = int(np.argmax(steps <= 0)) + 1
+        raise SessionFormatError(f"khung {bad}: 't_ms' phải tăng ngặt so với khung trước")
+
+
 def _parse_frames(frames: Any) -> tuple[np.ndarray, np.ndarray]:
+    """v1: `frames` = [{t_ms, kp}] → (keypoints (T, 33, 3), t_ms (T,))."""
     if not isinstance(frames, list) or len(frames) < 2:
         raise SessionFormatError("'frames' phải là danh sách có ít nhất 2 khung")
     n_joints = len(MEDIAPIPE_JOINTS)
@@ -90,24 +109,77 @@ def _parse_frames(frames: Any) -> tuple[np.ndarray, np.ndarray]:
             if not isinstance(point, list) or len(point) != 3 or not all(map(_is_number, point)):
                 raise SessionFormatError(f"khung {i}, khớp {j}: phải là [x, y, visibility] số")
         keypoints[i] = kp
-    steps = np.diff(t_ms)
-    if (steps <= 0).any():
-        bad = int(np.argmax(steps <= 0)) + 1
-        raise SessionFormatError(f"khung {bad}: 't_ms' phải tăng ngặt so với khung trước")
+    _check_t_ms(t_ms)
     return keypoints, t_ms
+
+
+def _parse_packed(t_list: Any, kp_text: Any) -> tuple[np.ndarray, np.ndarray]:
+    """v2: `t_ms` (danh sách số) + `kp_i16` (base64 int16 little-endian) → như `_parse_frames`."""
+    if not isinstance(t_list, list) or len(t_list) < 2:
+        raise SessionFormatError("'t_ms' phải là danh sách có ít nhất 2 khung")
+    for i, t in enumerate(t_list):
+        if not _is_number(t) or t < 0:
+            raise SessionFormatError(f"khung {i}: 't_ms' phải là số không âm")
+    t_ms = np.asarray(t_list, dtype=float)
+    _check_t_ms(t_ms)
+
+    if not isinstance(kp_text, str):
+        raise SessionFormatError("'kp_i16' phải là chuỗi base64")
+    try:
+        raw = base64.b64decode(kp_text, validate=True)
+    except (binascii.Error, ValueError):
+        raise SessionFormatError("'kp_i16' không phải base64 hợp lệ") from None
+    n_values = len(t_ms) * len(MEDIAPIPE_JOINTS) * 3
+    if len(raw) != n_values * 2:
+        raise SessionFormatError(
+            f"'kp_i16' dài {len(raw)} byte, cần {n_values * 2} (= {len(t_ms)} khung × 33 khớp"
+            " × 3 số × 2 byte)"
+        )
+    packed = np.frombuffer(raw, dtype="<i2").reshape(len(t_ms), len(MEDIAPIPE_JOINTS), 3)
+    missing = packed == KP_MISSING
+    frame_missing = missing.all(axis=(1, 2))
+    partial = missing.any(axis=(1, 2)) & ~frame_missing
+    if partial.any():
+        bad = int(np.argmax(partial))
+        raise SessionFormatError(
+            f"khung {bad}: giá trị {KP_MISSING} (không thấy người) phải phủ cả khung"
+        )
+    keypoints = packed.astype(float) / KP_SCALE
+    keypoints[frame_missing] = np.nan
+    return keypoints, t_ms
+
+
+def encode_kp_i16(keypoints: np.ndarray) -> str:
+    """(T, 33, 3) → chuỗi `kp_i16` của v2. Hàng NaN (không thấy người) → cả khung `KP_MISSING`.
+
+    Giá trị kẹp vào ±KP_LIMIT như web. Dùng cho test và khi server cắt bớt keypoint.
+    """
+    kp = np.asarray(keypoints, dtype=float)
+    if kp.ndim != 3 or kp.shape[1:] != (len(MEDIAPIPE_JOINTS), 3):
+        raise ValueError(f"keypoints phải có dạng (T, 33, 3), nhận {kp.shape}")
+    nan = np.isnan(kp)
+    frame_nan = nan.all(axis=(1, 2))
+    if (nan.any(axis=(1, 2)) & ~frame_nan).any():
+        raise ValueError("khung chỉ được toàn NaN (không thấy người) hoặc không có NaN")
+    packed = np.round(np.clip(np.nan_to_num(kp), -KP_LIMIT, KP_LIMIT) * KP_SCALE).astype("<i2")
+    packed[frame_nan] = KP_MISSING
+    return base64.b64encode(packed.tobytes()).decode("ascii")
 
 
 def parse_session(data: Any) -> tuple[PoseSequence, SessionMeta]:
     """Kiểm tra và chuyển dict (đã json.loads) thành PoseSequence + SessionMeta."""
     if not isinstance(data, dict):
         raise SessionFormatError("nội dung phải là một JSON object")
-    missing = [k for k in REQUIRED_KEYS if k not in data]
+    if "format_version" not in data:
+        raise SessionFormatError("thiếu trường: format_version")
+    version = data["format_version"]
+    if isinstance(version, bool) or version not in FORMAT_VERSIONS:
+        raise SessionFormatError(
+            f"format_version {version!r} không hỗ trợ (hợp lệ: {list(FORMAT_VERSIONS)})"
+        )
+    missing = [k for k in (*REQUIRED_KEYS, *FRAME_KEYS[version]) if k not in data]
     if missing:
         raise SessionFormatError(f"thiếu trường: {', '.join(missing)}")
-    if data["format_version"] != FORMAT_VERSION:
-        raise SessionFormatError(
-            f"format_version {data['format_version']!r} không hỗ trợ (cần {FORMAT_VERSION})"
-        )
 
     session_id = data["session_id"]
     if not isinstance(session_id, str) or not SESSION_ID_RE.match(session_id):
@@ -160,7 +232,10 @@ def parse_session(data: Any) -> tuple[PoseSequence, SessionMeta]:
     if data["joint_names"] != MEDIAPIPE_JOINTS:
         raise SessionFormatError("'joint_names' phải đúng 33 tên khớp MediaPipe theo thứ tự")
 
-    keypoints, t_ms = _parse_frames(data["frames"])
+    if version == 1:
+        keypoints, t_ms = _parse_frames(data["frames"])
+    else:
+        keypoints, t_ms = _parse_packed(data["t_ms"], data["kp_i16"])
     fps = 1000.0 / float(np.median(np.diff(t_ms)))
 
     pose = PoseSequence(
