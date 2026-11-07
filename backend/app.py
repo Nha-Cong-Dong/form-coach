@@ -19,7 +19,7 @@ import json
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -29,7 +29,7 @@ from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend import auth, coach_llm, live, progress, results
+from backend import auth, coach_llm, limits, live, progress, results
 from backend.db import Connection, close_pool, get_db, open_pool
 from formcoach.exercises import EXERCISES, get_exercise
 from formcoach.labels import LabelFormatError, check_alignment, from_dict, load_labels, save_labels
@@ -39,6 +39,7 @@ from formcoach.pose.session_json import (
     SessionFormatError,
     load_session_json,
     parse_session,
+    truncate_session,
 )
 from formcoach.progress.goals import Goal
 from formcoach.progress.summary import summarize
@@ -94,9 +95,12 @@ def exercise_info(name: str) -> dict[str, Any]:
 def upload_session(
     db: Db,
     user: CurrentUser,
-    payload: dict[str, Any] = Body(...),  # noqa: B008
+    payload: Annotated[Any, Depends(limits.session_body)],
 ) -> dict[str, Any]:
     """Kiểm tra file quay theo ARCHITECTURE §2b, phân loại từng rep, lưu kết quả + keypoint.
+
+    Giới hạn (backend/limits.py): body > 20 MB hoặc hiệp > 30 phút → 413. Keypoint chỉ lưu phần
+    đầu: tối đa 10 phút mỗi hiệp và 30 phút mỗi người trong 24 giờ; phần sau vẫn được chấm.
 
     Mọi hiệp: kết quả và keypoint gốc (nén) vào DB, gắn với người tải lên (xem lại rep đọc ở
     đây; server miễn phí không giữ file). Hiệp của admin ghi THÊM file nguyên văn vào
@@ -120,11 +124,32 @@ def upload_session(
     t = meta.timestamps_ms
     n_frames = int(len(t))
     duration_s = round(float(t[-1] - t[0]) / 1000, 2)
+    limits.check_duration(duration_s)
+    used_s = limits.used_payload_s(db, user.id, datetime.now(UTC))
+    replay_frames = limits.payload_frames(t, limits.payload_budget_s(used_s))
+    if replay_frames == 0:
+        stored, replay_s = None, 0.0
+    elif replay_frames == n_frames:
+        stored, replay_s = payload, duration_s
+    else:
+        stored = truncate_session(payload, replay_frames)
+        replay_s = round(float(t[replay_frames - 1] - t[0]) / 1000, 2)
     exercise = get_exercise(meta.exercise)
     classifier, model_name = results.get_classifier(exercise, data_dir())
     session = classify_session(pose, exercise, classifier, meta.session_id)
     try:
-        results.store_result(db, user.id, meta, session, model_name, n_frames, duration_s, payload)
+        results.store_result(
+            db,
+            user.id,
+            meta,
+            session,
+            model_name,
+            n_frames,
+            duration_s,
+            stored,
+            replay_frames,
+            replay_s,
+        )
     except psycopg.errors.UniqueViolation:  # UNIQUE(exercise, session_id): đã gửi hiệp này
         raise HTTPException(
             status_code=409, detail=f"session {meta.session_id} đã tồn tại"
@@ -144,7 +169,8 @@ def upload_session(
         "frames_with_person": int(np.isfinite(pose.keypoints[:, 0, 0]).sum()),
         # Trường cộng thêm (B5): trang quay cũ chỉ đọc các trường ở trên nên không vỡ.
         "model_name": model_name,
-        "reps": [results.rep_json(r, exercise) for r in session.results],
+        "replay_s": replay_s,
+        "reps": [results.rep_json(r, exercise, replay_frames) for r in session.results],
         "summary": summarize(session, exercise.error_labels),
         "measures": results.measures_json(exercise),
         "coach": progress.coach_json(db, user.id, session, meta.recorded_at),
@@ -235,6 +261,12 @@ def rep_replay(
     frames = results.rep_frames(db, user.id, exercise, session_id, index)
     if frames is None:
         raise HTTPException(status_code=404, detail="không có rep này")
+    start_frame, end_frame, replay_frames = frames
+    if replay_frames is not None and end_frame >= replay_frames:
+        raise HTTPException(
+            status_code=404,
+            detail="rep này không lưu keypoint (sau 10 phút đầu hiệp hoặc quá giới hạn 24 giờ)",
+        )
     stored = results.load_payload(db, user.id, exercise, session_id)
     if stored is not None:
         pose, meta = parse_session(stored)
@@ -243,7 +275,7 @@ def rep_replay(
         # tìm thư mục riêng cũ (data/users/<id>/) trước, rồi thư mục chung (user là admin).
         roots = [data_dir() / "users" / str(user.id) / "sessions", data_dir() / "sessions"]
         pose, meta = _load(exercise, session_id, roots)
-    return build_rep_replay(pose, meta, *frames)
+    return build_rep_replay(pose, meta, start_frame, end_frame)
 
 
 def training_file(user: auth.User, exercise: str, session_id: str) -> Path | None:

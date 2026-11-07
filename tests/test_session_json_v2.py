@@ -149,3 +149,25 @@ def test_v2_partial_missing_rejected() -> None:
     values[7, 2, 0] = KP_MISSING
     with pytest.raises(SessionFormatError, match="khung 7"):
         parse_session(_with_kp(data, values))
+
+
+# --- cắt bớt khung (server lưu phần đầu hiệp dài) ---
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_truncate_keeps_first_frames(version: int) -> None:
+    from formcoach.pose.session_json import truncate_session
+
+    full = three_rep_session()
+    if version == 2:
+        full = to_v2(full)
+    pose_full, meta_full = parse_session(full)
+    cut = truncate_session(full, 25)
+    pose_cut, meta_cut = parse_session(cut)
+    assert cut["format_version"] == version
+    np.testing.assert_array_equal(pose_cut.keypoints, pose_full.keypoints[:25])
+    np.testing.assert_array_equal(meta_cut.timestamps_ms, meta_full.timestamps_ms[:25])
+    # Không sửa file gốc.
+    assert parse_session(full)[0].keypoints.shape[0] == pose_full.keypoints.shape[0]
+    with pytest.raises(ValueError, match="ít nhất 2"):
+        truncate_session(full, 1)

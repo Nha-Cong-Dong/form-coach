@@ -264,3 +264,21 @@ def load_session_json(path: Path) -> tuple[PoseSequence, SessionMeta]:
     except json.JSONDecodeError as e:
         raise SessionFormatError(f"không phải JSON hợp lệ: {e}") from None
     return parse_session(data)
+
+
+def truncate_session(data: dict[str, Any], n_frames: int) -> dict[str, Any]:
+    """Bản sao file hiệp (đã qua `parse_session`) chỉ giữ `n_frames` khung đầu, cùng phiên bản.
+
+    Server dùng để lưu keypoint của phần đầu hiệp dài (giới hạn lưu, ARCHITECTURE §4). Các trường
+    khác giữ nguyên (sao nông: không sửa `data`). Cần n_frames ≥ 2 (file < 2 khung không hợp lệ).
+    """
+    if n_frames < 2:
+        raise ValueError(f"cần giữ ít nhất 2 khung, nhận {n_frames}")
+    out = dict(data)
+    if data["format_version"] == 1:
+        out["frames"] = data["frames"][:n_frames]
+    else:
+        n_bytes = n_frames * len(MEDIAPIPE_JOINTS) * 3 * 2
+        out["t_ms"] = data["t_ms"][:n_frames]
+        out["kp_i16"] = base64.b64encode(base64.b64decode(data["kp_i16"])[:n_bytes]).decode("ascii")
+    return out
