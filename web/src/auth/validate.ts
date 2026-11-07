@@ -43,3 +43,14 @@ export function lockoutMessage(retryAfter: string | null): string {
     return 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ít phút.'
   return `Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ${Math.ceil(seconds / 60)} phút.`
 }
+
+/** Câu báo cho đăng nhập Google theo mã HTTP (backend/auth.py `google`). */
+export function googleMessage(status: number): string {
+  if (status === 401) return 'Đăng nhập Google không thành công. Vui lòng thử lại.'
+  if (status === 403) return 'Email Google của bạn chưa được xác minh, nên chưa dùng được để đăng nhập.'
+  if (status === 409) return 'Email này đã gắn với một tài khoản Google khác.'
+  if (status === 404) return 'Đăng nhập bằng Google hiện chưa bật.'
+  if (status === 422) return 'Thông tin Google gửi về không hợp lệ. Vui lòng thử lại.'
+  if (status === 500) return 'Máy chủ gặp lỗi (HTTP 500). Vui lòng thử lại sau.'
+  return 'Không kết nối được máy chủ. Vui lòng thử lại.' // 502/504 qua proxy: thường là backend chưa chạy
+}

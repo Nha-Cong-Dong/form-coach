@@ -2,7 +2,7 @@
 // tests/test_web_auth_validate.py gọi script này; thoát mã khác 0 nếu có assert sai.
 // Chạy: node web/scripts/check-auth-validate.ts   (Node ≥ 22.18 chạy thẳng .ts)
 import assert from 'node:assert/strict'
-import { hasErrors, lockoutMessage, validateCredentials } from '../src/auth/validate.ts'
+import { googleMessage, hasErrors, lockoutMessage, validateCredentials } from '../src/auth/validate.ts'
 
 const ok = 'an@example.com'
 
@@ -44,5 +44,13 @@ assert.equal(lockoutMessage('61'), 'Bạn đã nhập sai quá nhiều lần. Vu
 assert.equal(lockoutMessage('1'), 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 1 phút.')
 for (const bad of [null, '', 'abc', '0', '-5'])
   assert.equal(lockoutMessage(bad), 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ít phút.')
+
+// googleMessage: mỗi mã của POST /api/auth/google một câu riêng; mã lạ = mất kết nối
+assert.match(googleMessage(401), /không thành công/)
+assert.match(googleMessage(403), /chưa được xác minh/)
+assert.match(googleMessage(409), /tài khoản Google khác/)
+assert.match(googleMessage(404), /chưa bật/)
+assert.match(googleMessage(500), /HTTP 500/)
+assert.match(googleMessage(502), /Không kết nối/)
 
 console.log('check-auth-validate: ok')

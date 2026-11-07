@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchAllowRegister, fetchMe, logout } from './auth/api'
+import { fetchAuthOptions, fetchMe, logout } from './auth/api'
+import type { AuthOptions } from './auth/api'
 import type { User } from './auth/api'
 import AuditLabel from './components/AuditLabel'
 import CaptureView from './components/CaptureView'
@@ -60,7 +61,7 @@ export default function App() {
   // undefined = đang hỏi server, null = chưa đăng nhập.
   const [user, setUser] = useState<User | null | undefined>(undefined)
   const [signOutError, setSignOutError] = useState<string | null>(null)
-  const [allowRegister, setAllowRegister] = useState(false)
+  const [authOptions, setAuthOptions] = useState<AuthOptions>({ allowRegister: false, googleClientId: null })
   // Phiên hết hạn giữa chừng (một API trả 401): hiện màn đăng nhập ĐÈ LÊN, giữ nguyên các màn
   // bên dưới để không mất hiệp chưa gửi (nằm trong state của CaptureView).
   const [sessionExpired, setSessionExpired] = useState(false)
@@ -89,8 +90,8 @@ export default function App() {
     // Không hỏi được server: vẫn hiện màn đăng nhập; lỗi kết nối hiện trong form khi bấm gửi
     // (không giữ một dòng báo lỗi cũ, dễ mâu thuẫn khi server chạy lại).
     const me = fetchMe().catch(() => null)
-    Promise.all([fetchAllowRegister(), me]).then(([allowed, u]) => {
-      setAllowRegister(allowed)
+    Promise.all([fetchAuthOptions(), me]).then(([options, u]) => {
+      setAuthOptions(options)
       setUser(u)
     })
   }, [])
@@ -105,7 +106,9 @@ export default function App() {
   // chưa đăng nhập thì chỉ có màn đăng nhập. Mọi màn bên dưới đều cần cookie phiên.
   if (user === undefined) return null
   if (user === null) {
-    return <LoginView allowRegister={allowRegister} onLoggedIn={setUser} />
+    return (
+      <LoginView allowRegister={authOptions.allowRegister} googleClientId={authOptions.googleClientId} onLoggedIn={setUser} />
+    )
   }
 
   const signOut = async () => {
@@ -134,6 +137,7 @@ export default function App() {
       <LoginView
         overlay
         allowRegister={false}
+        googleClientId={authOptions.googleClientId} // tài khoản chỉ có Google cũng đăng nhập lại được
         onLoggedIn={(u) => {
           setUser(u)
           setSessionExpired(false)

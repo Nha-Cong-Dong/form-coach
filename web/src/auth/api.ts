@@ -1,7 +1,7 @@
 // Gọi API đăng nhập (ARCHITECTURE §4). Phiên đăng nhập là cookie HttpOnly do server đặt:
 // JavaScript không đọc được nó, trình duyệt tự gửi kèm mọi request cùng nguồn (kể cả qua proxy
 // /api của Vite), nên ở đây không lưu token nào.
-import { lockoutMessage } from './validate'
+import { googleMessage, lockoutMessage } from './validate'
 
 export interface User {
   id: number
@@ -32,15 +32,24 @@ export async function fetchMe(): Promise<User | null> {
   return r.json()
 }
 
-/** Server có cho tạo tài khoản không. Không hỏi được thì coi như không (chỉ hiện đăng nhập). */
-export async function fetchAllowRegister(): Promise<boolean> {
+export interface AuthOptions {
+  allowRegister: boolean // tạo tài khoản bằng email
+  googleClientId: string | null // có thì vẽ nút Google (không phải bí mật)
+}
+
+/** Cấu hình màn đăng nhập. Không hỏi được thì coi như tắt cả hai (chỉ hiện đăng nhập email). */
+export async function fetchAuthOptions(): Promise<AuthOptions> {
+  const off: AuthOptions = { allowRegister: false, googleClientId: null }
   try {
     const r = await fetch('/api/auth/options')
-    if (!r.ok) return false
-    const body: { allow_register?: unknown } = await r.json()
-    return body.allow_register === true
+    if (!r.ok) return off
+    const body: { allow_register?: unknown; google_client_id?: unknown } = await r.json()
+    return {
+      allowRegister: body.allow_register === true,
+      googleClientId: typeof body.google_client_id === 'string' && body.google_client_id ? body.google_client_id : null,
+    }
   } catch {
-    return false
+    return off
   }
 }
 
@@ -72,6 +81,22 @@ export async function submitCredentials(mode: AuthMode, email: string, password:
   }
   if (r.ok) return r.json()
   throw messageFor(mode, r.status, r.headers.get('Retry-After'))
+}
+
+/** Gửi ID token của nút Google; server kiểm tra rồi đặt cookie. Lỗi ném `AuthError`. */
+export async function submitGoogle(credential: string): Promise<User> {
+  let r: Response
+  try {
+    r = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    })
+  } catch {
+    throw new AuthError(NETWORK)
+  }
+  if (r.ok) return r.json()
+  throw new AuthError(googleMessage(r.status))
 }
 
 /** Đăng xuất; lỗi (mất mạng, server lỗi) thì ném để web không báo đã đăng xuất khi chưa chắc. */

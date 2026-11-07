@@ -169,17 +169,25 @@ def test_same_google_account_logs_into_same_user(client: TestClient) -> None:
     assert len(users()) == 1
 
 
-def test_links_existing_password_account(client: TestClient, monkeypatch) -> None:
+def test_links_existing_password_account_and_drops_password(
+    client: TestClient, monkeypatch
+) -> None:
+    """Gộp vào tài khoản cùng email (giữ dữ liệu) và xoá mật khẩu: người tạo trước tài khoản bằng
+    email của chủ Google (đăng ký không xác minh email) không còn đăng nhập được."""
     monkeypatch.setenv("FORMCOACH_ALLOW_REGISTER", "1")
-    r = client.post("/api/auth/register", json={"email": "An@Gmail.com", "password": PW})
+    owner = TestClient(app)
+    r = owner.post("/api/auth/register", json={"email": "An@Gmail.com", "password": PW})
     old_id = r.json()["id"]
     r = google(TestClient(app))  # email khác hoa thường vẫn là một tài khoản
     assert r.status_code == 200 and r.json()["id"] == old_id
     [row] = users()
-    assert row["google_sub"] == "1100000000001" and row["password_hash"] is not None
-    # Mật khẩu cũ vẫn dùng được.
+    assert row["google_sub"] == "1100000000001" and row["password_hash"] is None
     login = TestClient(app).post("/api/auth/login", json={"email": "an@gmail.com", "password": PW})
-    assert login.status_code == 200
+    assert login.status_code == 401
+    # Phiên mở bằng mật khẩu từ trước bị huỷ; đăng nhập lại thì phải qua Google.
+    assert owner.get("/api/auth/me").status_code == 401
+    assert google(owner).json()["id"] == old_id
+    assert owner.get("/api/auth/me").json()["id"] == old_id
 
 
 def test_unverified_email_is_403(client: TestClient) -> None:

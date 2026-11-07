@@ -290,7 +290,9 @@ def google(body: GoogleCredential, response: Response, db: Db) -> dict[str, Any]
     """Đăng nhập (hoặc tạo tài khoản) bằng ID token của Google.
 
     Tìm theo `google_sub`; chưa có thì gộp vào tài khoản cùng email (Google đã xác minh email đó,
-    ARCHITECTURE §7 2026-10-24); chưa có nữa thì tạo tài khoản mới không mật khẩu.
+    ARCHITECTURE §7 2026-10-24), XOÁ mật khẩu và huỷ mọi phiên cũ của tài khoản đó (chống chiếm
+    tài khoản tạo trước);
+    chưa có nữa thì tạo tài khoản mới không mật khẩu.
     404: chưa cấu hình Client ID. 401: token sai. 403: email Google chưa xác minh.
     409: email đã gắn với một tài khoản Google khác.
     """
@@ -317,7 +319,15 @@ def google(body: GoogleCredential, response: Response, db: Db) -> dict[str, Any]
                 raise HTTPException(
                     status_code=409, detail="email đã gắn với một tài khoản Google khác"
                 )
-            db.execute("UPDATE users SET google_sub = %s WHERE id = %s", (identity.sub, row["id"]))
+            # Xoá mật khẩu khi gộp (bạn chọn b, 2026-11-07): đăng ký bằng email không xác minh
+            # email, nên tài khoản này có thể do người khác tạo trước bằng email của chủ Google.
+            # Từ giờ chỉ chủ Google đăng nhập được: mật khẩu cũ hết tác dụng, và mọi phiên đã mở
+            # bằng mật khẩu đó (cookie còn hạn 30 ngày) bị huỷ.
+            db.execute(
+                "UPDATE users SET google_sub = %s, password_hash = NULL WHERE id = %s",
+                (identity.sub, row["id"]),
+            )
+            db.execute("DELETE FROM auth_tokens WHERE user_id = %s", (row["id"],))
         else:
             try:
                 row = db.execute(
