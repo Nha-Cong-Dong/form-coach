@@ -172,10 +172,6 @@ export default function LoginView({ allowRegister, googleClientId, onLoggedIn, o
             {googleClientId && (
               <>
                 <GoogleButton clientId={googleClientId} onCredential={googleLogin} />
-                {/* S2: tắt đăng ký bằng email trên bản deploy, tài khoản mới chỉ tạo qua Google. */}
-                {!allowRegister && !overlay && (
-                  <p className="field-hint login-google-hint">Chưa có tài khoản? Bấm nút Google, app tự tạo cho bạn.</p>
-                )}
                 <div className="login-divider">
                   <span>hoặc dùng email</span>
                 </div>

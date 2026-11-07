@@ -744,11 +744,6 @@ main > .form-alert {
   color-scheme: light;
 }
 
-.login-google-hint {
-  margin: -8px 0 0;
-  text-align: center;
-}
-
 /* "hoặc dùng email": hai đường kẻ `line` hai bên chữ `ink2`. */
 .login-divider {
   display: flex;
@@ -771,6 +766,7 @@ main > .form-alert {
   font-size: var(--text-headline);
   font-weight: 700;
   letter-spacing: -0.02em;
+  text-align: center; /* thẳng hàng với nút Google (chữ căn giữa) ngay bên dưới */
 }
 
 .segmented {
